@@ -115,9 +115,9 @@ We have achieved perfect Google Lighthouse scores. If you break these rules, the
     - **How it should work:** When the admin logs in via Firebase Auth, they should simply be redirected back to the public website.
     - Because their session has `admin === true`, the frontend components should conditionally render "Edit" buttons (or `contentEditable` fields) directly on top of the live website elements.
     - **Full Control:** The admin must be able to click directly on the live website to edit: product titles, prices, descriptions, tags, upload replacement images/videos, and manage coupons. Clicking "Save" pushes the changes to Firestore and immediately reflects on the deployed site.
-    - **CRITICAL - SCHEMA FIELDS TO SUPPORT IN THE INLINE EDITOR:** You must ensure the inline editor allows the admin to edit these specific fields:
+    - **CRITICAL - SCHEMA FIELDS TO SUPPORT IN THE INLINE EDITOR:** You must ensure the inline editor allows the admin to edit these specific fields. **You must also enforce the following SEO character limits in the admin form UI:**
+      - `seoDescription?: string;` -> (Must show a character counter. Reject if under 120 chars. Aim for 120-160 characters for maximum CTR).
       - `tags?: string[];` // Array of multiple tags like "Bestseller", "Sale", etc. (Replaced legacy 'badge' field)
-      - `seoDescription?: string;`
       - `boughtLast7Days?: number;` // FOMO metric
       - `videoUrls?: string[];` // Array of UGC showcasing video URLs
       - `offers?: { title: string; description: string; code?: string; }[];`
