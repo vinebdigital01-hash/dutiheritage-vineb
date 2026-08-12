@@ -7,6 +7,8 @@ import { Header } from "@/components/Header/Header";
 import { Footer } from "@/components/Footer/Footer";
 import { CartDrawer } from "@/components/CartDrawer/CartDrawer";
 import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
+import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
+import { db } from "@/services/db";
 
 const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
@@ -51,14 +53,17 @@ export const viewport = {
   themeColor: "#000000",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const products = await db.getAllProducts();
+
   return (
     <html lang="en">
       <body>
+        <OfflineSync products={products} />
         <AppProvider>
           <AnnouncementBar />
           <Header />
