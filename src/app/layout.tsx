@@ -8,12 +8,15 @@ import { Footer } from "@/components/Footer/Footer";
 import { CartDrawer } from "@/components/CartDrawer/CartDrawer";
 import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
 
+const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return 'http://localhost:3000';
+};
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NODE_ENV === "production" 
-      ? "https://duti-heritage.com" 
-      : "http://localhost:3000"
-  ),
+  metadataBase: new URL(getBaseUrl()),
   title: "Duti Heritage | Premium Fashion",
   description: "Shop the finest premium fashion and luxury apparel. Experience elegance with Duti Heritage.",
   keywords: ["fashion", "luxury", "apparel", "clothing", "premium", "dresses"],
@@ -23,9 +26,10 @@ export const metadata: Metadata = {
     siteName: "Duti Heritage",
     images: [
       {
-        url: "/og-image.jpg", // Placeholder for actual OG image
+        url: "/images/velvet.jpg", // Default OG image for the homepage
         width: 1200,
         height: 630,
+        alt: "Duti Heritage Premium Fashion"
       }
     ],
     locale: "en_US",
