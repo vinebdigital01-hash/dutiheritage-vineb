@@ -42,11 +42,13 @@ export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
 
         <nav className="flex flex-col py-4 flex-1 overflow-y-auto">
           <Link href="/" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>HOME</Link>
-          <Link href="/collections/party-wear" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>PARTY WEAR</Link>
+          <Link href="/collections/all" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>ALL PRODUCTS</Link>
+          <Link href="/collections/dresses" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>DRESSES</Link>
           <Link href="/collections/premium-night-wear" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>PREMIUM NIGHT WEAR</Link>
-          <Link href="/collections/winter-collection" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>WINTER COLLECTION</Link>
-          <Link href="/collections/co-ords" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>CO ORDS</Link>
-          <Link href="/collections/vacation" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>PERFECT FOR YOUR VACATION</Link>
+          <Link href="/collections/velvet" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>VELVET COLLECTION</Link>
+          <Link href="/collections/unstitched" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>UNSTITCHED</Link>
+          <Link href="/collections/wedding" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>WEDDING / TROUSSEAU</Link>
+          <Link href="/collections/best-sellers" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>BEST SELLERS</Link>
           <Link href="/collections/on-sale" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>ON SALE</Link>
         </nav>
         

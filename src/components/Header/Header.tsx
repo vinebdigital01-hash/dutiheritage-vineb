@@ -39,10 +39,11 @@ export const Header = () => {
             <nav className="hidden xl:flex flex-col gap-2 ml-10 items-start">
               <div className="flex gap-6">
                 <Link href="/" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">HOME</Link>
-                <Link href="/collections/party-wear" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">PARTY WEAR</Link>
+                <Link href="/collections/dresses" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">DRESSES</Link>
               </div>
               <div className="flex gap-6">
                 <Link href="/collections/premium-night-wear" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">PREMIUM NIGHT WEAR</Link>
+                <Link href="/collections/best-sellers" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">BEST SELLERS</Link>
               </div>
             </nav>
           </div>
@@ -58,11 +59,11 @@ export const Header = () => {
           <div className="flex items-center justify-end flex-1">
             <nav className="hidden xl:flex flex-col gap-2 mr-10 items-end">
               <div className="flex gap-6">
-                <Link href="/collections/winter-collection" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">WINTER COLLECTION</Link>
-                <Link href="/collections/co-ords" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">CO ORDS</Link>
+                <Link href="/collections/velvet" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">VELVET COLLECTION</Link>
+                <Link href="/collections/unstitched" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">UNSTITCHED</Link>
               </div>
               <div className="flex gap-6">
-                <Link href="/collections/vacation" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">PERFECT FOR YOUR VACATION</Link>
+                <Link href="/collections/wedding" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">WEDDING</Link>
                 <Link href="/collections/on-sale" className="text-[14px] tracking-wide uppercase hover:opacity-70 transition-opacity">ON SALE</Link>
               </div>
             </nav>
