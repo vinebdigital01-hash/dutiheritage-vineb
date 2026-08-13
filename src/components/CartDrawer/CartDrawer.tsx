@@ -14,12 +14,12 @@ export const CartDrawer = () => {
     <>
       {/* Overlay */}
       <div 
-        className="fixed inset-0 bg-black/50 z-50 transition-opacity" 
+        className="fixed inset-0 bg-black/50 z-[100] transition-opacity" 
         onClick={() => setIsCartOpen(false)}
       />
       
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-[400px] bg-white z-50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="fixed top-0 right-0 h-full w-full max-w-[400px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
