@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import { firestore } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
+import { State, City } from "country-state-city";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -44,6 +45,10 @@ export default function CheckoutPage() {
       }));
     }
   }, [user, userProfile]);
+
+  const indianStates = State.getStatesOfCountry("IN");
+  const selectedState = indianStates.find(s => s.name === formData.state);
+  const indianCities = selectedState ? City.getCitiesOfState("IN", selectedState.isoCode) : [];
 
   const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const shipping = subtotal > 0 ? 150 : 0; // Flat Rs. 150 shipping, or 0 if empty
@@ -226,12 +231,18 @@ export default function CheckoutPage() {
                   <input
                     type="text"
                     name="city"
+                    list="cityList"
                     value={formData.city}
                     onChange={handleInputChange}
                     placeholder="City"
                     className="w-1/3 border border-[var(--color-border)] p-3 text-[14px] rounded focus:border-black outline-none transition-colors"
                     required
                   />
+                  <datalist id="cityList">
+                    {indianCities.map(c => (
+                      <option key={c.name} value={c.name} />
+                    ))}
+                  </datalist>
                   <select 
                     name="state" 
                     value={formData.state} 
@@ -240,9 +251,9 @@ export default function CheckoutPage() {
                     required
                   >
                     <option value="">State</option>
-                    <option>Maharashtra</option>
-                    <option>Delhi</option>
-                    <option>Karnataka</option>
+                    {indianStates.map(s => (
+                      <option key={s.isoCode} value={s.name}>{s.name}</option>
+                    ))}
                   </select>
                   <input
                     type="text"
