@@ -2,12 +2,14 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import { firestore } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 
 export default function CheckoutPage() {
-  const { cart, user, userProfile } = useAppContext();
+  const router = useRouter();
+  const { cart, user, userProfile, clearCart } = useAppContext();
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
   const [saveToProfile, setSaveToProfile] = useState(true);
@@ -99,19 +101,13 @@ export default function CheckoutPage() {
 
     // 3. TODO: Integrate Payment Gateway Here (Razorpay, Stripe, etc.)
     // Example Razorpay flow:
-    // const { orderId } = await fetch('/api/create-order', { method: 'POST', body: JSON.stringify(orderPayload) }).then(res => res.json());
-    // const options = {
-    //   key: "YOUR_RAZORPAY_KEY",
-    //   amount: orderPayload.summary.total * 100, // paise
-    //   currency: "INR",
-    //   order_id: orderId,
-    //   handler: function (response) { alert("Payment Successful!") },
-    //   prefill: { name: formData.firstName, email: formData.email, contact: formData.phone }
-    // };
-    // const rzp = new window.Razorpay(options);
-    // rzp.open();
+    // ...
     
-    alert("This is a demo store. In production, this would open your Payment Gateway (e.g. Razorpay/Stripe)!");
+    // Simulate successful payment processing
+    setTimeout(() => {
+      clearCart();
+      router.push("/checkout/success");
+    }, 1500); // Small delay to feel like it's processing
   };
 
   if (cart.length === 0) {
@@ -301,7 +297,7 @@ export default function CheckoutPage() {
 
             <button 
               type="submit"
-              className="w-full bg-black text-white py-4 text-[14px] font-medium tracking-[1px] rounded hover:bg-black/90 transition-colors mt-4"
+              className="w-full bg-black text-white py-4 text-[14px] font-medium tracking-[1px] rounded hover:bg-black/90 transition-colors mt-4 relative overflow-hidden"
             >
               Pay now
             </button>

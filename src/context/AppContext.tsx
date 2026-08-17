@@ -26,6 +26,7 @@ interface AppContextType {
   cart: CartItem[];
   addToCart: (product: Product, size: string) => void;
   removeFromCart: (cartItemId: string) => void;
+  clearCart: () => void;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
   isSearchOpen: boolean;
@@ -133,6 +134,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
   }, []);
 
+  const clearCart = React.useCallback(() => {
+    setCart([]);
+  }, []);
+
   const addRecentlyViewed = React.useCallback((product: Product) => {
     setRecentlyViewed((prev) => {
       // If it's already the first item, don't update state to prevent unnecessary re-renders
@@ -162,6 +167,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         cart,
         addToCart,
         removeFromCart,
+        clearCart,
         isCartOpen,
         setIsCartOpen,
         isSearchOpen,
