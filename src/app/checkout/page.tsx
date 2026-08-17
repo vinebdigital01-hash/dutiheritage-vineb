@@ -1,13 +1,16 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
+import { firestore } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 export default function CheckoutPage() {
-  const { cart } = useAppContext();
+  const { cart, user, userProfile } = useAppContext();
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
+  const [saveToProfile, setSaveToProfile] = useState(true);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -21,6 +24,24 @@ export default function CheckoutPage() {
     pinCode: "",
     phone: ""
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        email: user.email || prev.email,
+        firstName: user.name?.split(" ")[0] || prev.firstName,
+        lastName: user.name?.split(" ").slice(1).join(" ") || prev.lastName,
+        phone: user.phone || userProfile?.phone || prev.phone,
+        address: userProfile?.address || prev.address,
+        apartment: userProfile?.apartment || prev.apartment,
+        city: userProfile?.city || prev.city,
+        state: userProfile?.state || prev.state,
+        pinCode: userProfile?.pinCode || prev.pinCode,
+        country: userProfile?.country || prev.country
+      }));
+    }
+  }, [user, userProfile]);
 
   const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const shipping = subtotal > 0 ? 150 : 0; // Flat Rs. 150 shipping, or 0 if empty
@@ -58,7 +79,25 @@ export default function CheckoutPage() {
 
     console.log("Initiating Payment with Payload:", orderPayload);
 
-    // 2. TODO: Integrate Payment Gateway Here (Razorpay, Stripe, etc.)
+    // 2. Save profile data if checked
+    if (user && saveToProfile) {
+      try {
+        await setDoc(doc(firestore, "users", user.uid), {
+          phone: formData.phone,
+          address: formData.address,
+          apartment: formData.apartment,
+          city: formData.city,
+          state: formData.state,
+          pinCode: formData.pinCode,
+          country: formData.country
+        }, { merge: true });
+        console.log("Profile updated successfully!");
+      } catch (error) {
+        console.error("Error saving profile:", error);
+      }
+    }
+
+    // 3. TODO: Integrate Payment Gateway Here (Razorpay, Stripe, etc.)
     // Example Razorpay flow:
     // const { orderId } = await fetch('/api/create-order', { method: 'POST', body: JSON.stringify(orderPayload) }).then(res => res.json());
     // const options = {
@@ -107,7 +146,7 @@ export default function CheckoutPage() {
             <section>
               <div className="flex justify-between items-end mb-4">
                 <h2 className="text-xl font-serif tracking-wide">Contact</h2>
-                <Link href="/account" className="text-[13px] underline">Log in</Link>
+                {!user && <Link href="/account" className="text-[13px] underline">Log in</Link>}
               </div>
               <input
                 type="email"
@@ -238,6 +277,21 @@ export default function CheckoutPage() {
                 <p className="text-[14px] text-gray-500">Upon clicking &apos;Pay now&apos;, your payment gateway will open.</p>
               </div>
             </section>
+
+            {user && (
+              <div className="flex items-start gap-3 mt-4 bg-gray-50 p-4 border border-[var(--color-border)] rounded">
+                <input 
+                  type="checkbox" 
+                  id="saveProfile" 
+                  checked={saveToProfile} 
+                  onChange={(e) => setSaveToProfile(e.target.checked)} 
+                  className="w-4 h-4 mt-0.5 accent-black shrink-0" 
+                />
+                <label htmlFor="saveProfile" className="text-[13px] leading-tight text-[var(--color-text-muted)] cursor-pointer">
+                  Save this delivery information to my profile for faster checkout next time.
+                </label>
+              </div>
+            )}
 
             <button 
               type="submit"

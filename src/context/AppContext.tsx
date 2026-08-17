@@ -2,13 +2,24 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Product } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { auth, firestore } from "@/lib/firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
   selectedSize: string;
   quantity: number;
+}
+
+export interface UserProfile {
+  phone?: string;
+  address?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  country?: string;
 }
 
 interface AppContextType {
@@ -21,7 +32,8 @@ interface AppContextType {
   setIsSearchOpen: (isOpen: boolean) => void;
   recentlyViewed: Product[];
   addRecentlyViewed: (product: Product) => void;
-  user: { name: string; email: string; uid: string } | null;
+  user: { name: string; email: string; uid: string; phone?: string } | null;
+  userProfile: UserProfile | null;
   authLoading: boolean;
   login: (email: string) => void;
   logout: () => void;
@@ -33,7 +45,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
-  const [user, setUser] = useState<{ name: string; email: string; uid: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; uid: string; phone?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -53,15 +66,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setIsInitialized(true);
 
     // Listen to live Firebase Auth state
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
           name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+          phone: firebaseUser.phoneNumber || undefined
         });
+
+        try {
+          const profileDoc = await getDoc(doc(firestore, "users", firebaseUser.uid));
+          if (profileDoc.exists()) {
+            setUserProfile(profileDoc.data() as UserProfile);
+          } else {
+            setUserProfile(null);
+          }
+        } catch (e) {
+          console.error("Error fetching user profile", e);
+          setUserProfile(null);
+        }
       } else {
         setUser(null);
+        setUserProfile(null);
       }
       setAuthLoading(false);
     });
@@ -142,6 +169,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         recentlyViewed,
         addRecentlyViewed,
         user,
+        userProfile,
         authLoading,
         login,
         logout,
