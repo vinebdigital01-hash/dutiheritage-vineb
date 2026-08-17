@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 
 import { AppProvider } from "@/context/AppContext";
@@ -8,6 +9,7 @@ import { Footer } from "@/components/Footer/Footer";
 import { CartDrawer } from "@/components/CartDrawer/CartDrawer";
 import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
 import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
+import { FacebookPixel } from "@/components/FacebookPixel/FacebookPixel";
 import { db } from "@/services/db";
 
 const getBaseUrl = () => {
@@ -63,6 +65,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
+        <Suspense fallback={null}>
+          <FacebookPixel />
+        </Suspense>
         <OfflineSync products={products} />
         <AppProvider>
           <AnnouncementBar />

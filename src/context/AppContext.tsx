@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Product } from "@/types";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
@@ -85,6 +86,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       return [...prev, { ...product, cartItemId, selectedSize: size, quantity: 1 }];
     });
     setIsCartOpen(true);
+    trackMetaEvent("AddToCart", {
+      content_ids: [product.id],
+      content_name: product.name,
+      currency: "INR",
+      value: product.salePrice || product.price,
+    });
   }, []);
 
   const removeFromCart = React.useCallback((cartItemId: string) => {
