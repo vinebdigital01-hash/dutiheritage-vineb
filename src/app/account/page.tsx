@@ -193,7 +193,7 @@ export default function AccountPage() {
   // ----------------------------------------------------
   if (authLoading) {
     return (
-      <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
+      <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
         <p className="text-[14px] text-[var(--color-text-muted)] animate-pulse">Loading...</p>
       </main>
     );
@@ -201,7 +201,7 @@ export default function AccountPage() {
 
   if (user) {
     return (
-      <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
+      <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
         <div className="max-w-[600px] w-full text-center">
           <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-4">My Account</h1>
           <p className="text-[14px] text-[var(--color-text-muted)] mb-12">
@@ -232,11 +232,11 @@ export default function AccountPage() {
   // RENDER LOGGED OUT VIEW (LOGIN FORM)
   // ----------------------------------------------------
   return (
-    <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
+    <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-bg)]">
       <div className="max-w-[400px] w-full">
         <div id="recaptcha-container"></div>
         
-        <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-8 text-center">
+        <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-6 text-center">
           {authMode === "email" ? "Login" : "Phone Login"}
         </h1>
         
@@ -248,7 +248,7 @@ export default function AccountPage() {
         {/* ------------------------------------------------ */}
         {authMode === "email" && (
           <>
-            <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
+            <form onSubmit={handleEmailLogin} className="flex flex-col gap-3">
               <input
                 type="email"
                 placeholder="Email"
@@ -265,7 +265,7 @@ export default function AccountPage() {
                 className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
               />
               
-              <div className="text-left mb-2 mt-1 flex justify-between">
+              <div className="text-left mb-1 flex justify-between">
                 <Link href="#" className="text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black">
                   Forgot your password?
                 </Link>
@@ -274,12 +274,12 @@ export default function AccountPage() {
               <button 
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
+                className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {loading ? "Processing..." : "Sign In / Register"}
               </button>
 
-              <div className="relative flex items-center justify-center mt-6 mb-2">
+              <div className="relative flex items-center justify-center mt-4 mb-2">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-[var(--color-border)]"></div>
                 </div>
@@ -317,10 +317,10 @@ export default function AccountPage() {
                 type="button"
                 onClick={handleMagicLinkLogin}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 mt-4 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-3 border border-[var(--color-text)] text-[var(--color-text)] py-3 mt-1 hover:bg-[var(--color-text)] hover:text-white transition-colors disabled:opacity-50"
               >
                 <FiMail className="text-xl" />
-                <span className="text-[13px]">Send Magic Link</span>
+                <span className="text-[13px] tracking-[1px] uppercase">Send Magic Link</span>
               </button>
             </form>
           </>
