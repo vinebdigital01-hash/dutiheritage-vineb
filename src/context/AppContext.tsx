@@ -83,8 +83,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           } else {
             setUserProfile(null);
           }
-        } catch (e) {
-          console.error("Error fetching user profile", e);
+        } catch (e: any) {
+          if (e.message && e.message.includes("offline")) {
+            console.warn("Could not fetch user profile (client is offline).");
+          } else {
+            console.warn("Error fetching user profile:", e.message || e);
+          }
           setUserProfile(null);
         }
       } else {
