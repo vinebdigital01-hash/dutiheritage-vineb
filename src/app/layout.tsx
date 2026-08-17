@@ -70,12 +70,14 @@ export default async function RootLayout({
         </Suspense>
         <OfflineSync products={products} />
         <AppProvider>
-          <AnnouncementBar />
-          <Header />
-          <SearchDrawer />
-          <CartDrawer />
-          <main>{children}</main>
-          <Footer />
+          <div className="flex flex-col min-h-screen">
+            <AnnouncementBar />
+            <Header />
+            <SearchDrawer />
+            <CartDrawer />
+            <main className="flex-grow">{children}</main>
+            <Footer />
+          </div>
         </AppProvider>
       </body>
     </html>
