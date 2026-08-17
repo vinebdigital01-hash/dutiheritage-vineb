@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Product } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
@@ -19,7 +21,8 @@ interface AppContextType {
   setIsSearchOpen: (isOpen: boolean) => void;
   recentlyViewed: Product[];
   addRecentlyViewed: (product: Product) => void;
-  user: { name: string; email: string } | null;
+  user: { name: string; email: string; uid: string } | null;
+  authLoading: boolean;
   login: (email: string) => void;
   logout: () => void;
   isInitialized: boolean;
@@ -30,7 +33,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; uid: string } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -40,16 +44,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const savedCart = localStorage.getItem("duti-heritage_cart");
       const savedRecentlyViewed = localStorage.getItem("duti-heritage_recently_viewed");
-      const savedUser = localStorage.getItem("duti-heritage_user");
       
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (savedCart) setCart(JSON.parse(savedCart));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (savedRecentlyViewed) setRecentlyViewed(JSON.parse(savedRecentlyViewed));
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (savedUser) setUser(JSON.parse(savedUser));
     } catch {}
     setIsInitialized(true);
+
+    // Listen to live Firebase Auth state
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+        });
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Save to LocalStorage on change
@@ -62,15 +79,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isInitialized) return;
     localStorage.setItem("duti-heritage_recently_viewed", JSON.stringify(recentlyViewed));
   }, [recentlyViewed, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    if (user) {
-      localStorage.setItem("duti-heritage_user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("duti-heritage_user");
-    }
-  }, [user, isInitialized]);
 
   const addToCart = React.useCallback((product: Product, size: string) => {
     setCart((prev) => {
@@ -109,13 +117,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = React.useCallback((email: string) => {
-    // Basic mock login: just strip the @domain and use it as a name
-    const name = email.split("@")[0];
-    setUser({ name, email });
+    // This is now handled by the UI calling Firebase directly, 
+    // but keeping it here to avoid breaking other components if they use it.
   }, []);
 
-  const logout = React.useCallback(() => {
-    setUser(null);
+  const logout = React.useCallback(async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out", error);
+    }
   }, []);
 
   return (
@@ -131,6 +142,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         recentlyViewed,
         addRecentlyViewed,
         user,
+        authLoading,
         login,
         logout,
         isInitialized,
