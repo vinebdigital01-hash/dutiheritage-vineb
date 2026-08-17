@@ -14,6 +14,7 @@ export default function CheckoutPage() {
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
   const [saveToProfile, setSaveToProfile] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -108,7 +109,8 @@ export default function CheckoutPage() {
     // Example Razorpay flow:
     // ...
     
-    // Simulate successful payment processing
+    // 3. Simulate successful payment processing
+    setIsProcessing(true);
     setTimeout(() => {
       clearCart();
       router.push("/checkout/success");
@@ -308,9 +310,16 @@ export default function CheckoutPage() {
 
             <button 
               type="submit"
-              className="w-full bg-black text-white py-4 text-[14px] font-medium tracking-[1px] rounded hover:bg-black/90 transition-colors mt-4 relative overflow-hidden"
+              disabled={isProcessing}
+              className={`w-full py-4 text-[14px] font-medium tracking-[1px] rounded transition-colors mt-4 relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? 'bg-gray-800 text-gray-300 cursor-not-allowed' : 'bg-black text-white hover:bg-black/90'}`}
             >
-              Pay now
+              {isProcessing && (
+                <svg className="animate-spin h-5 w-5 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {isProcessing ? "Processing..." : "Pay now"}
             </button>
             
           </form>
