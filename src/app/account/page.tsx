@@ -169,7 +169,7 @@ export default function AccountPage() {
       try {
         const methods = await fetchSignInMethodsForEmail(auth, email);
         if (methods.length === 0) {
-          setError("No account found with this email. Please sign in or register first.");
+          setError("No account found with this email. Please register first.");
           setLoading(false);
           return;
         }
@@ -181,7 +181,7 @@ export default function AccountPage() {
       setMessage(`A password reset link was sent to ${email}. Check your inbox!`);
     } catch (err: any) {
       if (err.code === "auth/user-not-found") {
-        setError("No account found with this email. Please sign in or register first.");
+        setError("No account found with this email. Please register first.");
       } else if (err.code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
       } else {
