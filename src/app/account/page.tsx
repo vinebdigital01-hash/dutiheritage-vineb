@@ -15,7 +15,10 @@ import {
   sendPasswordResetEmail,
   fetchSignInMethodsForEmail,
   RecaptchaVerifier,
-  signInWithPhoneNumber
+  signInWithPhoneNumber,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  sendSignInLinkToEmail
 } from "firebase/auth";
 
 declare global {
@@ -31,6 +34,27 @@ export default function AccountPage() {
   // View States
   const [authMode, setAuthMode] = useState<"email" | "phone">("email");
   const [showOTP, setShowOTP] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
+      if (!emailForSignIn) {
+        emailForSignIn = window.prompt('Please provide your email for confirmation');
+      }
+      if (emailForSignIn) {
+        setLoading(true);
+        signInWithEmailLink(auth, emailForSignIn, window.location.href)
+          .then(() => {
+            window.localStorage.removeItem('emailForSignIn');
+          })
+          .catch((err: any) => {
+            setError(err.message);
+          })
+          .finally(() => setLoading(false));
+      }
+    }
+  }, []);
 
   // Form States
   const [email, setEmail] = useState("");
@@ -192,6 +216,29 @@ export default function AccountPage() {
     }
   };
 
+  const handleMagicLink = async () => {
+    if (!email) {
+      setError("Please enter your email address to receive a login link.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const actionCodeSettings = {
+        url: window.location.origin + '/account',
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email);
+      setMessage(`A magic login link was sent to ${email}. Check your inbox!`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ----------------------------------------------------
   // RENDER LOGGED IN VIEW
   // ----------------------------------------------------
@@ -248,9 +295,48 @@ export default function AccountPage() {
         {message && <div className="mb-4 p-3 bg-green-50 text-green-700 text-[13px] border border-green-100">{message}</div>}
 
         {/* ------------------------------------------------ */}
+        {/* FORGOT MODE UI */}
+        {/* ------------------------------------------------ */}
+        {forgotMode && (
+          <div className="flex flex-col gap-3 w-full">
+            <h2 className="text-xl font-serif text-center mb-4 tracking-[2px] uppercase">Login Help</h2>
+            <p className="text-center text-[13px] text-[var(--color-text-muted)] mb-4 leading-relaxed">
+              Do you want to receive a direct login link or reset your password?
+            </p>
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent mb-2"
+            />
+            <button 
+              onClick={handleMagicLink}
+              disabled={loading}
+              className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-3 hover:bg-black/90 transition-colors disabled:opacity-50"
+            >
+              Direct Login via Link
+            </button>
+            <button 
+              onClick={handleForgotPassword}
+              disabled={loading}
+              className="w-full border border-[var(--color-border)] text-[var(--color-text)] text-[13px] tracking-[2px] uppercase py-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Reset Password
+            </button>
+            <button 
+              onClick={() => { setForgotMode(false); setError(null); setMessage(null); }} 
+              className="w-full text-center text-[12px] mt-4 text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black"
+            >
+              Back to login
+            </button>
+          </div>
+        )}
+
+        {/* ------------------------------------------------ */}
         {/* EMAIL FORM */}
         {/* ------------------------------------------------ */}
-        {authMode === "email" && (
+        {!forgotMode && authMode === "email" && (
           <>
             <form onSubmit={handleEmailLogin} className="flex flex-col gap-3">
               <input
@@ -272,7 +358,7 @@ export default function AccountPage() {
               <div className="text-left mb-1 flex justify-between">
                 <button 
                   type="button" 
-                  onClick={handleForgotPassword}
+                  onClick={() => { setForgotMode(true); setError(null); setMessage(null); }}
                   className="text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black"
                 >
                   Forgot your password?
