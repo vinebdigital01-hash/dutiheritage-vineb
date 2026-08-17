@@ -131,17 +131,16 @@ export default function AccountPage() {
   // ----------------------------------------------------
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
     setLoading(true);
     setError(null);
     setMessage(null);
-    
+    const cleanEmail = email.trim();
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, cleanEmail, password);
     } catch (err: any) {
       if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
         try {
-          await createUserWithEmailAndPassword(auth, email, password);
+          await createUserWithEmailAndPassword(auth, cleanEmail, password);
           setMessage("Account created successfully!");
         } catch (signupErr: any) {
           setError(signupErr.message);
@@ -181,7 +180,8 @@ export default function AccountPage() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
       setError("Please enter your email above and click 'Forgot your password?' again to receive a reset link.");
       return;
     }
@@ -191,7 +191,7 @@ export default function AccountPage() {
     try {
       // Check if user exists first (if email enumeration protection is off)
       try {
-        const methods = await fetchSignInMethodsForEmail(auth, email);
+        const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
         if (methods.length === 0) {
           setError("No account found with this email. Please register first.");
           setLoading(false);
@@ -201,8 +201,8 @@ export default function AccountPage() {
         // Ignore check errors and fallback to sendPasswordResetEmail
       }
 
-      await sendPasswordResetEmail(auth, email);
-      setMessage(`A password reset link was sent to ${email}. Check your inbox!`);
+      await sendPasswordResetEmail(auth, cleanEmail);
+      setMessage(`A password reset link was sent to ${cleanEmail}. Check your inbox!`);
     } catch (err: any) {
       if (err.code === "auth/user-not-found") {
         setError("No account found with this email. Please register first.");
@@ -217,7 +217,8 @@ export default function AccountPage() {
   };
 
   const handleMagicLink = async () => {
-    if (!email) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
       setError("Please enter your email address to receive a login link.");
       return;
     }
@@ -225,13 +226,23 @@ export default function AccountPage() {
     setError(null);
     setMessage(null);
     try {
+      // Ensure they are registered before sending magic link
+      try {
+        const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
+        if (methods.length === 0) {
+          setError("No account found with this email. Please register first.");
+          setLoading(false);
+          return;
+        }
+      } catch (e) {}
+
       const actionCodeSettings = {
         url: window.location.origin + '/account',
         handleCodeInApp: true,
       };
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      setMessage(`A magic login link was sent to ${email}. Check your inbox!`);
+      await sendSignInLinkToEmail(auth, cleanEmail, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', cleanEmail);
+      setMessage(`A magic login link was sent to ${cleanEmail}. Check your inbox!`);
     } catch (err: any) {
       setError(err.message);
     } finally {
