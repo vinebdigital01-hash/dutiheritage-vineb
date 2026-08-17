@@ -149,7 +149,7 @@ export default function CheckoutPage() {
                 {!user && <Link href="/account" className="text-[13px] underline">Log in</Link>}
               </div>
               <input
-                type="email"
+                type="text"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
@@ -159,7 +159,13 @@ export default function CheckoutPage() {
               />
               <div className="flex items-center gap-2 mt-3">
                 <input type="checkbox" id="news" className="w-4 h-4 accent-black" />
-                <label htmlFor="news" className="text-[14px] text-[var(--color-text-muted)]">Email me with news and offers</label>
+                <label htmlFor="news" className="text-[14px] text-[var(--color-text-muted)]">
+                  {formData.email.includes('@') 
+                    ? "Email me with news and offers" 
+                    : formData.email.trim() !== '' 
+                      ? "Text me with news and offers" 
+                      : "Email or text me with news and offers"}
+                </label>
               </div>
             </section>
 
