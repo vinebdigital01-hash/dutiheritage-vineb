@@ -126,5 +126,14 @@ We have achieved perfect Google Lighthouse scores. If you break these rules, the
       - `targetIds`: string[] (Array of specific Category IDs or Product IDs)
       - The `/checkout` API logic must strictly validate this scope before applying the discount.
 5. **Checkout Page:** Create `src/app/checkout/page.tsx`. Hook it up to Razorpay, Stripe, or PhonePe.
+6. **Abandoned Cart Email Triggers (Automations):**
+   - When a user adds an item to their cart and inputs their email (or is logged in), sync the cart to a `carts` collection in Firestore with a `status: "abandoned"` and a `last_updated` timestamp.
+   - Set up a Vercel Cron Job (`src/app/api/cron/abandoned-carts/route.ts`) to run hourly. It should query for carts older than 2 hours and trigger an email via Resend or SendGrid API. Update status to `status: "emailed"`.
+   - When they checkout, update the document to `status: "purchased"`.
+7. **Inline Admin Analytics Dashboard:**
+   - In addition to inline text editing, the admin must be able to view live store analytics directly on the frontend (e.g., in a sliding drawer or floating panel).
+   - Show total **Views** (integrate PostHog or Google Analytics API for accurate traffic counts).
+   - Show total **Purchases** (queried from Firestore).
+   - Show total **Abandoned Carts** (queried from Firestore).
 
 Good luck! You are stepping into a beautifully structured, heavily optimized codebase. Have fun building!
