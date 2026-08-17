@@ -72,6 +72,7 @@ export default function CheckoutPage() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsProcessing(true);
     
     // 1. Gather all order data
     const orderPayload = {
@@ -87,30 +88,22 @@ export default function CheckoutPage() {
 
     console.log("Initiating Payment with Payload:", orderPayload);
 
-    // 2. Save profile data if checked
+    // 2. Save profile data if checked (running in background, not blocking)
     if (user && saveToProfile) {
-      try {
-        await setDoc(doc(firestore, "users", user.uid), {
-          phone: formData.phone,
-          address: formData.address,
-          apartment: formData.apartment,
-          city: formData.city,
-          state: formData.state,
-          pinCode: formData.pinCode,
-          country: formData.country
-        }, { merge: true });
-        console.log("Profile updated successfully!");
-      } catch (error) {
-        console.error("Error saving profile:", error);
-      }
+      setDoc(doc(firestore, "users", user.uid), {
+        phone: formData.phone,
+        address: formData.address,
+        apartment: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        pinCode: formData.pinCode,
+        country: formData.country
+      }, { merge: true })
+        .then(() => console.log("Profile updated successfully!"))
+        .catch((error) => console.error("Error saving profile:", error));
     }
 
-    // 3. TODO: Integrate Payment Gateway Here (Razorpay, Stripe, etc.)
-    // Example Razorpay flow:
-    // ...
-    
     // 3. Simulate successful payment processing
-    setIsProcessing(true);
     setTimeout(() => {
       clearCart();
       router.push("/checkout/success");
