@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
+import { FaFacebook } from "react-icons/fa";
 import { FiMail, FiPhone, FiArrowLeft } from "react-icons/fi"; 
 import { auth } from "@/lib/firebase";
 import { 
@@ -10,9 +11,8 @@ import {
   createUserWithEmailAndPassword, 
   signInWithPopup, 
   GoogleAuthProvider, 
-  sendSignInLinkToEmail, 
-  isSignInWithEmailLink, 
-  signInWithEmailLink,
+  FacebookAuthProvider,
+  sendPasswordResetEmail,
   RecaptchaVerifier,
   signInWithPhoneNumber
 } from "firebase/auth";
@@ -42,30 +42,6 @@ export default function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ----------------------------------------------------
-  // HANDLE MAGIC LINK (PASSWORDLESS) COMPLETION
-  // ----------------------------------------------------
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
-      if (!emailForSignIn) {
-        emailForSignIn = window.prompt('Please provide your email for confirmation');
-      }
-      if (emailForSignIn) {
-        setLoading(true);
-        signInWithEmailLink(auth, emailForSignIn, window.location.href)
-          .then(() => {
-            window.localStorage.removeItem('emailForSignIn');
-            setMessage("Successfully logged in with Magic Link!");
-            window.history.replaceState(null, "", "/account");
-          })
-          .catch((err) => {
-            setError(err.message);
-          })
-          .finally(() => setLoading(false));
-      }
-    }
-  }, []);
 
   // ----------------------------------------------------
   // PHONE AUTH HANDLERS
@@ -166,21 +142,29 @@ export default function AccountPage() {
     }
   };
 
-  const handleMagicLinkLogin = async () => {
+  const handleFacebookLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new FacebookAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
     if (!email) {
-      setError("Please enter your email above to receive a magic link.");
+      setError("Please enter your email above and click 'Forgot your password?' again to receive a reset link.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const actionCodeSettings = {
-        url: window.location.origin + '/account',
-        handleCodeInApp: true,
-      };
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      setMessage(`A magic login link was sent to ${email}. Check your inbox!`);
+      await sendPasswordResetEmail(auth, email);
+      setMessage(`A password reset link was sent to ${email}. Check your inbox!`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -266,9 +250,13 @@ export default function AccountPage() {
               />
               
               <div className="text-left mb-1 flex justify-between">
-                <Link href="#" className="text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black">
+                <button 
+                  type="button" 
+                  onClick={handleForgotPassword}
+                  className="text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black"
+                >
                   Forgot your password?
-                </Link>
+                </button>
               </div>
 
               <button 
@@ -288,15 +276,24 @@ export default function AccountPage() {
                 </div>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-2 sm:gap-4">
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
                   disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
                 >
                   <FcGoogle className="text-xl" />
-                  <span className="text-[13px]">Google</span>
+                  <span className="text-[12px] sm:text-[13px]">Google</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFacebookLogin}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                >
+                  <FaFacebook className="text-xl text-[#1877F2]" />
+                  <span className="text-[12px] sm:text-[13px]">Facebook</span>
                 </button>
                 <button
                   type="button"
@@ -306,22 +303,12 @@ export default function AccountPage() {
                     setMessage(null);
                   }}
                   disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
                 >
                   <FiPhone className="text-xl" />
-                  <span className="text-[13px]">Phone</span>
+                  <span className="text-[12px] sm:text-[13px]">Phone</span>
                 </button>
               </div>
-              
-              <button
-                type="button"
-                onClick={handleMagicLinkLogin}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 border border-[var(--color-text)] text-[var(--color-text)] py-3 mt-1 hover:bg-[var(--color-text)] hover:text-white transition-colors disabled:opacity-50"
-              >
-                <FiMail className="text-xl" />
-                <span className="text-[13px] tracking-[1px] uppercase">Send Magic Link</span>
-              </button>
             </form>
           </>
         )}
