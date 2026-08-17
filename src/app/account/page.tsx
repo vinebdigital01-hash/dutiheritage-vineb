@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
-import { FiMail } from "react-icons/fi"; // Changed from Phone to Mail for Magic Link
+import { FiMail, FiPhone, FiArrowLeft } from "react-icons/fi"; 
 import { auth } from "@/lib/firebase";
 import { 
   signInWithEmailAndPassword, 
@@ -12,13 +12,32 @@ import {
   GoogleAuthProvider, 
   sendSignInLinkToEmail, 
   isSignInWithEmailLink, 
-  signInWithEmailLink 
+  signInWithEmailLink,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
 } from "firebase/auth";
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+    confirmationResult: any;
+  }
+}
 
 export default function AccountPage() {
   const { user, authLoading, logout } = useAppContext();
+  
+  // View States
+  const [authMode, setAuthMode] = useState<"email" | "phone">("email");
+  const [showOTP, setShowOTP] = useState(false);
+
+  // Form States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [otp, setOtp] = useState("");
+  
+  // Status States
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,11 +46,9 @@ export default function AccountPage() {
   // HANDLE MAGIC LINK (PASSWORDLESS) COMPLETION
   // ----------------------------------------------------
   useEffect(() => {
-    // If the user clicked a magic link in their email, they land here.
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let emailForSignIn = window.localStorage.getItem('emailForSignIn');
       if (!emailForSignIn) {
-        // User opened the link on a different device. Prompt for email.
         emailForSignIn = window.prompt('Please provide your email for confirmation');
       }
       if (emailForSignIn) {
@@ -40,7 +57,6 @@ export default function AccountPage() {
           .then(() => {
             window.localStorage.removeItem('emailForSignIn');
             setMessage("Successfully logged in with Magic Link!");
-            // Remove the URL params to clean up the URL
             window.history.replaceState(null, "", "/account");
           })
           .catch((err) => {
@@ -52,7 +68,65 @@ export default function AccountPage() {
   }, []);
 
   // ----------------------------------------------------
-  // AUTHENTICATION HANDLERS
+  // PHONE AUTH HANDLERS
+  // ----------------------------------------------------
+  const setupRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+      });
+    }
+  };
+
+  const handleSendOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneNumber) return;
+    
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      setupRecaptcha();
+      const appVerifier = window.recaptchaVerifier;
+      // Format number to ensure it has a country code. Defaulting to India if none provided.
+      const formattedNumber = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
+      
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
+      window.confirmationResult = confirmationResult;
+      setShowOTP(true);
+      setMessage(`OTP sent to ${formattedNumber}`);
+    } catch (err: any) {
+      setError(err.message);
+      // Reset recaptcha if it fails
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp) return;
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      await window.confirmationResult.confirm(otp);
+      // Success! AppContext will handle the redirect.
+    } catch (err: any) {
+      setError("Invalid OTP code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ----------------------------------------------------
+  // EMAIL / GOOGLE AUTH HANDLERS
   // ----------------------------------------------------
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +138,6 @@ export default function AccountPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      // If user not found, automatically sign them up
       if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
         try {
           await createUserWithEmailAndPassword(auth, email, password);
@@ -102,7 +175,6 @@ export default function AccountPage() {
     setError(null);
     try {
       const actionCodeSettings = {
-        // URL you want to redirect back to. The domain must be in Firebase Authorized Domains.
         url: window.location.origin + '/account',
         handleCodeInApp: true,
       };
@@ -139,7 +211,7 @@ export default function AccountPage() {
           <div className="bg-gray-50 border border-[var(--color-border)] p-8 text-left mb-8">
             <h2 className="text-[13px] tracking-[2px] uppercase mb-4">Account Details</h2>
             <p className="text-[14px] mb-1"><span className="text-[var(--color-text-muted)]">Name:</span> {user.name}</p>
-            <p className="text-[14px] mb-4"><span className="text-[var(--color-text-muted)]">Email:</span> {user.email}</p>
+            {user.email && <p className="text-[14px] mb-4"><span className="text-[var(--color-text-muted)]">Email:</span> {user.email}</p>}
             
             <h2 className="text-[13px] tracking-[2px] uppercase mb-4 mt-8 border-t border-[var(--color-border)] pt-8">Order History</h2>
             <p className="text-[14px] text-[var(--color-text-muted)]">You haven&apos;t placed any orders yet.</p>
@@ -162,73 +234,162 @@ export default function AccountPage() {
   return (
     <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
       <div className="max-w-[400px] w-full">
-        <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-8 text-center">Login</h1>
+        <div id="recaptcha-container"></div>
+        
+        <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-8 text-center">
+          {authMode === "email" ? "Login" : "Phone Login"}
+        </h1>
         
         {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-[13px] border border-red-100">{error}</div>}
         {message && <div className="mb-4 p-3 bg-green-50 text-green-700 text-[13px] border border-green-100">{message}</div>}
 
-        <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
-          <input
-            type="email"
-            placeholder="Email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
-          />
-          
-          <div className="text-left mb-2 mt-1 flex justify-between">
-            <Link href="#" className="text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black">
-              Forgot your password?
-            </Link>
-          </div>
+        {/* ------------------------------------------------ */}
+        {/* EMAIL FORM */}
+        {/* ------------------------------------------------ */}
+        {authMode === "email" && (
+          <>
+            <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
+              <input
+                type="email"
+                placeholder="Email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
+              />
+              
+              <div className="text-left mb-2 mt-1 flex justify-between">
+                <Link href="#" className="text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black">
+                  Forgot your password?
+                </Link>
+              </div>
 
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
-          >
-            {loading ? "Processing..." : "Sign In / Register"}
-          </button>
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
+              >
+                {loading ? "Processing..." : "Sign In / Register"}
+              </button>
 
-          <div className="relative flex items-center justify-center mt-6 mb-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[var(--color-border)]"></div>
-            </div>
-            <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
-              Or continue with
-            </div>
-          </div>
+              <div className="relative flex items-center justify-center mt-6 mb-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[var(--color-border)]"></div>
+                </div>
+                <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
+                  Or continue with
+                </div>
+              </div>
 
-          <div className="flex gap-4">
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                >
+                  <FcGoogle className="text-xl" />
+                  <span className="text-[13px]">Google</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("phone");
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                >
+                  <FiPhone className="text-xl" />
+                  <span className="text-[13px]">Phone</span>
+                </button>
+              </div>
+              
+              <button
+                type="button"
+                onClick={handleMagicLinkLogin}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 mt-4 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+              >
+                <FiMail className="text-xl" />
+                <span className="text-[13px]">Send Magic Link</span>
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ------------------------------------------------ */}
+        {/* PHONE FORM */}
+        {/* ------------------------------------------------ */}
+        {authMode === "phone" && (
+          <>
+            {!showOTP ? (
+              <form onSubmit={handleSendOTP} className="flex flex-col gap-4">
+                <p className="text-[13px] text-[var(--color-text-muted)] text-center mb-2">
+                  Enter your phone number to receive a verification code.
+                </p>
+                <input
+                  type="tel"
+                  placeholder="+91 9876543210"
+                  required
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
+                />
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
+                >
+                  {loading ? "Sending..." : "Send OTP"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOTP} className="flex flex-col gap-4">
+                <p className="text-[13px] text-[var(--color-text-muted)] text-center mb-2">
+                  Enter the 6-digit code sent to {phoneNumber}
+                </p>
+                <input
+                  type="text"
+                  placeholder="123456"
+                  required
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent tracking-[4px] text-center"
+                />
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
+                >
+                  {loading ? "Verifying..." : "Verify Code"}
+                </button>
+              </form>
+            )}
+
             <button
               type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+              onClick={() => {
+                setAuthMode("email");
+                setShowOTP(false);
+                setError(null);
+                setMessage(null);
+              }}
+              className="mt-6 w-full flex items-center justify-center gap-2 text-[12px] text-[var(--color-text-muted)] hover:text-black uppercase tracking-[1px] transition-colors"
             >
-              <FcGoogle className="text-xl" />
-              <span className="text-[13px]">Google</span>
+              <FiArrowLeft /> Back to Email Login
             </button>
-            <button
-              type="button"
-              onClick={handleMagicLinkLogin}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
-            >
-              <FiMail className="text-xl" />
-              <span className="text-[13px]">Magic Link</span>
-            </button>
-          </div>
-
-        </form>
+          </>
+        )}
       </div>
     </main>
   );
