@@ -143,6 +143,13 @@ All products currently visible on the website are **sample/demo data** stored in
 - Once MongoDB is wired up, the admin adds products → MongoDB stores them → `db.ts` fetches them → the entire site (homepage, collections, product pages, SEO, sitemap) updates automatically.
 - The mock data file (`mock-products.ts`) can be deleted once MongoDB is live.
 
+### 🚀 Migration Checklist (Demo → Live Products)
+
+1. **Connect MongoDB** — Set up your MongoDB connection string and client.
+2. **Update 5 functions in `src/services/db.ts`** — Replace the mock data returns with MongoDB queries (`getAllProducts`, `getProductBySlug`, `getProductsByCollectionId`, `getAllCollections`, `getCollectionBySlug`).
+3. **Delete `src/data/mock-products.ts`** — Remove the demo data file entirely.
+4. **Everything else works automatically** — SEO, sitemap, JSON-LD, metadata, pages, homepage, collections — all auto-update from the data returned by `db.ts`. Zero additional changes needed.
+
 ---
 
 ## 🎯 10. Your Final To-Do List
