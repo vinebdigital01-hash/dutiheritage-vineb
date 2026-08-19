@@ -48,7 +48,7 @@ export const ProductGallery = ({ images, productName, badge }: ProductGalleryPro
           >
             <Image
               src={img}
-              alt={`Thumbnail ${idx + 1}`}
+              alt={`${productName} - View ${idx + 1}`}
               fill
               className="object-cover"
               sizes="100px"

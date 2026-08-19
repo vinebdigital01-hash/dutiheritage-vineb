@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -12,7 +11,7 @@
   --color-save-badge: #b12704;
   --color-overlay: rgba(0, 0, 0, 0.5);
 
-  --font-sans: 'Outfit', sans-serif;
+  --font-sans: var(--font-outfit), 'Outfit', sans-serif;
   --font-serif: 'Times New Roman', Times, serif;
 
   --animate-fade-in-up: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;

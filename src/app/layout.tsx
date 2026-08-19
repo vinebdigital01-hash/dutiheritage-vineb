@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 
 import { AppProvider } from "@/context/AppContext";
@@ -11,6 +12,13 @@ import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
 import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
 import { FacebookPixel } from "@/components/FacebookPixel/FacebookPixel";
 import { db } from "@/services/db";
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  display: "swap",
+  variable: "--font-outfit",
+});
 
 const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
@@ -61,10 +69,49 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const products = await db.getAllProducts();
+  const baseUrl = getBaseUrl();
+
+  // Organization JSON-LD (shows brand info in Google Knowledge Panel)
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Duti Heritage",
+    url: baseUrl,
+    logo: `${baseUrl}/images/velvet.jpg`,
+    sameAs: [
+      // Add your social media URLs here when available
+      // "https://www.instagram.com/dutiheritage",
+      // "https://www.facebook.com/dutiheritage",
+    ],
+  };
+
+  // WebSite JSON-LD (enables sitelinks searchbox in Google)
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Duti Heritage",
+    url: baseUrl,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${baseUrl}/collections/all?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
 
   return (
-    <html lang="en">
+    <html lang="en" className={outfit.variable}>
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
         <Suspense fallback={null}>
           <FacebookPixel />
         </Suspense>

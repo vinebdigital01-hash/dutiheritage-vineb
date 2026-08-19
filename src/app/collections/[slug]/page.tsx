@@ -5,8 +5,16 @@ import Link from "next/link";
 import Image from "next/image";
 import { Metadata } from "next";
 
+const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return 'http://localhost:3000';
+};
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  const baseUrl = getBaseUrl();
   let collectionName = "All Products";
   
   if (slug !== "all") {
@@ -21,9 +29,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${collectionName} | Duti Heritage`,
     description: `Shop the latest ${collectionName} at Duti Heritage. Premium fashion and quality apparel.`,
+    alternates: {
+      canonical: `${baseUrl}/collections/${slug}`,
+    },
     openGraph: {
       title: `${collectionName} | Duti Heritage`,
       description: `Shop the latest ${collectionName} at Duti Heritage.`,
+      url: `${baseUrl}/collections/${slug}`,
     },
   };
 }
@@ -53,13 +65,39 @@ export default async function CollectionPage({
     displayProducts = await db.getProductsByCollectionId(collection.id);
   }
 
+  const baseUrl = getBaseUrl();
+
   return (
-    <main className="w-full min-h-screen bg-[var(--color-bg)]">
-      {/* Header Area */}
-      <div className="py-12 md:py-16 text-center px-4">
-        <h1 className="text-2xl md:text-3xl font-serif tracking-[3px] uppercase">
-          {collection.name}
-        </h1>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: baseUrl,
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: collection.name,
+                item: `${baseUrl}/collections/${collection.slug}`,
+              },
+            ],
+          }),
+        }}
+      />
+      <main className="w-full min-h-screen bg-[var(--color-bg)]">
+        {/* Header Area */}
+        <div className="py-12 md:py-16 text-center px-4">
+          <h1 className="text-2xl md:text-3xl font-serif tracking-[3px] uppercase">
+            {collection.name}
+          </h1>
         <p className="text-[13px] text-[var(--color-text-muted)] mt-4">
           {displayProducts.length} Products
         </p>
@@ -118,5 +156,6 @@ export default async function CollectionPage({
         )}
       </div>
     </main>
+    </>
   );
 }
