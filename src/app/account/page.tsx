@@ -14,7 +14,6 @@ import {
   GoogleAuthProvider, 
   FacebookAuthProvider,
   sendPasswordResetEmail,
-  fetchSignInMethodsForEmail,
   RecaptchaVerifier,
   signInWithPhoneNumber,
   isSignInWithEmailLink,
@@ -200,21 +199,10 @@ export default function AccountPage() {
     setError(null);
     setMessage(null);
     try {
-      // Check if user exists first (if email enumeration protection is off)
-      try {
-        const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
-        if (methods.length === 0) {
-          setError("No account found with this email. Please register first.");
-          setLoading(false);
-          return;
-        }
-      } catch (e) {
-        // Ignore check errors and fallback to sendPasswordResetEmail
-      }
-
       await sendPasswordResetEmail(auth, cleanEmail);
       setMessage(`A password reset link was sent to ${cleanEmail}. Check your inbox!`);
     } catch (err: any) {
+      // Firebase throws auth/user-not-found only if Enumeration Protection is OFF.
       if (err.code === "auth/user-not-found") {
         setError("No account found with this email. Please register first.");
       } else if (err.code === "auth/invalid-email") {
@@ -237,16 +225,6 @@ export default function AccountPage() {
     setError(null);
     setMessage(null);
     try {
-      // Ensure they are registered before sending magic link
-      try {
-        const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
-        if (methods.length === 0) {
-          setError("No account found with this email. Please register first.");
-          setLoading(false);
-          return;
-        }
-      } catch (e) {}
-
       const actionCodeSettings = {
         url: window.location.origin + '/account',
         handleCodeInApp: true,
