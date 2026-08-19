@@ -10,6 +10,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signInWithPopup, 
+  signInWithRedirect,
   GoogleAuthProvider, 
   FacebookAuthProvider,
   sendPasswordResetEmail,
@@ -160,7 +161,12 @@ export default function AccountPage() {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        const provider = new GoogleAuthProvider();
+        await signInWithRedirect(auth, provider);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -173,7 +179,12 @@ export default function AccountPage() {
       const provider = new FacebookAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        const provider = new FacebookAuthProvider();
+        await signInWithRedirect(auth, provider);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
