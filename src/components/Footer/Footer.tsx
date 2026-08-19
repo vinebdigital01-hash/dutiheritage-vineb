@@ -18,6 +18,7 @@ export const Footer = () => {
               <input 
                 type="email" 
                 placeholder="Enter your email" 
+                aria-label="Email address"
                 className="flex-1 bg-transparent border-none outline-none text-sm"
                 required
               />

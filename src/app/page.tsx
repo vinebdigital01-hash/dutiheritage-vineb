@@ -22,7 +22,8 @@ export default async function Home() {
 
   return (
     <>
-      {collectionsData.map((data) => {
+      <h1 className="sr-only">Duti Heritage — Premium Fashion & Luxury Apparel</h1>
+      {collectionsData.map((data, index) => {
         if (!data) return null;
         
         // Custom grid classes based on specific collections (retaining original logic)
@@ -36,7 +37,8 @@ export default async function Home() {
             key={data.collection.id} 
             collection={data.collection} 
             products={data.products} 
-            gridClass={gridClass} 
+            gridClass={gridClass}
+            priority={index === 0} 
           />
         );
       })}

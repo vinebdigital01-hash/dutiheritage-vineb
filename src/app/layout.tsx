@@ -9,9 +9,7 @@ import { Header } from "@/components/Header/Header";
 import { Footer } from "@/components/Footer/Footer";
 import { CartDrawer } from "@/components/CartDrawer/CartDrawer";
 import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
-import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
 import { FacebookPixel } from "@/components/FacebookPixel/FacebookPixel";
-import { db } from "@/services/db";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -20,12 +18,7 @@ const outfit = Outfit({
   variable: "--font-outfit",
 });
 
-const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
-};
+import { getBaseUrl } from "@/lib/utils";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getBaseUrl()),
@@ -68,7 +61,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const products = await db.getAllProducts();
   const baseUrl = getBaseUrl();
 
   // Organization JSON-LD (shows brand info in Google Knowledge Panel)
@@ -115,7 +107,6 @@ export default async function RootLayout({
         <Suspense fallback={null}>
           <FacebookPixel />
         </Suspense>
-        <OfflineSync products={products} />
         <AppProvider>
           <div className="flex flex-col min-h-screen">
             <AnnouncementBar />

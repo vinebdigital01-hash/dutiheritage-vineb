@@ -6,9 +6,10 @@ import { Product } from "@/types";
 interface ProductCardProps {
   product: Product;
   index?: number;
+  priority?: boolean;
 }
 
-export const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
+export const ProductCard = ({ product, index = 0, priority = false }: ProductCardProps) => {
   const hasSale = product.salePrice && product.salePrice < product.price;
   const savings = hasSale ? product.price - product.salePrice! : 0;
 
@@ -25,7 +26,7 @@ export const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
           fill
           className="object-cover transition-transform duration-400 ease-in-out group-hover:scale-105"
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-          priority={index < 4}
+          priority={priority}
         />
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
           {product.tags && product.tags.map(tag => (

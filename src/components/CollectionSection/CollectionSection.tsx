@@ -7,9 +7,10 @@ interface CollectionSectionProps {
   collection: Collection;
   products: Product[];
   gridClass?: "grid-4" | "grid-5";
+  priority?: boolean;
 }
 
-export const CollectionSection = ({ collection, products, gridClass = "grid-4" }: CollectionSectionProps) => {
+export const CollectionSection = ({ collection, products, gridClass = "grid-4", priority = false }: CollectionSectionProps) => {
   if (!products.length) return null;
 
   // Map grid-4 to Tailwind grid classes for desktop and tablet, but flex for horizontal scroll on mobile
@@ -35,7 +36,7 @@ export const CollectionSection = ({ collection, products, gridClass = "grid-4" }
         <div className={gridTailwindClass}>
           {products.map((product, index) => (
             <div key={product.id} className="min-w-[45vw] sm:min-w-[30vw] md:min-w-0 snap-start">
-              <ProductCard product={product} index={index} />
+              <ProductCard product={product} index={index} priority={priority && index < 4} />
             </div>
           ))}
           

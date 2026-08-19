@@ -1,10 +1,12 @@
 "use client";
 import React from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 
 export const CartDrawer = () => {
   const { cart, isCartOpen, setIsCartOpen, removeFromCart, isInitialized } = useAppContext();
+  const router = useRouter();
 
   if (!isCartOpen) return null;
 
@@ -80,7 +82,7 @@ export const CartDrawer = () => {
             <button 
               onClick={() => {
                 setIsCartOpen(false);
-                window.location.href = "/checkout";
+                router.push("/checkout");
               }}
               className="w-full py-4 bg-black text-white text-[12px] tracking-[2px] uppercase hover:bg-black/90"
             >

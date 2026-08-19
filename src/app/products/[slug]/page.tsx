@@ -128,6 +128,12 @@ export default async function ProductPage({ params }: Props) {
     ],
   };
 
+  // Fetch suggested products on the server (avoids bundling all products into client JS)
+  const allProducts = await db.getAllProducts();
+  const suggestedProducts = allProducts
+    .filter(p => p.id !== product.id)
+    .slice(0, 5);
+
   return (
     <>
       <script
@@ -138,7 +144,7 @@ export default async function ProductPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
-      <ProductClient product={product} />
+      <ProductClient product={product} suggestedProducts={suggestedProducts} />
     </>
   );
 }

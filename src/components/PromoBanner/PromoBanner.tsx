@@ -13,6 +13,7 @@ export const PromoBanner = () => {
           <input 
             type="email" 
             placeholder="Enter your email address" 
+            aria-label="Email address"
             className="flex-1 py-3 px-4 border border-[var(--color-border)] font-inherit text-sm focus:outline-none focus:border-[var(--color-text)] w-full"
             required
           />

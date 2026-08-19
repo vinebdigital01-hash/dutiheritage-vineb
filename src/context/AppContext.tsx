@@ -76,13 +76,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         // TODO: Fetch user profile from MongoDB backend when built
-        // const response = await fetch(`/api/users/${firebaseUser.uid}`);
-        // if (response.ok) {
-        //   const profileData = await response.json();
-        //   setUserProfile(profileData);
-        // } else {
-        //   setUserProfile(null);
-        // }
         setUserProfile(null); // Temporarily null until MongoDB is hooked up
       } else {
         setUser(null);
@@ -97,12 +90,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   // Save to LocalStorage on change
   useEffect(() => {
     if (!isInitialized) return;
-    localStorage.setItem("duti-heritage_cart", JSON.stringify(cart));
+    try {
+      localStorage.setItem("duti-heritage_cart", JSON.stringify(cart));
+    } catch {}
   }, [cart, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
-    localStorage.setItem("duti-heritage_recently_viewed", JSON.stringify(recentlyViewed));
+    try {
+      localStorage.setItem("duti-heritage_recently_viewed", JSON.stringify(recentlyViewed));
+    } catch {}
   }, [recentlyViewed, isInitialized]);
 
   const addToCart = React.useCallback((product: Product, size: string) => {

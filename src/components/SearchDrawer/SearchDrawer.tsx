@@ -1,20 +1,36 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
-import { collections, products as allProducts } from "@/data/mock-products";
+import { searchProducts, getTopCollections } from "@/app/actions";
+import { Product, Collection } from "@/types";
 
 export const SearchDrawer = () => {
   const { isSearchOpen, setIsSearchOpen } = useAppContext();
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const results = React.useMemo(() => {
-    if (searchQuery.trim() === "") return [];
-    const q = searchQuery.toLowerCase();
-    return allProducts.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)
-    );
+  const [results, setResults] = useState<Product[]>([]);
+  const [suggestedCollections, setSuggestedCollections] = useState<Collection[]>([]);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    getTopCollections().then(setSuggestedCollections);
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setResults([]);
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      startTransition(async () => {
+        const found = await searchProducts(searchQuery);
+        setResults(found);
+      });
+    }, 300); // debounce
+
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
   // Close when clicking outside or navigating
@@ -48,6 +64,7 @@ export const SearchDrawer = () => {
             <input
               type="text"
               placeholder="Search for products..."
+              aria-label="Search products"
               className="flex-1 bg-transparent border-none outline-none text-[14px]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -82,7 +99,7 @@ export const SearchDrawer = () => {
                 </h3>
               </div>
               <div className="flex flex-wrap gap-3">
-                {collections.slice(0, 10).map((collection) => (
+                {suggestedCollections.map((collection) => (
                   <Link
                     href={`/collections/${collection.slug}`}
                     key={collection.id}
@@ -112,6 +129,7 @@ export const SearchDrawer = () => {
                       src={product.image}
                       alt={product.name}
                       fill
+                      sizes="60px"
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   </div>

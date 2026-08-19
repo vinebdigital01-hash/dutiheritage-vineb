@@ -89,6 +89,7 @@ export const Header = () => {
                 </svg>
                 {isInitialized && cart.length > 0 && (
                   <span className="absolute -top-2 -right-2 bg-[var(--color-text)] text-[var(--color-bg)] text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                    <span className="sr-only">items in cart</span>
                     {cart.length}
                   </span>
                 )}

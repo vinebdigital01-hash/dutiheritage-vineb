@@ -9,10 +9,9 @@ import { CollectionSection } from "@/components/CollectionSection/CollectionSect
 import Link from "next/link";
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
-import { products as allProducts } from "@/data/mock-products";
 import { useRouter } from "next/navigation";
 
-export const ProductClient = ({ product }: { product: Product }) => {
+export const ProductClient = ({ product, suggestedProducts = [] }: { product: Product; suggestedProducts?: Product[] }) => {
   // Global State
   const { addToCart, addRecentlyViewed, recentlyViewed, user } = useAppContext();
   const router = useRouter();
@@ -416,13 +415,15 @@ export const ProductClient = ({ product }: { product: Product }) => {
       </div>
 
       {/* You May Also Like */}
-      <div className="mt-16">
-         <CollectionSection 
-           collection={{ id: "similar", name: "You May Also Like", slug: "all" }} 
-           products={allProducts.slice(0, 5)} 
-           gridClass="grid-5"
-         />
-      </div>
+      {suggestedProducts.length > 0 && (
+        <div className="mt-16">
+          <CollectionSection 
+            collection={{ id: "similar", name: "You May Also Like", slug: "all" }} 
+            products={suggestedProducts} 
+            gridClass="grid-5"
+          />
+        </div>
+      )}
 
       {/* Recently Viewed */}
       {recentlyViewed.length > 0 && (
