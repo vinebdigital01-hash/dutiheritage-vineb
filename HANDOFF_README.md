@@ -61,10 +61,9 @@ We have isolated all database logic into one single file:
 - `getCollectionBySlug(slug)`
 
 Currently, these functions return static arrays from `mock-products.ts`.
-**🔗 HOW TO CONNECT BACKEND (DATABASE):**
-To switch the entire website to your live database, you literally only need to modify `db.ts`. 
-- Change `return products;` to `const snapshot = await getDocs(collection(db, "products")); return snapshot.docs.map(doc => doc.data());`
-- Because the frontend already uses `async/await` and `Promise.all` to call these functions, the moment you update `db.ts`, the **entire website** (Homepage, Collections, Product pages) will instantly render live database data.
+**🔗 HOW TO CONNECT BACKEND (DATABASE - MONGODB):**
+To switch the entire website to your live database, you literally only need to modify `db.ts` and replace the mock arrays with calls to your MongoDB API.
+- Because the frontend already uses `async/await` and `Promise.all` to call these functions, the moment you update `db.ts` to fetch from MongoDB, the **entire website** (Homepage, Collections, Product pages) will instantly render live database data.
 
 ---
 
@@ -108,32 +107,31 @@ We have achieved perfect Google Lighthouse scores. If you break these rules, the
 
 ## 🎯 8. Your Final To-Do List
 
-1. **Create the Firebase Config:** Create `src/lib/firebase.ts` and initialize your Firebase App.
-2. **Wire the DB:** Update the 5 functions in `src/services/db.ts` to fetch from Firestore.
-3. **Wire Auth:** Update `login` and `logout` in `src/context/AppContext.tsx`.
-4. **Build an "In-Line / Visual" Admin Experience:** The client specifically DOES NOT want a separate `/admin` dashboard.
+1. **Wire Auth (Firebase Only):** Firebase is STRICTLY used for authentication (passwords, OTP, forgot password, magic links, social logins). Firebase Config is in `src/lib/firebase.ts` and auth state is managed in `src/context/AppContext.tsx`.
+2. **Wire the DB (MongoDB):** Update the 5 functions in `src/services/db.ts` to fetch from MongoDB instead of mock data. MongoDB is used for ALL database storage (products, users, carts, orders).
+3. **Build an "In-Line / Visual" Admin Experience:** The client specifically DOES NOT want a separate `/admin` dashboard.
     - **How it should work:** When the admin logs in via Firebase Auth, they should simply be redirected back to the public website.
     - Because their session has `admin === true`, the frontend components should conditionally render "Edit" buttons (or `contentEditable` fields) directly on top of the live website elements.
-    - **Full Control:** The admin must be able to click directly on the live website to edit: product titles, prices, descriptions, tags, upload replacement images/videos, and manage coupons. Clicking "Save" pushes the changes to Firestore and immediately reflects on the deployed site.
+    - **Full Control:** The admin must be able to click directly on the live website to edit: product titles, prices, descriptions, tags, upload replacement images/videos, and manage coupons. Clicking "Save" pushes the changes to MongoDB and immediately reflects on the deployed site.
     - **CRITICAL - SCHEMA FIELDS TO SUPPORT IN THE INLINE EDITOR:** You must ensure the inline editor allows the admin to edit these specific fields. **You must also enforce the following SEO character limits in the admin form UI:**
       - `seoDescription?: string;` -> (Must show a character counter. Reject if under 120 chars. Aim for 120-160 characters for maximum CTR).
       - `tags?: string[];` // Array of multiple tags like "Bestseller", "Sale", etc. (Replaced legacy 'badge' field)
       - `boughtLast7Days?: number;` // FOMO metric
       - `videoUrls?: string[];` // Array of UGC showcasing video URLs
       - `offers?: { title: string; description: string; code?: string; }[];`
-    - **COUPON ENGINE (NEW REQUIREMENT):** Build a separate `coupons` collection in Firestore. Admin must be able to create a coupon code (e.g., "DIWALI50") and explicitly define its scope:
+    - **COUPON ENGINE (NEW REQUIREMENT):** Build a separate `coupons` collection in MongoDB. Admin must be able to create a coupon code (e.g., "DIWALI50") and explicitly define its scope:
       - `scope`: "ALL_PRODUCTS" | "SPECIFIC_CATEGORY" | "SPECIFIC_PRODUCTS"
       - `targetIds`: string[] (Array of specific Category IDs or Product IDs)
       - The `/checkout` API logic must strictly validate this scope before applying the discount.
-5. **Checkout Page:** Create `src/app/checkout/page.tsx`. Hook it up to Razorpay, Stripe, or PhonePe.
-6. **Abandoned Cart Email Triggers (Automations):**
-   - When a user adds an item to their cart and inputs their email (or is logged in), sync the cart to a `carts` collection in Firestore with a `status: "abandoned"` and a `last_updated` timestamp.
+4. **Checkout Page:** Create `src/app/checkout/page.tsx`. Hook it up to Razorpay, Stripe, or PhonePe.
+5. **Abandoned Cart Email Triggers (Automations):**
+   - When a user adds an item to their cart and inputs their email (or is logged in), sync the cart to a `carts` collection in MongoDB with a `status: "abandoned"` and a `last_updated` timestamp.
    - Set up a Vercel Cron Job (`src/app/api/cron/abandoned-carts/route.ts`) to run hourly. It should query for carts older than 2 hours and trigger an email via Resend or SendGrid API. Update status to `status: "emailed"`.
    - When they checkout, update the document to `status: "purchased"`.
-7. **Inline Admin Analytics Dashboard:**
+6. **Inline Admin Analytics Dashboard:**
    - In addition to inline text editing, the admin must be able to view live store analytics directly on the frontend (e.g., in a sliding drawer or floating panel).
    - Show total **Views** (integrate PostHog or Google Analytics API for accurate traffic counts).
-   - Show total **Purchases** (queried from Firestore).
-   - Show total **Abandoned Carts** (queried from Firestore).
+   - Show total **Purchases** (queried from MongoDB).
+   - Show total **Abandoned Carts** (queried from MongoDB).
 
 Good luck! You are stepping into a beautifully structured, heavily optimized codebase. Have fun building!
