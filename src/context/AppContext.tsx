@@ -2,9 +2,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Product } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";
-import { auth, firestore } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
@@ -76,21 +75,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           phone: firebaseUser.phoneNumber || undefined
         });
 
-        try {
-          const profileDoc = await getDoc(doc(firestore, "users", firebaseUser.uid));
-          if (profileDoc.exists()) {
-            setUserProfile(profileDoc.data() as UserProfile);
-          } else {
-            setUserProfile(null);
-          }
-        } catch (e: any) {
-          if (e.message && e.message.includes("offline")) {
-            console.warn("Could not fetch user profile (client is offline).");
-          } else {
-            console.warn("Error fetching user profile:", e.message || e);
-          }
-          setUserProfile(null);
-        }
+        // TODO: Fetch user profile from MongoDB backend when built
+        // const response = await fetch(`/api/users/${firebaseUser.uid}`);
+        // if (response.ok) {
+        //   const profileData = await response.json();
+        //   setUserProfile(profileData);
+        // } else {
+        //   setUserProfile(null);
+        // }
+        setUserProfile(null); // Temporarily null until MongoDB is hooked up
       } else {
         setUser(null);
         setUserProfile(null);

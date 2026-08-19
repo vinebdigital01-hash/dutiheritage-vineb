@@ -4,8 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
-import { firestore } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
 import { State, City } from "country-state-city";
 
 export default function CheckoutPage() {
@@ -90,17 +88,18 @@ export default function CheckoutPage() {
 
     // 2. Save profile data if checked (running in background, not blocking)
     if (user && saveToProfile) {
-      setDoc(doc(firestore, "users", user.uid), {
-        phone: formData.phone,
-        address: formData.address,
-        apartment: formData.apartment,
-        city: formData.city,
-        state: formData.state,
-        pinCode: formData.pinCode,
-        country: formData.country
-      }, { merge: true })
-        .then(() => console.log("Profile updated successfully!"))
-        .catch((error) => console.error("Error saving profile:", error));
+      // TODO: Replace Firestore with MongoDB API call
+      /*
+      fetch('/api/users/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          profile: formData
+        })
+      }).then(() => console.log("MongoDB Profile updated"));
+      */
+      console.log("TODO: Save profile to MongoDB");
     }
 
     // 3. Simulate successful payment processing
