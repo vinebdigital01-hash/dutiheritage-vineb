@@ -105,7 +105,47 @@ We have achieved perfect Google Lighthouse scores. If you break these rules, the
 
 ---
 
-## 🎯 8. Your Final To-Do List
+## 🔍 8. SEO Infrastructure (ALREADY BUILT — DO NOT REMOVE)
+
+The following SEO features are fully implemented and auto-update when products change in MongoDB:
+
+| Feature | File | What It Does |
+|---------|------|--------------|
+| **Dynamic Sitemap** | `src/app/sitemap.ts` | Auto-generates XML sitemap from `db.getAllProducts()` and `db.getAllCollections()`. Google discovers new products within hours. |
+| **Robots.txt** | `src/app/robots.ts` | Allows crawling of `/`, `/products/`, `/collections/`. Blocks `/checkout`, `/account`, `/api/`. Points Google to the sitemap. |
+| **Product JSON-LD** | `src/app/products/[slug]/page.tsx` | Full `Product` schema (name, price, brand, currency INR, availability, condition). Enables rich snippets in Google search results. |
+| **Breadcrumb JSON-LD** | Product & Collection pages | `BreadcrumbList` schema. Google shows breadcrumb trails in search results (Home → Collection → Product). |
+| **Organization JSON-LD** | `src/app/layout.tsx` | Brand info for Google Knowledge Panel (name, logo, social links). |
+| **WebSite JSON-LD** | `src/app/layout.tsx` | Enables Google sitelinks searchbox. |
+| **Canonical URLs** | Product & Collection `generateMetadata()` | Prevents duplicate content penalties from query params or referral links. |
+| **Twitter Cards** | Product `generateMetadata()` | Full `summary_large_image` Twitter cards with product image. |
+| **next/font** | `src/app/layout.tsx` | Outfit font loaded via `next/font/google`. Zero layout shift (CLS), no render-blocking CSS. |
+| **Image Alt Text** | `ProductGallery.tsx` | Thumbnails use `"{product name} - View {n}"` for Google Image Search rankings. |
+
+### 🔮 Auto-SEO Strategy: When Admin Adds Products via MongoDB
+
+When the admin adds a new product via the inline editor → MongoDB:
+
+1. **Sitemap** auto-updates because `sitemap.ts` calls `db.getAllProducts()` on every request.
+2. **JSON-LD** auto-generates because it reads from the product data already fetched by the Server Component.
+3. **Metadata** auto-generates because `generateMetadata()` already reads from `db.getProductBySlug()`.
+4. **No manual SEO work needed by admin** — everything is driven by the product data in MongoDB.
+
+> **The admin just fills in the product details (name, price, description, images, `seoDescription`) and the entire SEO pipeline fires automatically.**
+
+---
+
+## ⚠️ 9. Important: Current Products Are DEMO/SAMPLE Only
+
+All products currently visible on the website are **sample/demo data** stored in `src/data/mock-products.ts`. They exist purely to demonstrate the UI and layout.
+
+- **Real products will be added by the admin** through the inline admin editor (Section 10, Item 3).
+- Once MongoDB is wired up, the admin adds products → MongoDB stores them → `db.ts` fetches them → the entire site (homepage, collections, product pages, SEO, sitemap) updates automatically.
+- The mock data file (`mock-products.ts`) can be deleted once MongoDB is live.
+
+---
+
+## 🎯 10. Your Final To-Do List
 
 1. **Wire Auth (Firebase Only):** Firebase is STRICTLY used for authentication (passwords, OTP, forgot password, magic links, social logins). Firebase Config is in `src/lib/firebase.ts` and auth state is managed in `src/context/AppContext.tsx`.
    - **CRITICAL SECURITY REQUIREMENT FOR "FORGOT PASSWORD" & "MAGIC LINK":** Firebase's "Email Enumeration Protection" is enabled, meaning Firebase cannot securely tell us if an email is registered before sending a link. Once MongoDB is wired up, you MUST update `src/app/account/page.tsx` to query the MongoDB `users` collection FIRST. If the email does not exist in MongoDB, explicitly throw a "No account found with this email. Please register first" error and prevent Firebase from sending the email link.
