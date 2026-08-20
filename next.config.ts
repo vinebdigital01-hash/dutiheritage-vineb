@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
   },
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);
