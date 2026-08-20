@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebook } from "react-icons/fa";
-import { FiMail, FiPhone, FiArrowLeft } from "react-icons/fi"; 
+import { FiMail, FiPhone, FiArrowLeft } from "react-icons/fi";
+import 'react-phone-number-input/style.css';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import { auth } from "@/lib/firebase";
 import { 
   signInWithEmailAndPassword, 
@@ -79,7 +81,7 @@ export default function AccountPage() {
     }
   };
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent, method: 'sms' | 'whatsapp' = 'sms') => {
     e.preventDefault();
     if (!phoneNumber) return;
     
@@ -283,10 +285,13 @@ export default function AccountPage() {
   // RENDER LOGGED OUT VIEW (LOGIN FORM)
   // ----------------------------------------------------
   return (
-    <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-bg)]">
+    <main className="w-full min-h-[calc(100vh-80px)] flex flex-col items-center justify-start pt-16 md:pt-12 px-4 pb-8 bg-[var(--color-bg)]">
       <div className="max-w-[400px] w-full">
         <div id="recaptcha-container"></div>
         
+        <div className="flex justify-center mb-2">
+          <img src="/logo.svg" alt="Duti Heritage" className="h-28 md:h-32 w-auto object-contain" />
+        </div>
         <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-6 text-center">
           {authMode === "email" ? "Login" : "Phone Login"}
         </h1>
@@ -425,25 +430,55 @@ export default function AccountPage() {
         {authMode === "phone" && (
           <>
             {!showOTP ? (
-              <form onSubmit={handleSendOTP} className="flex flex-col gap-4">
+              <form className="flex flex-col gap-4">
                 <p className="text-[13px] text-[var(--color-text-muted)] text-center mb-2">
                   Enter your phone number to receive a verification code.
                 </p>
-                <input
-                  type="tel"
-                  placeholder="+91 9876543210"
-                  required
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus:border-black transition-colors bg-transparent"
-                />
-                <button 
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
-                >
-                  {loading ? "Sending..." : "Send OTP"}
-                </button>
+                <div className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus-within:border-black transition-colors bg-transparent">
+                  <PhoneInput
+                    international
+                    defaultCountry="IN"
+                    value={phoneNumber}
+                    onChange={(val) => setPhoneNumber(val || "")}
+                    className="w-full bg-transparent outline-none"
+                    style={{
+                      '--PhoneInputCountryFlag-height': '16px',
+                      '--PhoneInputCountrySelectArrow-color': 'currentColor',
+                    } as React.CSSProperties}
+                  />
+                </div>
+                
+                {phoneNumber && isValidPhoneNumber(phoneNumber) ? (
+                  <div className="flex gap-3 mt-2">
+                    <button 
+                      type="button"
+                      onClick={(e) => handleSendOTP(e, 'sms')}
+                      disabled={loading}
+                      className="flex-1 bg-[var(--color-text)] text-white text-[12px] tracking-[1px] uppercase py-4 hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {loading ? "..." : "OTP via SMS"}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        alert("WhatsApp OTP requires backend integration (e.g. Twilio). Sending via SMS for now.");
+                        handleSendOTP(e, 'whatsapp');
+                      }}
+                      disabled={loading}
+                      className="flex-1 bg-[#25D366] text-white text-[12px] tracking-[1px] uppercase py-4 hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {loading ? "..." : "OTP via WhatsApp"}
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    type="button"
+                    disabled={true}
+                    className="w-full bg-gray-200 text-gray-400 text-[12px] tracking-[1px] uppercase py-4 mt-2 cursor-not-allowed"
+                  >
+                    Enter 10 digits to continue
+                  </button>
+                )}
               </form>
             ) : (
               <form onSubmit={handleVerifyOTP} className="flex flex-col gap-4">

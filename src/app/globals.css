@@ -53,3 +53,8 @@
     font-weight: 300;
   }
 }
+
+/* Phone Input Custom Styles */
+.PhoneInputInput { border: none !important; outline: none !important; background: transparent !important; margin-left: 8px; font-size: 14px; }
+.PhoneInput { display: flex; align-items: center; }
+

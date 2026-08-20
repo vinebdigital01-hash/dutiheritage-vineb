@@ -25,8 +25,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
+    <main className="w-full min-h-[calc(100vh-80px)] flex flex-col items-center justify-start pt-16 md:pt-12 px-4 pb-8 bg-[var(--color-bg)]">
       <div className="max-w-[400px] w-full">
+        <div className="flex justify-center mb-2">
+          <img src="/logo.svg" alt="Duti Heritage" className="h-28 md:h-32 w-auto object-contain" />
+        </div>
         <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-8 text-center">Create account</h1>
         
         <form onSubmit={handleRegister} className="flex flex-col gap-4">
