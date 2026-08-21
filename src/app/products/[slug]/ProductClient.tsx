@@ -93,7 +93,8 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
       return;
     }
     if (!hasMockPurchased) {
-      showToast("Buy this product first for review.");
+      // In production, this checks if MongoDB order status === 'Delivered'
+      showToast("Only customers who have received this product can review it.");
       return;
     }
     setIsReviewModalOpen(true);

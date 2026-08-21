@@ -333,6 +333,11 @@ MongoDB Database: dutiheritage
            items[], subtotal, discount, shipping,
            codCharge, total, paymentMethod, couponCode,
            status, createdAt }
+│
+└── reviews               # Product reviews
+    └── { productId, userId, userName, rating, comment,
+           images[], status: "approved|pending",
+           isVerifiedPurchase: true/false, createdAt }
 ```
 
 ### 11.9 API Routes Summary
@@ -393,6 +398,15 @@ The Admin Dashboard should have a **"User Insights"** tab that tracks:
 - **Smart Retargeting Lists:** Group users by behavior to send highly targeted WhatsApp or Email campaigns (e.g., "Send 10% discount to all users who viewed the 'Wedding Collection' more than 3 times but never bought").
 
 *Developer Note: Implement this by sending custom tracking events from the frontend React components to an `/api/track` endpoint connected to MongoDB, OR integrate PostHog/Mixpanel and pull those insights via API into the custom Admin dashboard.*
+
+### 11.12 Verified Reviews Architecture
+
+To maintain high trust and eliminate fake reviews, the review system is strictly gated:
+- **Verified Buyers Only:** A user can ONLY write a review if two conditions are met:
+  1. They have purchased that specific product.
+  2. The order status in MongoDB has reached `Delivered`.
+- **Review Form Check:** When a user clicks "Write a review" on a product page, the frontend calls an API (e.g., `/api/reviews/eligibility?productId=XYZ&userId=123`). If the backend cannot find a `Delivered` order containing that product for that user, it throws an error: "Only customers who have received this product can write a review."
+- **Admin Bypass:** The admin is exempt from this rule. Admins can freely create, edit, or delete any reviews from the `/admin/reviews/` dashboard for marketing and moderation purposes.
 
 ---
 
