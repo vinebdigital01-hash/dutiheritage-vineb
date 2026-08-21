@@ -142,7 +142,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, []);
 
-  const login = React.useCallback((email: string) => {
+  const login = React.useCallback((_email: string) => {
     // This is now handled by the UI calling Firebase directly, 
     // but keeping it here to avoid breaking other components if they use it.
   }, []);

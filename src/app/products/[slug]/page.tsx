@@ -95,7 +95,6 @@ export default async function ProductPage({ params }: Props) {
       url: `${baseUrl}/products/${product.slug}`,
       priceCurrency: "INR",
       price: product.salePrice || product.price,
-      ...(product.salePrice && { priceValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }),
       availability: "https://schema.org/InStock",
       itemCondition: "https://schema.org/NewCondition",
     },

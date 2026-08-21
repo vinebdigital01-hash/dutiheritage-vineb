@@ -11,7 +11,7 @@ export const SearchDrawer = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [suggestedCollections, setSuggestedCollections] = useState<Collection[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
     getTopCollections().then(setSuggestedCollections);

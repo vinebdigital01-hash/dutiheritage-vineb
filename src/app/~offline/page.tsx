@@ -15,7 +15,7 @@ export default function OfflinePage() {
     if (saved) {
       try {
         setProducts(JSON.parse(saved));
-      } catch (e) {
+      } catch (_) {
         console.error("Failed to parse offline catalog");
       }
     }
