@@ -157,21 +157,8 @@ All products currently visible on the website are **sample/demo data** stored in
 1. **Wire Auth (Firebase Only):** Firebase is STRICTLY used for authentication (passwords, OTP, forgot password, magic links, social logins). Firebase Config is in `src/lib/firebase.ts` and auth state is managed in `src/context/AppContext.tsx`.
    - **CRITICAL SECURITY REQUIREMENT FOR "FORGOT PASSWORD" & "MAGIC LINK":** Firebase's "Email Enumeration Protection" is enabled, meaning Firebase cannot securely tell us if an email is registered before sending a link. Once MongoDB is wired up, you MUST update `src/app/account/page.tsx` to query the MongoDB `users` collection FIRST. If the email does not exist in MongoDB, explicitly throw a "No account found with this email. Please register first" error and prevent Firebase from sending the email link.
 2. **Wire the DB (MongoDB):** Update the 5 functions in `src/services/db.ts` to fetch from MongoDB instead of mock data. MongoDB is used for ALL database storage (products, users, carts, orders).
-3. **Build an "In-Line / Visual" Admin Experience:** The client specifically DOES NOT want a separate `/admin` dashboard.
-    - **How it should work:** When the admin logs in via Firebase Auth, they should simply be redirected back to the public website.
-    - Because their session has `admin === true`, the frontend components should conditionally render "Edit" buttons (or `contentEditable` fields) directly on top of the live website elements.
-    - **Full Control:** The admin must be able to click directly on the live website to edit: product titles, prices, descriptions, tags, upload replacement images/videos, and manage coupons. Clicking "Save" pushes the changes to MongoDB and immediately reflects on the deployed site.
-    - **CRITICAL - SCHEMA FIELDS TO SUPPORT IN THE INLINE EDITOR:** You must ensure the inline editor allows the admin to edit these specific fields. **You must also enforce the following SEO character limits in the admin form UI:**
-      - `seoDescription?: string;` -> (Must show a character counter. Reject if under 120 chars. Aim for 120-160 characters for maximum CTR).
-      - `tags?: string[];` // Array of multiple tags like "Bestseller", "Sale", etc. (Replaced legacy 'badge' field)
-      - `boughtLast7Days?: number;` // FOMO metric
-      - `videoUrls?: string[];` // Array of UGC showcasing video URLs
-      - `offers?: { title: string; description: string; code?: string; }[];`
-    - **COUPON ENGINE (NEW REQUIREMENT):** Build a separate `coupons` collection in MongoDB. Admin must be able to create a coupon code (e.g., "DIWALI50") and explicitly define its scope:
-      - `scope`: "ALL_PRODUCTS" | "SPECIFIC_CATEGORY" | "SPECIFIC_PRODUCTS"
-      - `targetIds`: string[] (Array of specific Category IDs or Product IDs)
-      - The `/checkout` API logic must strictly validate this scope before applying the discount.
-4. **Checkout Page:** Create `src/app/checkout/page.tsx`. Hook it up to Razorpay, Stripe, or PhonePe.
+3. **Build the Admin Panel:** See Section 11 below for the complete admin architecture.
+4. **Checkout Page:** Hook it up to Razorpay, Stripe, or PhonePe.
 5. **Abandoned Cart Email Triggers (Automations):**
    - When a user adds an item to their cart and inputs their email (or is logged in), sync the cart to a `carts` collection in MongoDB with a `status: "abandoned"` and a `last_updated` timestamp.
    - Set up a Vercel Cron Job (`src/app/api/cron/abandoned-carts/route.ts`) to run hourly. It should query for carts older than 2 hours and trigger an email via Resend or SendGrid API. Update status to `status: "emailed"`.
@@ -181,5 +168,218 @@ All products currently visible on the website are **sample/demo data** stored in
    - Show total **Views** (integrate PostHog or Google Analytics API for accurate traffic counts).
    - Show total **Purchases** (queried from MongoDB).
    - Show total **Abandoned Carts** (queried from MongoDB).
+
+---
+
+## 🛡️ 11. Admin Panel — Complete Architecture
+
+### 11.1 Dual-Mode Admin Experience
+
+The admin gets **BOTH** editing modes and can toggle between them:
+
+| Mode | Description |
+|------|------------|
+| **`/admin` Dashboard** | Full-featured admin panel (like Shopify). Tables, forms, bulk actions. Primary workspace for heavy management tasks. |
+| **Inline Edit on Live Site** | Toggle "Edit Mode" from a floating toolbar → see ✏️ buttons on live website elements. Quick edits without leaving the site. |
+
+- Admin logs in via Firebase Auth → their email is checked against `ADMIN_EMAILS` env variable.
+- A floating "⚡ Admin" button appears on the live site (visible only to admins) with options: "Go to /admin", "Toggle Edit Mode".
+- Admin can choose their preferred default mode from `/admin/settings`.
+
+### 11.2 Admin Dashboard Pages (`/admin/*`)
+
+```text
+/admin/                    → Dashboard (stats, quick actions)
+/admin/products/           → Product list table (search, filter, bulk actions)
+/admin/products/new/       → Add new product form
+/admin/products/[id]/edit/ → Edit existing product
+/admin/products/bulk-import/ → CSV bulk import (like Meesho)
+/admin/collections/        → Collection management
+/admin/content/            → Site content editor (Announcement, Header, Footer, Promo, Homepage)
+/admin/pages/              → Policy pages editor (Privacy, Returns, Terms, Shipping)
+/admin/coupons/            → Coupon code management
+/admin/cod-settings/       → COD cities/pincodes, COD charges, Prepaid discounts
+/admin/orders/             → Order management
+/admin/settings/           → Admin preferences
+```
+
+### 11.3 Product Management
+
+The product form (Add/Edit) must support these fields:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| Name | Text | Required |
+| Slug | Auto-generated | From name, editable |
+| Price (₹) | Number | Required |
+| Sale Price (₹) | Number | Optional |
+| Description | Textarea | Optional |
+| Collection | Dropdown | From existing collections |
+| Main Image | Upload / URL | Drag & drop supported |
+| Gallery Images | Multi-upload | Up to 6 images |
+| Sizes | Checkboxes | XS, S, M, L, XL, XXL, Free Size |
+| Colors | Tag input | Add/remove color names |
+| Tags | Multi-select | Best Seller, Sale, New, Trending, Premium |
+| SEO Description | Textarea | **Character counter enforced: 120-160 chars** |
+| Bought Last 7 Days | Number | FOMO metric |
+| Video URLs | Multi-input | UGC showcasing video URLs |
+| Offers | Repeater | Title + Description + Optional Code |
+| COD Available | Toggle | Enable/disable COD for this specific product |
+
+### 11.4 Bulk Import (Like Meesho)
+
+Admin can mass-import products via CSV:
+
+1. **Download Template** → CSV with all column headers pre-filled
+2. **Upload CSV** → Drag & drop or file picker
+3. **Preview & Validate** → Table showing parsed rows with error highlighting (missing fields, invalid prices, slug conflicts)
+4. **Confirm Import** → Inserts all valid products into MongoDB
+5. **Import Report** → Success count, error count, skipped rows with reasons
+
+CSV columns: `name, price, salePrice, description, collection, image, sizes, colors, tags, seoDescription, codAvailable`
+
+### 11.5 COD & Payment Configuration
+
+Admin can configure from `/admin/cod-settings/`:
+
+| Setting | Description |
+|---------|------------|
+| **COD Available Cities/Pincodes** | Add/remove cities or pincodes where COD is accepted. Can upload CSV of pincodes. Modes: `ALL_INDIA`, `CITY_LIST`, `PINCODE_LIST`. |
+| **COD Extra Charge (₹)** | Extra amount added if customer chooses COD (e.g., ₹50) |
+| **Prepaid Discount** | Discount for online payment — flat ₹ or % (e.g., ₹100 off or 5% off) |
+| **COD Per-Product Toggle** | Enable/disable COD at the individual product level |
+| **Free Shipping Threshold** | Order amount above which shipping is free (e.g., ₹999+) |
+| **Flat Shipping Fee** | Default shipping fee if below free shipping threshold |
+
+**Checkout Flow:**
+- Customer enters pincode → system checks COD availability via `/api/settings/cod/check-pincode`
+- If COD available → show: "Prepaid (₹X discount)" / "COD (+₹Y charge)"
+- If COD NOT available → show only prepaid with message "COD not available for your area"
+
+### 11.6 Coupon Engine
+
+Admin can create and manage coupon codes from `/admin/coupons/`:
+
+| Field | Description |
+|-------|------------|
+| Code | e.g. "DIWALI50" |
+| Discount Type | PERCENT or FLAT |
+| Discount Value | e.g. 50 (means 50% or ₹50) |
+| Scope | `ALL_PRODUCTS`, `SPECIFIC_CATEGORY`, `SPECIFIC_PRODUCTS` |
+| Target IDs | Multi-select categories or products (if scoped) |
+| Usage Limit | Max total uses across all customers |
+| Per-User Limit | Max uses per individual customer |
+| Min Order Amount | Minimum cart value to apply coupon |
+| Expiry Date | Auto-deactivates after this date |
+| Active Toggle | Enable/disable |
+
+The `/checkout` page validates coupons via `/api/coupons/validate` which checks scope, expiry, usage limits, and min order amount before applying.
+
+### 11.7 Site Content Management
+
+All hardcoded website text becomes admin-editable. Stored in MongoDB `siteContent` collection:
+
+| Section | Editable Fields | Currently Hardcoded In |
+|---------|----------------|----------------------|
+| Announcement Bar | Text message | `AnnouncementBar.tsx` |
+| Header Navigation | List of {label, slug} links | `Header.tsx` |
+| Homepage Layout | Ordered list of collection slugs, grid config | `page.tsx` |
+| Promo Banner | Headline, subtext, button text | `PromoBanner.tsx` |
+| Footer | Company name, phone, email, address, copyright | `Footer.tsx` |
+
+### 11.8 MongoDB Schema (Complete)
+
+```text
+MongoDB Database: dutiheritage
+│
+├── products              # One document per product
+│   └── { name, slug, price, salePrice, image, images[],
+│          description, sizes[], colors[], collectionId,
+│          tags[], videoUrls[], offers[], seoTitle,
+│          seoDescription, boughtLast7Days,
+│          codAvailable: true/false,
+│          createdAt, updatedAt }
+│
+├── collections           # One document per collection
+│   └── { name, slug, productCount, createdAt }
+│
+├── siteContent           # Single document for all site-wide content
+│   └── { _id: "global",
+│          announcementText,
+│          headerNavLinks: [{label, slug}],
+│          homepageSlugs: ["new-arrivals", ...],
+│          homepageGridOverrides: {"slug": "grid-5"},
+│          promoBanner: {headline, subtext, buttonText},
+│          footer: {companyName, phone, email, address, copyright} }
+│
+├── pages                 # One document per policy page
+│   └── { slug, title, content, updatedAt }
+│
+├── coupons               # Coupon codes with scoped discounts
+│   └── { code, discountType, discountValue, scope,
+│          targetIds[], usageLimit, perUserLimit,
+│          minOrderAmount, usedCount, active, expiresAt }
+│
+├── settings              # Store-wide settings
+│   └── { _id: "cod",
+│          codEnabled, codCities[], codPincodes[],
+│          codMode: "ALL_INDIA|CITY_LIST|PINCODE_LIST",
+│          codExtraCharge, prepaidDiscount: {type, value},
+│          freeShippingAbove, flatShippingFee }
+│
+└── orders                # Customer orders
+    └── { orderId, customer: {name, email, phone, address},
+           items[], subtotal, discount, shipping,
+           codCharge, total, paymentMethod, couponCode,
+           status, createdAt }
+```
+
+### 11.9 API Routes Summary
+
+```text
+# Products
+GET/POST    /api/products              → List / Create
+PUT/DELETE  /api/products/[id]         → Update / Delete
+POST        /api/products/bulk-import  → CSV bulk import
+GET         /api/products/bulk-template → Download CSV template
+
+# Collections
+GET/POST    /api/collections           → List / Create
+PUT/DELETE  /api/collections/[id]      → Update / Delete
+
+# Site Content
+GET/PUT     /api/site-content          → Fetch / Update global content
+
+# Pages
+GET/PUT     /api/pages/[slug]          → Fetch / Update policy page
+
+# Coupons
+GET/POST    /api/coupons               → List / Create
+PUT/DELETE  /api/coupons/[id]          → Update / Delete
+POST        /api/coupons/validate      → Validate code at checkout
+
+# COD & Settings
+GET/PUT     /api/settings/cod          → Fetch / Update COD config
+POST        /api/settings/cod/check-pincode → Check pincode eligibility
+
+# Orders
+GET/POST    /api/orders                → List / Create
+PUT         /api/orders/[id]           → Update status
+
+# Admin
+GET         /api/admin/check           → Verify admin auth
+
+# Upload
+POST        /api/upload                → Upload image, return URL
+```
+
+### 11.10 Guest Checkout & Order Tracking UI
+
+- **Guest Checkout Supported:** Users do NOT need to create an account to buy products. They can checkout freely just by providing their email or phone number on the `/checkout` page.
+- **Order Tracking (Frontend):** To check the status of their orders, the user simply logs in (using the same email or phone number they provided at checkout) on the `/account` page.
+- **Order Timeline UI:** The `/account` page features an order tracking timeline UI showing the status of each order.
+- **Admin Order Sync:** The admin manages orders from `/admin/orders/`. When the admin updates an order's status (e.g., from `Confirmation Pending` → `Confirmed` → `Packed` → `Shipped` → `In Transit` → `Delivered`), it must sync with the MongoDB `orders` collection so that the user's frontend `/account` page reflects the new status instantly.
+
+---
 
 Good luck! You are stepping into a beautifully structured, heavily optimized codebase. Have fun building!
