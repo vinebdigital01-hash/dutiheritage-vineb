@@ -157,16 +157,7 @@ export default function AccountPage() {
     try {
       await signInWithEmailAndPassword(auth, cleanEmail, password);
     } catch (err: any) {
-      if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
-        try {
-          await createUserWithEmailAndPassword(auth, cleanEmail, password);
-          setMessage("Account created successfully!");
-        } catch (signupErr: any) {
-          setError(getCleanErrorMessage(signupErr));
-        }
-      } else {
-        setError(getCleanErrorMessage(err));
-      }
+      setError(getCleanErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -474,8 +465,14 @@ export default function AccountPage() {
                 disabled={loading}
                 className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
               >
-                {loading ? "Processing..." : "Sign In / Register"}
+                {loading ? "Processing..." : "Sign In"}
               </button>
+
+              <div className="text-center mt-2">
+                <Link href="/account/register" className="text-[12px] text-[var(--color-text-muted)] hover:text-black transition-colors">
+                  Don&apos;t have an account? <span className="underline underline-offset-4">Create one</span>
+                </Link>
+              </div>
 
               <div className="relative flex items-center justify-center mt-4 mb-2">
                 <div className="absolute inset-0 flex items-center">
