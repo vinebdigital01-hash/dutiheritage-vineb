@@ -318,13 +318,13 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">
                 <button 
                   onClick={handleAddToCart}
-                  className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors"
+                  className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Add to cart
                 </button>
                 <button 
                   onClick={handleBuyNow}
-                  className="w-full py-4 rounded-xl bg-gray-900 text-white text-[14px] font-bold tracking-wide uppercase hover:bg-black transition-colors"
+                  className="w-full py-4 rounded-xl bg-gray-900 text-white text-[14px] font-bold tracking-wide uppercase hover:bg-black transition-colors cursor-pointer"
                 >
                   Buy it now
                 </button>
