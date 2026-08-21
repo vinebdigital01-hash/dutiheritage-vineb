@@ -247,13 +247,14 @@ Admin can configure from `/admin/cod-settings/`:
 | **COD Available Cities/Pincodes** | Add/remove cities or pincodes where COD is accepted. Can upload CSV of pincodes. Modes: `ALL_INDIA`, `CITY_LIST`, `PINCODE_LIST`. |
 | **COD Extra Charge (₹)** | Extra amount added if customer chooses COD (e.g., ₹50) |
 | **Prepaid Discount** | Discount for online payment — flat ₹ or % (e.g., ₹100 off or 5% off) |
+| **Partial COD Advance** | Amount customer pays online to confirm COD order (e.g., ₹199). The rest is paid on delivery. Reduces RTO. |
 | **COD Per-Product Toggle** | Enable/disable COD at the individual product level |
 | **Free Shipping Threshold** | Order amount above which shipping is free (e.g., ₹999+) |
 | **Flat Shipping Fee** | Default shipping fee if below free shipping threshold |
 
 **Checkout Flow:**
 - Customer enters pincode → system checks COD availability via `/api/settings/cod/check-pincode`
-- If COD available → show: "Prepaid (₹X discount)" / "COD (+₹Y charge)"
+- If COD available → show 3 options: "Pay Online (₹X discount)", "Cash on Delivery (+₹Y charge)", and "Partial Advance (Pay ₹Z now, rest on delivery)"
 - If COD NOT available → show only prepaid with message "COD not available for your area"
 
 ### 11.6 Coupon Engine

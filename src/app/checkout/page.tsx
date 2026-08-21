@@ -16,6 +16,7 @@ const DEMO_CONFIG = {
   flatShippingFee: 99,
   codExtraCharge: 49,
   prepaidDiscount: { type: "FLAT" as const, value: 50 },
+  partialCodAdvance: 199, // User pays this online, rest on delivery
   // Major city pincodes for COD demo
   codPrefixes: ["1100","4000","5600","3020","5000","6000","7000","3800","4110","2260","2080"],
   demoCoupons: [
@@ -37,7 +38,7 @@ export default function CheckoutPage() {
   const [discountError, setDiscountError] = useState("");
   const [saveToProfile, setSaveToProfile] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"prepaid" | "cod">("prepaid");
+  const [paymentMethod, setPaymentMethod] = useState<"prepaid" | "cod" | "partial">("prepaid");
   const [codAvailable, setCodAvailable] = useState<boolean | null>(null);
   const [codChecking, setCodChecking] = useState(false);
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
@@ -126,6 +127,11 @@ export default function CheckoutPage() {
   const prepaidDiscount = paymentMethod === "prepaid" ? DEMO_CONFIG.prepaidDiscount.value : 0;
   const total = subtotal + shipping - discountAmount + codCharge - prepaidDiscount;
   const totalSavings = discountAmount + prepaidDiscount + (isFreeShipping ? DEMO_CONFIG.flatShippingFee : 0);
+
+  // Partial COD logic
+  const advanceAmount = DEMO_CONFIG.partialCodAdvance;
+  const payOnDeliveryAmount = paymentMethod === "partial" ? total - advanceAmount : 0;
+  const amountToPayNow = paymentMethod === "partial" ? advanceAmount : (paymentMethod === "cod" ? 0 : total);
 
   // ---- CROSS-SELL PRODUCTS ----
   const crossSellProducts = useMemo(() => {
@@ -324,6 +330,19 @@ export default function CheckoutPage() {
             <span className="text-2xl font-bold">₹{total.toLocaleString("en-IN")}</span>
           </div>
         </div>
+
+        {paymentMethod === "partial" && (
+          <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-dashed border-gray-300">
+            <div className="flex justify-between items-center text-blue-800 font-bold bg-blue-50 p-2 rounded">
+              <span>To Pay Now (Advance)</span>
+              <span className="text-lg">₹{amountToPayNow.toLocaleString("en-IN")}</span>
+            </div>
+            <div className="flex justify-between items-center text-gray-700 font-medium px-2">
+              <span>To Pay on Delivery</span>
+              <span>₹{payOnDeliveryAmount.toLocaleString("en-IN")}</span>
+            </div>
+          </div>
+        )}
 
         {totalSavings > 0 && (
           <div className="text-center mt-3 py-2.5 bg-green-50 border border-green-100 rounded-lg text-[13px] text-green-700 font-bold shadow-sm">
@@ -556,6 +575,20 @@ export default function CheckoutPage() {
                     </p>
                   </div>
                 </label>
+
+                {/* Partial Advance Payment */}
+                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${codAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"} ${paymentMethod === "partial" ? "border-black bg-blue-50/30" : "border-gray-200 hover:border-gray-300"}`}>
+                  <input type="radio" name="paymentMethod" value="partial" checked={paymentMethod === "partial"} onChange={() => { if (codAvailable !== false) setPaymentMethod("partial"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-[15px] font-bold">Pay ₹{DEMO_CONFIG.partialCodAdvance} Advance (Rest on Delivery)</span>
+                      <span className="text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-1 rounded shadow-sm">No COD Charge</span>
+                    </div>
+                    <p className="text-[13px] text-gray-600 mt-1">
+                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${DEMO_CONFIG.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
+                    </p>
+                  </div>
+                </label>
               </div>
             </section>
 
@@ -571,14 +604,14 @@ export default function CheckoutPage() {
 
             {/* Desktop Submit Button (Hidden on Mobile due to Sticky Footer) */}
             <div className="hidden lg:block">
-              <button type="submit" disabled={isProcessing} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : "bg-green-700 text-white hover:bg-green-800"}`}>
+              <button type="submit" disabled={isProcessing} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
                 {isProcessing && (
                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 )}
-                {isProcessing ? "Processing..." : paymentMethod === "prepaid" ? `Pay ₹${total.toLocaleString("en-IN")} Securely` : `Confirm COD Order — ₹${total.toLocaleString("en-IN")}`}
+                {isProcessing ? "Processing..." : paymentMethod === "prepaid" ? `Pay ₹${total.toLocaleString("en-IN")} Securely` : paymentMethod === "partial" ? `Pay ₹${amountToPayNow.toLocaleString("en-IN")} Advance` : `Confirm COD Order — ₹${total.toLocaleString("en-IN")}`}
               </button>
             </div>
             
@@ -624,7 +657,7 @@ export default function CheckoutPage() {
           type="submit" 
           onClick={handlePaymentSubmit}
           disabled={isProcessing} 
-          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : "bg-green-700 text-white hover:bg-green-800"}`}
+          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
         >
           {isProcessing && (
             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -632,7 +665,7 @@ export default function CheckoutPage() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
           )}
-          {isProcessing ? "Processing..." : paymentMethod === "prepaid" ? `Pay ₹${total.toLocaleString("en-IN")} Securely` : `Confirm COD Order — ₹${total.toLocaleString("en-IN")}`}
+          {isProcessing ? "Processing..." : paymentMethod === "prepaid" ? `Pay ₹${total.toLocaleString("en-IN")} Securely` : paymentMethod === "partial" ? `Pay ₹${amountToPayNow.toLocaleString("en-IN")} Advance` : `Confirm COD Order — ₹${total.toLocaleString("en-IN")}`}
         </button>
       </div>
 
