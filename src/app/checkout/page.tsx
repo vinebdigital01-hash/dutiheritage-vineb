@@ -414,8 +414,8 @@ export default function CheckoutPage() {
   return (
     <main className="w-full min-h-screen bg-[var(--color-bg)] pb-24 lg:pb-0">
       
-      {/* 🚨 FOMO BANNER - STICKY TOP */}
-      <div className="bg-red-600 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide sticky top-0 z-50 shadow-md flex items-center justify-center gap-2">
+      {/* 🚨 FOMO BANNER - TOP */}
+      <div className="bg-red-600 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
         <span className="animate-bounce">⚡</span> 
         High demand! Your cart is reserved for 
         <span className="bg-white text-red-600 px-2 py-0.5 rounded ml-1">{timeString}</span>
