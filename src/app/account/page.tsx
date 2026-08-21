@@ -30,6 +30,23 @@ declare global {
   }
 }
 
+const getCleanErrorMessage = (err: any) => {
+  if (!err) return "An error occurred. Please try again.";
+  if (err.code === "auth/weak-password") return "Password should be at least 6 characters.";
+  if (err.code === "auth/email-already-in-use") return "An account already exists with this email address.";
+  if (err.code === "auth/invalid-email") return "Please enter a valid email address.";
+  if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") return "Invalid email or password. Please try again.";
+  if (err.code === "auth/too-many-requests") return "Too many failed attempts. Please try again later.";
+  if (err.code === "auth/popup-closed-by-user") return "Login window was closed before completion.";
+  if (err.code === "auth/invalid-verification-code") return "Invalid OTP code. Please try again.";
+  if (err.code === "auth/invalid-phone-number") return "Please enter a valid phone number.";
+  
+  let msg = err.message || "An unexpected error occurred.";
+  msg = msg.replace(/^Firebase:\s*/i, "");
+  msg = msg.replace(/\s*\(auth\/[a-zA-Z0-9-]+\)\.?$/, "");
+  return msg;
+};
+
 export default function AccountPage() {
   const { user, authLoading, logout } = useAppContext();
   
@@ -51,7 +68,7 @@ export default function AccountPage() {
             window.localStorage.removeItem('emailForSignIn');
           })
           .catch((err: any) => {
-            setError(err.message);
+            setError(getCleanErrorMessage(err));
           })
           .finally(() => setLoading(false));
       }
@@ -100,7 +117,7 @@ export default function AccountPage() {
       setShowOTP(true);
       setMessage(`OTP sent to ${formattedNumber}`);
     } catch (err: any) {
-      setError(err.message);
+      setError(getCleanErrorMessage(err));
       // Reset recaptcha if it fails
       if (window.recaptchaVerifier) {
         window.recaptchaVerifier.clear();
@@ -145,10 +162,10 @@ export default function AccountPage() {
           await createUserWithEmailAndPassword(auth, cleanEmail, password);
           setMessage("Account created successfully!");
         } catch (signupErr: any) {
-          setError(signupErr.message);
+          setError(getCleanErrorMessage(signupErr));
         }
       } else {
-        setError(err.message);
+        setError(getCleanErrorMessage(err));
       }
     } finally {
       setLoading(false);
@@ -166,7 +183,7 @@ export default function AccountPage() {
         const provider = new GoogleAuthProvider();
         await signInWithRedirect(auth, provider);
       } else {
-        setError(err.message);
+        setError(getCleanErrorMessage(err));
       }
     } finally {
       setLoading(false);
@@ -184,7 +201,7 @@ export default function AccountPage() {
         const provider = new FacebookAuthProvider();
         await signInWithRedirect(auth, provider);
       } else {
-        setError(err.message);
+        setError(getCleanErrorMessage(err));
       }
     } finally {
       setLoading(false);
@@ -210,7 +227,7 @@ export default function AccountPage() {
       } else if (err.code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
       } else {
-        setError(err.message);
+        setError(getCleanErrorMessage(err));
       }
     } finally {
       setLoading(false);
