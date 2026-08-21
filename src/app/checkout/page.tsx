@@ -562,20 +562,6 @@ export default function CheckoutPage() {
                   </div>
                 </label>
 
-                {/* COD */}
-                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${codAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"} ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-300"}`}>
-                  <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === "cod"} onChange={() => { if (codAvailable !== false) setPaymentMethod("cod"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-[15px] font-bold">Cash on Delivery (COD)</span>
-                      <span className="text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-1 rounded shadow-sm">+₹{DEMO_CONFIG.codExtraCharge} charge</span>
-                    </div>
-                    <p className="text-[13px] text-gray-600 mt-1">
-                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check COD availability" : `A non-refundable ₹${DEMO_CONFIG.codExtraCharge} handling charge will be added.`}
-                    </p>
-                  </div>
-                </label>
-
                 {/* Partial Advance Payment */}
                 <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${codAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"} ${paymentMethod === "partial" ? "border-black bg-blue-50/30" : "border-gray-200 hover:border-gray-300"}`}>
                   <input type="radio" name="paymentMethod" value="partial" checked={paymentMethod === "partial"} onChange={() => { if (codAvailable !== false) setPaymentMethod("partial"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
@@ -586,6 +572,20 @@ export default function CheckoutPage() {
                     </div>
                     <p className="text-[13px] text-gray-600 mt-1">
                       {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${DEMO_CONFIG.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
+                    </p>
+                  </div>
+                </label>
+
+                {/* COD */}
+                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${codAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"} ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-300"}`}>
+                  <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === "cod"} onChange={() => { if (codAvailable !== false) setPaymentMethod("cod"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-[15px] font-bold">Cash on Delivery (COD)</span>
+                      <span className="text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-1 rounded shadow-sm">+₹{DEMO_CONFIG.codExtraCharge} charge</span>
+                    </div>
+                    <p className="text-[13px] text-gray-600 mt-1">
+                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check COD availability" : `A non-refundable ₹${DEMO_CONFIG.codExtraCharge} handling charge will be added.`}
                     </p>
                   </div>
                 </label>
