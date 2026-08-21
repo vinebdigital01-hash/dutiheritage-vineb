@@ -1,16 +1,44 @@
 "use client";
-import React from "react";
+import React, { useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
+import { products as allProducts } from "@/data/mock-products";
+import { Product } from "@/types";
 
 export const CartDrawer = () => {
-  const { cart, isCartOpen, setIsCartOpen, removeFromCart, isInitialized } = useAppContext();
+  const { cart, isCartOpen, setIsCartOpen, removeFromCart, isInitialized, addToCart } = useAppContext();
   const router = useRouter();
-
-  if (!isCartOpen) return null;
+  const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
 
   const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  
+  const FREE_SHIPPING_ABOVE = 999;
+  const isFreeShipping = cartTotal >= FREE_SHIPPING_ABOVE;
+  const amountForFreeShipping = FREE_SHIPPING_ABOVE - cartTotal;
+
+  const crossSellProducts = useMemo(() => {
+    if (cart.length === 0) return [];
+    const cartIds = new Set(cart.map(item => item.id));
+    const cartCollectionIds = new Set(cart.map(item => item.collectionId));
+    
+    // First try to find products in same collection
+    const related = allProducts.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 4);
+    
+    // Fallback to bestsellers if not enough related
+    if (related.length < 3) {
+      const extra = allProducts.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 3 - related.length);
+      related.push(...extra);
+    }
+    return related.slice(0, 3);
+  }, [cart]);
+
+  const handleAddCrossSell = (product: Product) => {
+    addToCart(product, product.sizes?.[0] || "Free Size");
+    setAddedCrossSell(prev => new Set([...prev, product.id]));
+  };
+
+  if (!isCartOpen) return null;
 
   return (
     <>
@@ -21,73 +49,143 @@ export const CartDrawer = () => {
       />
       
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-[400px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="fixed top-0 right-0 h-full w-full max-w-[420px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
-          <h2 className="text-sm tracking-[2px] uppercase">Your Cart ({cart.length})</h2>
-          <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+        <div className="flex items-center justify-between p-4 px-6 border-b border-[var(--color-border)] bg-gray-50">
+          <h2 className="text-[13px] font-bold tracking-[2px] uppercase">Your Cart ({cart.reduce((a, b) => a + b.quantity, 0)})</h2>
+          <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col">
           {cart.length === 0 ? (
             isInitialized ? (
-              <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-muted)] gap-4">
+              <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-muted)] gap-6">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/></svg>
-                <p className="text-sm">Your cart is currently empty.</p>
+                <p className="text-[14px]">Your cart is currently empty.</p>
+                <button onClick={() => setIsCartOpen(false)} className="px-8 py-3 bg-black text-white text-[12px] font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors">
+                  Continue Shopping
+                </button>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-4">
-                {/* Invisible skeleton/spacer to prevent flash of text */}
-              </div>
+              <div className="flex flex-col items-center justify-center h-full"></div>
             )
           ) : (
-            cart.map((item) => (
-              <div key={item.cartItemId} className="flex gap-4">
-                <div className="relative w-24 aspect-[3/4] bg-gray-50 shrink-0">
-                  <Image src={item.image} alt={item.name} fill className="object-cover" />
-                </div>
-                <div className="flex flex-col flex-1">
-                  <h3 className="text-xs tracking-[1px] uppercase">{item.name}</h3>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1">Size: {item.selectedSize}</p>
-                  <div className="flex items-center justify-between mt-auto">
-                    <p className="text-sm">Rs. {item.price.toLocaleString("en-IN")}</p>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs">Qty: {item.quantity}</span>
-                      <button 
-                        onClick={() => removeFromCart(item.cartItemId)}
-                        className="text-xs underline text-[var(--color-text-muted)] hover:text-black"
-                      >
-                        Remove
-                      </button>
+            <>
+              <div className="flex flex-col gap-6">
+                {cart.map((item) => (
+                  <div key={item.cartItemId} className="flex gap-4">
+                    <div className="relative w-24 aspect-[3/4] bg-gray-50 shrink-0 border border-[var(--color-border)] rounded-md overflow-hidden">
+                      <Image src={item.image} alt={item.name} fill className="object-cover" sizes="96px" />
+                    </div>
+                    <div className="flex flex-col flex-1">
+                      <h3 className="text-[13px] font-medium leading-tight">{item.name}</h3>
+                      <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Size: {item.selectedSize}</p>
+                      <div className="flex items-center justify-between mt-auto pt-2">
+                        <p className="text-[14px] font-bold">₹{item.price.toLocaleString("en-IN")}</p>
+                        <div className="flex items-center gap-4">
+                          <span className="text-[12px] bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-medium">Qty: {item.quantity}</span>
+                          <button 
+                            onClick={() => removeFromCart(item.cartItemId)}
+                            className="text-[12px] text-gray-400 hover:text-red-600 font-medium transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))
+
+              {/* CROSS-SELL / PEOPLE ALSO BOUGHT */}
+              {crossSellProducts.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-[var(--color-border)] pb-4">
+                  <h3 className="text-[12px] font-bold tracking-[1.5px] uppercase mb-4 text-center text-gray-500 flex items-center justify-center gap-2">
+                    <span className="w-8 h-[1px] bg-gray-300"></span>
+                    People Also Bought
+                    <span className="w-8 h-[1px] bg-gray-300"></span>
+                  </h3>
+                  <div className="flex flex-col gap-3">
+                    {crossSellProducts.map((product) => {
+                      const isAdded = addedCrossSell.has(product.id);
+                      return (
+                        <div key={product.id} className="flex gap-3 items-center p-2 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200">
+                          <div className="relative w-16 h-20 bg-gray-50 shrink-0 border border-gray-200 rounded overflow-hidden shadow-sm">
+                            <Image src={product.image} alt={product.name} fill className="object-cover" sizes="64px" />
+                          </div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <p className="text-[12px] font-medium truncate leading-tight">{product.name}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[12px] font-bold">₹{(product.salePrice || product.price).toLocaleString("en-IN")}</span>
+                              {product.salePrice && <span className="text-[10px] text-gray-400 line-through">₹{product.price.toLocaleString("en-IN")}</span>}
+                            </div>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => handleAddCrossSell(product)}
+                            disabled={isAdded}
+                            className={`shrink-0 text-[10px] font-bold tracking-wider uppercase px-4 py-2 rounded shadow-sm transition-colors ${isAdded ? "bg-green-100 text-green-800 border border-green-200" : "bg-white text-black border border-gray-300 hover:border-black"}`}
+                          >
+                            {isAdded ? "Added" : "+ Add"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="p-4 border-t border-[var(--color-border)] bg-gray-50">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-sm tracking-[1px] uppercase">Subtotal</span>
-              <span className="text-sm font-medium">Rs. {cartTotal.toLocaleString("en-IN")}</span>
+          <div className="border-t border-[var(--color-border)] bg-gray-50 flex flex-col shadow-[0_-4px_15px_rgba(0,0,0,0.05)]">
+            
+            {/* Shipping Progress */}
+            <div className="p-4 border-b border-[var(--color-border)] bg-white text-center">
+               {!isFreeShipping ? (
+                 <>
+                   <p className="text-[12px] font-medium mb-2.5">
+                     You are <span className="font-bold text-black">₹{amountForFreeShipping.toLocaleString("en-IN")}</span> away from <span className="font-bold text-green-700">FREE SHIPPING</span>
+                   </p>
+                   <div className="w-full bg-gray-100 rounded-full h-1.5 shadow-inner">
+                     <div className="bg-green-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.min((cartTotal / FREE_SHIPPING_ABOVE) * 100, 100)}%` }}></div>
+                   </div>
+                 </>
+               ) : (
+                 <div className="bg-green-50 py-1.5 rounded-full border border-green-200 text-[12px] font-bold text-green-700">
+                   ✅ You have unlocked FREE SHIPPING!
+                 </div>
+               )}
             </div>
-            <p className="text-[11px] text-[var(--color-text-muted)] mb-4 text-center">Tax included and shipping calculated at checkout</p>
-            <button 
-              onClick={() => {
-                setIsCartOpen(false);
-                router.push("/checkout");
-              }}
-              className="w-full py-4 bg-black text-white text-[12px] tracking-[2px] uppercase hover:bg-black/90"
-            >
-              Check out
-            </button>
+
+            <div className="p-5">
+              <div className="flex justify-between items-center mb-5">
+                <span className="text-[13px] tracking-[1px] uppercase font-bold text-gray-600">Subtotal</span>
+                <span className="text-xl font-bold">₹{cartTotal.toLocaleString("en-IN")}</span>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  setIsCartOpen(false);
+                  router.push("/checkout");
+                }}
+                className="w-full py-4.5 bg-black text-white text-[13px] font-bold tracking-[2px] uppercase hover:bg-gray-800 shadow-lg rounded transition-colors flex items-center justify-center gap-2"
+              >
+                Checkout Securely
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+              </button>
+              
+              <div className="mt-4 flex justify-center gap-1.5 items-center">
+                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                 <span className="text-[11px] text-gray-500 font-medium">Guaranteed safe & secure checkout</span>
+              </div>
+            </div>
           </div>
         )}
 
