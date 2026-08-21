@@ -380,6 +380,19 @@ POST        /api/upload                → Upload image, return URL
 - **Order Timeline UI:** The `/account` page features an order tracking timeline UI showing the status of each order.
 - **Admin Order Sync:** The admin manages orders from `/admin/orders/`. When the admin updates an order's status (e.g., from `Confirmation Pending` → `Confirmed` → `Packed` → `Shipped` → `In Transit` → `Delivered`), it must sync with the MongoDB `orders` collection so that the user's frontend `/account` page reflects the new status instantly.
 
+### 11.11 Advanced User Behavior & Analytics Tracking
+
+To provide maximum insights for marketing and cross-selling, the admin panel must track deep user behavior (stored in a MongoDB `analytics` or `events` collection, or integrated via PostHog). 
+
+The Admin Dashboard should have a **"User Insights"** tab that tracks:
+- **Product Views & Frequency:** Which specific user (or guest session) clicked on which products, and exactly *how many times* they viewed it. (e.g., "User +91-9876543210 viewed 'Midnight Velvet Gown' 4 times this week").
+- **Cart Abandonment & Funnel Drop-offs:** Track users who added items to the cart but didn't checkout. Show exactly *where* they dropped off (e.g., viewed cart, entered shipping, but abandoned at payment).
+- **User Journey Path:** How the user navigated the site (e.g., Homepage → Collection → Product A → Product B → Cart → Drop off).
+- **Time on Product:** How long a user stayed looking at a specific product page.
+- **Smart Retargeting Lists:** Group users by behavior to send highly targeted WhatsApp or Email campaigns (e.g., "Send 10% discount to all users who viewed the 'Wedding Collection' more than 3 times but never bought").
+
+*Developer Note: Implement this by sending custom tracking events from the frontend React components to an `/api/track` endpoint connected to MongoDB, OR integrate PostHog/Mixpanel and pull those insights via API into the custom Admin dashboard.*
+
 ---
 
 Good luck! You are stepping into a beautifully structured, heavily optimized codebase. Have fun building!
