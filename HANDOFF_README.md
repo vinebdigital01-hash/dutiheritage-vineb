@@ -34,7 +34,8 @@ All global state is managed in **`src/context/AppContext.tsx`**. We use React Co
 ### Variables & Functions Available in `useAppContext()`:
 - `cart`: Array of items currently in the cart.
 - `addToCart(product, size)`: Pushes a product to the cart. It automatically groups identical items (same ID + size) and increments the quantity.
-- `removeFromCart(cartItemId)`: Removes an item.
+- `updateQuantity(cartItemId, delta)`: Allows users to increment/decrement quantities using `+` and `-` buttons in the Cart Drawer and Checkout page.
+- `removeFromCart(cartItemId)`: Removes an item entirely.
 - `recentlyViewed`: Array of the last 6 products the user looked at.
 - `isCartOpen` / `setIsCartOpen`: Controls the slide-out cart drawer.
 - `user`: Currently logged-in user object `{ name, email }`.
@@ -379,8 +380,9 @@ GET         /api/admin/check           → Verify admin auth
 POST        /api/upload                → Upload image, return URL
 ```
 
-### 11.10 Guest Checkout & Order Tracking UI
+### 11.10 Checkout & Order Tracking UI
 
+- **Dynamic Cart Quantity Editing:** The Cart Drawer and Checkout Page both include interactive `+` and `-` quantity adjusters that update the central `AppContext` instantly, recalculating prices, shipping, and FOMO triggers in real-time.
 - **Guest Checkout Supported:** Users do NOT need to create an account to buy products. They can checkout freely just by providing their email or phone number on the `/checkout` page.
 - **Order Tracking (Frontend):** To check the status of their orders, the user simply logs in (using the same email or phone number they provided at checkout) on the `/account` page.
 - **Order Timeline UI:** The `/account` page features an order tracking timeline UI showing the status of each order.
