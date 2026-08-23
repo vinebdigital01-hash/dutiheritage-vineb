@@ -408,6 +408,137 @@ To maintain high trust and eliminate fake reviews, the review system is strictly
 - **Review Form Check:** When a user clicks "Write a review" on a product page, the frontend calls an API (e.g., `/api/reviews/eligibility?productId=XYZ&userId=123`). If the backend cannot find a `Delivered` order containing that product for that user, it throws an error: "Only customers who have received this product can write a review."
 - **Admin Bypass:** The admin is exempt from this rule. Admins can freely create, edit, or delete any reviews from the `/admin/reviews/` dashboard for marketing and moderation purposes.
 
+### 11.13 Customer Intelligence & Communication Hub
+
+The admin panel must have a dedicated **"Customers"** section that aggregates ALL customer data from every source into a single, powerful dashboard.
+
+#### 11.13.1 Customer Data Aggregation
+
+Pull and merge customer data from these sources into a unified `customers` MongoDB collection:
+
+| Source | Data Pulled | How |
+|--------|------------|-----|
+| **Meta Pixel (Facebook)** | Website visitors, page views, add-to-carts, purchases, custom audiences | Use [Meta Marketing API](https://developers.facebook.com/docs/marketing-api/) or [Conversions API](https://developers.facebook.com/docs/marketing-api/conversions-api/) to pull audience insights. Store `fbclid` and `fbp` cookies from the frontend to link anonymous visitors to Meta profiles. |
+| **Firebase Auth** | Logged-in users: email, phone, display name, UID, login method (Google/Phone/Email) | Already implemented in `AppContext.tsx`. Sync to MongoDB `customers` collection on every login via `/api/auth/sync`. |
+| **Checkout Data** | Guest buyers: name, email, phone, address, pincode, city, state | Captured on `/checkout` page. Store in MongoDB `customers` collection keyed by email or phone. |
+| **On-Site Tracking** | Product views, cart additions, wishlist, time on page, session paths | Frontend sends events to `/api/track` endpoint. Stored in MongoDB `events` collection, linked to customer by `userId` or `sessionId`. |
+| **Order History** | All orders, total spend, avg order value, last purchase date, lifetime value (LTV) | Aggregated from MongoDB `orders` collection per customer. |
+
+#### 11.13.2 Unified Customer Profile
+
+Each customer in the admin panel shows a **360° profile card**:
+
+```text
+┌─────────────────────────────────────────────────┐
+│ 👤 Priya Sharma                                 │
+│ 📧 priya@gmail.com  |  📱 +91-98765-43210       │
+│ 🏠 Sector 22, Gurugram, Haryana - 122015        │
+│─────────────────────────────────────────────────│
+│ Source: Meta Pixel + Google Login                │
+│ First Visit: 12 Aug 2026  |  Last Visit: Today  │
+│ Total Orders: 4  |  Total Spent: ₹12,400        │
+│ Avg Order: ₹3,100  |  LTV Score: HIGH           │
+│─────────────────────────────────────────────────│
+│ Recent Activity:                                │
+│  • Viewed 'Midnight Velvet Gown' 6x this week   │
+│  • Added 'Pearl Clutch' to cart (abandoned)      │
+│  • Purchased 'Silk Saree Set' on 20 Aug          │
+│─────────────────────────────────────────────────│
+│ Tags: [Repeat Buyer] [Wedding] [High LTV]       │
+│ Groups: VIP Customers, Wedding Collection Fans   │
+└─────────────────────────────────────────────────┘
+```
+
+#### 11.13.3 Customer Grouping & Segmentation
+
+The admin can create **Smart Groups** (auto-populated) and **Manual Groups** (hand-picked):
+
+**Smart Groups (Auto-Filters):**
+| Group Rule | Example |
+|-----------|---------|
+| Viewed product X more than N times | "Viewed 'Midnight Velvet Gown' > 3 times" |
+| Added to cart but never purchased | "Cart abandoners in last 7 days" |
+| Purchased from collection X | "All Wedding Collection buyers" |
+| Total spend above ₹X | "High spenders (₹10,000+)" |
+| Haven't purchased in X days | "Dormant customers (30+ days)" |
+| Came from Meta Pixel campaign | "Instagram Ad - Diwali Sale clickers" |
+| Located in city/state X | "All Mumbai customers" |
+| Signed up but never purchased | "Window shoppers" |
+
+**Manual Groups:**
+- Admin can hand-pick specific customers and add them to a named group (e.g., "VIP Influencers", "Wholesale Buyers")
+- Admin can tag individual customers with custom labels
+
+#### 11.13.4 Communication Tools
+
+Once a group is created, the admin can **bulk communicate** via:
+
+**📧 Email Campaigns:**
+- Admin selects a group → clicks "Send Email" → writes subject + body (rich text editor with product image embeds)
+- Backend sends via **Resend**, **SendGrid**, or **AWS SES** API
+- Track open rate, click rate per campaign
+- API: `POST /api/admin/campaigns/email` with `{ groupId, subject, body, scheduledAt? }`
+
+**📱 WhatsApp Campaigns:**
+- Admin selects a group → clicks "Send WhatsApp" → picks a pre-approved template or writes a message
+- Backend sends via **WhatsApp Business API** (through providers like Interakt, Wati, AiSensy, or direct Meta Cloud API)
+- Track delivery status, read receipts
+- API: `POST /api/admin/campaigns/whatsapp` with `{ groupId, templateName, parameters[] }`
+
+**Campaign History Dashboard:**
+- Show all past campaigns with metrics: sent count, delivered, opened, clicked, unsubscribed
+- Stored in MongoDB `campaigns` collection
+
+#### 11.13.5 MongoDB Schema Additions
+
+```text
+├── customers              # Unified customer profiles
+│   └── { email, phone, name, address, city, state, pincode,
+│          firebaseUid, metaPixelId, fbclid,
+│          source: "meta_pixel|firebase|checkout|manual",
+│          tags: ["VIP", "Wedding"],
+│          groupIds: [ObjectId],
+│          totalOrders, totalSpent, avgOrderValue, ltvScore,
+│          firstVisit, lastVisit, lastPurchase,
+│          createdAt, updatedAt }
+│
+├── customerGroups          # Smart & manual groups
+│   └── { name, type: "smart|manual",
+│          filters: { field, operator, value }[],  // for smart groups
+│          memberIds: [ObjectId],                   // for manual groups
+│          memberCount, createdAt, updatedAt }
+│
+├── campaigns               # Email & WhatsApp campaigns
+│   └── { name, channel: "email|whatsapp",
+│          groupId, subject, body, templateName,
+│          status: "draft|scheduled|sent|failed",
+│          scheduledAt, sentAt,
+│          stats: { sent, delivered, opened, clicked, failed },
+│          createdAt }
+│
+├── events                  # Raw tracking events
+│   └── { customerId, sessionId, event, productId,
+│          metadata: {}, timestamp }
+```
+
+#### 11.13.6 API Routes
+
+```text
+GET    /api/admin/customers              → List all customers (paginated, searchable)
+GET    /api/admin/customers/:id          → Single customer 360° profile
+PATCH  /api/admin/customers/:id/tags     → Add/remove tags
+POST   /api/admin/groups                 → Create smart or manual group
+GET    /api/admin/groups                 → List all groups with member counts
+GET    /api/admin/groups/:id/members     → List members of a group
+POST   /api/admin/campaigns/email        → Send email to a group
+POST   /api/admin/campaigns/whatsapp     → Send WhatsApp to a group
+GET    /api/admin/campaigns              → Campaign history with stats
+POST   /api/track                        → Frontend event tracking endpoint
+GET    /api/admin/meta/audiences         → Pull Meta Pixel custom audiences
+```
+
+*Developer Note: For Meta Pixel data, use the [Meta Marketing API](https://developers.facebook.com/docs/marketing-api/audiences/) with a System User access token. The frontend already fires Meta Pixel events via `src/lib/meta-pixel.ts` — these events are visible in Meta Events Manager. To pull this data INTO the admin panel, query the Marketing API for Custom Audiences and match by email/phone using hashed identifiers. For WhatsApp, use Interakt or Wati as the provider for easiest integration — they handle template approval and provide simple REST APIs.*
+
 ---
 
 Good luck! You are stepping into a beautifully structured, heavily optimized codebase. Have fun building!
