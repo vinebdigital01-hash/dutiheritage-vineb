@@ -32,7 +32,7 @@ function isCodAvailableForPin(pin: string): boolean {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, user, userProfile, clearCart, addToCart } = useAppContext();
+  const { cart, user, userProfile, clearCart, addToCart, updateQuantity, removeFromCart } = useAppContext();
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: "PERCENT" | "FLAT"; value: number } | null>(null);
   const [discountError, setDiscountError] = useState("");
@@ -248,13 +248,18 @@ export default function CheckoutPage() {
           <div key={item.cartItemId} className="flex gap-4 items-center">
             <div className="relative w-16 h-16 rounded border border-[var(--color-border)] bg-white shrink-0 shadow-sm">
               <Image src={item.image} alt={item.name} fill className="object-cover rounded" sizes="64px" />
-              <div className="absolute -top-2 -right-2 w-5 h-5 bg-gray-600 text-white text-[11px] flex items-center justify-center rounded-full shadow-md">{item.quantity}</div>
             </div>
             <div className="flex flex-col flex-1">
               <span className="text-[14px] font-medium leading-tight">{item.name}</span>
               <span className="text-[12px] text-[var(--color-text-muted)]">{item.selectedSize}</span>
-              {/* Fake Low Stock Warning */}
-              <span className="text-[11px] text-red-600 font-medium mt-0.5">🔥 Only 2 left!</span>
+              <div className="flex items-center gap-3 mt-1.5">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5">
+                  <button onClick={() => updateQuantity(item.cartItemId, -1)} disabled={item.quantity <= 1} className="text-[10px] text-gray-500 hover:text-black disabled:opacity-30 px-1">-</button>
+                  <span className="text-[11px] text-gray-700 font-medium min-w-[12px] text-center">{item.quantity}</span>
+                  <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-[10px] text-gray-500 hover:text-black px-1">+</button>
+                </div>
+                <button onClick={() => removeFromCart(item.cartItemId)} className="text-[10px] text-gray-400 hover:text-red-600 underline">Remove</button>
+              </div>
             </div>
             <div className="text-[14px] font-medium">₹{(item.price * item.quantity).toLocaleString("en-IN")}</div>
           </div>

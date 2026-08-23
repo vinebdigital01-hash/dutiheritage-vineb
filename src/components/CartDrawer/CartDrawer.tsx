@@ -7,7 +7,15 @@ import { products as allProducts } from "@/data/mock-products";
 import { Product } from "@/types";
 
 export const CartDrawer = () => {
-  const { cart, isCartOpen, setIsCartOpen, removeFromCart, isInitialized, addToCart } = useAppContext();
+  const { 
+    isCartOpen, 
+    setIsCartOpen, 
+    cart, 
+    removeFromCart, 
+    updateQuantity,
+    isInitialized, 
+    addToCart 
+  } = useAppContext();
   const router = useRouter();
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
 
@@ -87,7 +95,22 @@ export const CartDrawer = () => {
                       <div className="flex items-center justify-between mt-auto pt-2">
                         <p className="text-[14px] font-bold">₹{item.price.toLocaleString("en-IN")}</p>
                         <div className="flex items-center gap-4">
-                          <span className="text-[12px] bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-medium">Qty: {item.quantity}</span>
+                          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
+                            <button 
+                              onClick={() => updateQuantity(item.cartItemId, -1)}
+                              disabled={item.quantity <= 1}
+                              className="text-gray-500 hover:text-black disabled:opacity-30 disabled:hover:text-gray-500 px-1"
+                            >
+                              -
+                            </button>
+                            <span className="text-[12px] text-gray-700 font-medium min-w-[12px] text-center">{item.quantity}</span>
+                            <button 
+                              onClick={() => updateQuantity(item.cartItemId, 1)}
+                              className="text-gray-500 hover:text-black px-1"
+                            >
+                              +
+                            </button>
+                          </div>
                           <button 
                             onClick={() => removeFromCart(item.cartItemId)}
                             className="text-[12px] text-gray-400 hover:text-red-600 font-medium transition-colors"

@@ -25,6 +25,7 @@ interface AppContextType {
   cart: CartItem[];
   addToCart: (product: Product, size: string) => void;
   removeFromCart: (cartItemId: string) => void;
+  updateQuantity: (cartItemId: string, delta: number) => void;
   clearCart: () => void;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
@@ -128,6 +129,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
   }, []);
 
+  const updateQuantity = React.useCallback((cartItemId: string, delta: number) => {
+    setCart((prev) => prev.map((item) => {
+      if (item.cartItemId === cartItemId) {
+        const newQty = item.quantity + delta;
+        return { ...item, quantity: Math.max(1, newQty) }; // minimum qty is 1
+      }
+      return item;
+    }));
+  }, []);
+
   const clearCart = React.useCallback(() => {
     setCart([]);
   }, []);
@@ -161,6 +172,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         cart,
         addToCart,
         removeFromCart,
+        updateQuantity,
         clearCart,
         isCartOpen,
         setIsCartOpen,
