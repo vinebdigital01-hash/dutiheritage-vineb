@@ -6,7 +6,7 @@ import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
 import { FiPhone } from "react-icons/fi";
 import { auth } from "@/lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, signInWithRedirect } from "firebase/auth";
 
 const getCleanErrorMessage = (err: any) => {
   if (!err) return "An error occurred. Please try again.";
@@ -43,6 +43,25 @@ export default function RegisterPage() {
       router.push("/account");
     } catch (err: any) {
       setError(getCleanErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push("/account");
+    } catch (err: any) {
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        const provider = new GoogleAuthProvider();
+        await signInWithRedirect(auth, provider);
+      } else {
+        setError(getCleanErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -109,7 +128,35 @@ export default function RegisterPage() {
             </Link>
           </div>
 
+          <div className="relative flex items-center justify-center mt-6 mb-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[var(--color-border)]"></div>
+            </div>
+            <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
+              Or register with
+            </div>
+          </div>
 
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+            >
+              <FcGoogle className="text-xl" />
+              <span className="text-[13px]">Google</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/account")}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+            >
+              <FiPhone className="text-xl" />
+              <span className="text-[13px]">Phone</span>
+            </button>
+          </div>
 
           <div className="text-center mt-6">
             <Link href="/account" className="text-[13px] text-[var(--color-text)] underline underline-offset-4 hover:opacity-70">
