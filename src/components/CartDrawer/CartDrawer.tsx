@@ -18,6 +18,7 @@ export const CartDrawer = () => {
   } = useAppContext();
   const router = useRouter();
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   
@@ -195,13 +196,32 @@ export const CartDrawer = () => {
               
               <button 
                 onClick={() => {
-                  setIsCartOpen(false);
+                  setIsNavigating(true);
+                  // Intentionally NOT closing the cart immediately so the user sees the spinner
                   router.push("/checkout");
+                  // We could close it after a tiny delay or let the route change naturally hide it
+                  setTimeout(() => {
+                    setIsCartOpen(false);
+                    setIsNavigating(false); // Reset in case they navigate back
+                  }, 800);
                 }}
-                className="w-full py-4.5 bg-black text-white text-[13px] font-bold tracking-[2px] uppercase hover:bg-gray-800 shadow-lg rounded transition-colors flex items-center justify-center gap-2"
+                disabled={isNavigating}
+                className={`w-full py-4.5 text-[13px] font-bold tracking-[2px] uppercase shadow-lg rounded transition-colors flex items-center justify-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300 cursor-wait' : 'bg-black text-white hover:bg-gray-800'}`}
               >
-                Checkout Securely
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                {isNavigating ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    Checkout Securely
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  </>
+                )}
               </button>
               
               <div className="mt-4 flex justify-center gap-1.5 items-center">
