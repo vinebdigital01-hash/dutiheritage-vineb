@@ -112,7 +112,7 @@ export default function CheckoutPage() {
   const indianCities = selectedState ? City.getCitiesOfState("IN", selectedState.isoCode) : [];
 
   // ---- PRICING CALCULATIONS ----
-  const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const subtotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   const isFreeShipping = subtotal >= DEMO_CONFIG.freeShippingAbove;
   const shipping = subtotal > 0 ? (isFreeShipping ? 0 : DEMO_CONFIG.flatShippingFee) : 0;
   const amountForFreeShipping = DEMO_CONFIG.freeShippingAbove - subtotal;
@@ -261,7 +261,7 @@ export default function CheckoutPage() {
                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-[10px] text-gray-400 hover:text-red-600 underline">Remove</button>
               </div>
             </div>
-            <div className="text-[14px] font-medium">₹{(item.price * item.quantity).toLocaleString("en-IN")}</div>
+            <div className="text-[14px] font-medium">₹{((item.salePrice || item.price) * item.quantity).toLocaleString("en-IN")}</div>
           </div>
         ))}
       </div>
@@ -473,7 +473,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          <form className="flex flex-col gap-8" onSubmit={handlePaymentSubmit}>
+          <form id="checkout-form" className="flex flex-col gap-8" onSubmit={handlePaymentSubmit}>
 
             {/* Contact */}
             <section>
@@ -519,7 +519,7 @@ export default function CheckoutPage() {
                     <option value="">State</option>
                     {indianStates.map(s => <option key={s.isoCode} value={s.name}>{s.name}</option>)}
                   </select>
-                  <input type="text" name="pinCode" value={formData.pinCode} onChange={handleInputChange} placeholder="PIN code" maxLength={6} className="w-1/3 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide" required />
+                  <input type="text" inputMode="numeric" pattern="\d{6}" name="pinCode" value={formData.pinCode} onChange={(e) => { const val = e.target.value.replace(/\D/g, ''); setFormData({...formData, pinCode: val}); }} placeholder="PIN code" maxLength={6} className="w-1/3 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide" required />
                 </div>
 
                 <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Mobile number (For delivery updates)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
@@ -660,7 +660,7 @@ export default function CheckoutPage() {
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-40">
         <button 
           type="submit" 
-          onClick={handlePaymentSubmit}
+          form="checkout-form"
           disabled={isProcessing} 
           className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
         >

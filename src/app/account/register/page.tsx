@@ -109,31 +109,7 @@ export default function RegisterPage() {
             </Link>
           </div>
 
-          <div className="relative flex items-center justify-center mt-4 mb-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[var(--color-border)]"></div>
-            </div>
-            <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
-              Or continue with
-            </div>
-          </div>
 
-          <div className="flex gap-4">
-            <button
-              type="button"
-              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors"
-            >
-              <FcGoogle className="text-xl" />
-              <span className="text-[13px]">Google</span>
-            </button>
-            <button
-              type="button"
-              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors"
-            >
-              <FiPhone className="text-xl" />
-              <span className="text-[13px]">Phone</span>
-            </button>
-          </div>
 
           <div className="text-center mt-6">
             <Link href="/account" className="text-[13px] text-[var(--color-text)] underline underline-offset-4 hover:opacity-70">

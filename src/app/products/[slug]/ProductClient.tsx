@@ -73,7 +73,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
   // Fallback defaults
   const images = product.images || [product.image, product.image, product.image]; 
-  const sizes = product.sizes || ["Medium", "Large", "X-Large"];
+  const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
   const [selectedSize, setSelectedSize] = useState(sizes[0]);
 

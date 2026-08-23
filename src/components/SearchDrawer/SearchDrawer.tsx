@@ -129,7 +129,7 @@ export const SearchDrawer = () => {
                       src={product.image}
                       alt={product.name}
                       fill
-                      sizes="60px"
+                      sizes="(max-width: 768px) 33vw, 20vw"
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   </div>

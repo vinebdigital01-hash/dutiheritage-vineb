@@ -19,7 +19,7 @@ export const CartDrawer = () => {
   const router = useRouter();
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
 
-  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const cartTotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   
   const FREE_SHIPPING_ABOVE = 999;
   const isFreeShipping = cartTotal >= FREE_SHIPPING_ABOVE;
@@ -93,7 +93,7 @@ export const CartDrawer = () => {
                       <h3 className="text-[13px] font-medium leading-tight">{item.name}</h3>
                       <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Size: {item.selectedSize}</p>
                       <div className="flex items-center justify-between mt-auto pt-2">
-                        <p className="text-[14px] font-bold">₹{item.price.toLocaleString("en-IN")}</p>
+                        <p className="text-[14px] font-bold">₹{((item.salePrice || item.price) * item.quantity).toLocaleString("en-IN")}</p>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
                             <button 
