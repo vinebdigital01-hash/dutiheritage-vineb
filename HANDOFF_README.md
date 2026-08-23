@@ -539,6 +539,111 @@ GET    /api/admin/meta/audiences         → Pull Meta Pixel custom audiences
 
 *Developer Note: For Meta Pixel data, use the [Meta Marketing API](https://developers.facebook.com/docs/marketing-api/audiences/) with a System User access token. The frontend already fires Meta Pixel events via `src/lib/meta-pixel.ts` — these events are visible in Meta Events Manager. To pull this data INTO the admin panel, query the Marketing API for Custom Audiences and match by email/phone using hashed identifiers. For WhatsApp, use Interakt or Wati as the provider for easiest integration — they handle template approval and provide simple REST APIs.*
 
+### 11.14 Automated Communication Flows (Email + WhatsApp)
+
+The system must send **automatic triggered messages** (no manual admin action needed) based on user actions. These run via **Vercel Cron Jobs** that check MongoDB every hour for pending triggers.
+
+#### 11.14.1 Flow Triggers
+
+| # | Trigger Event | Delay | Channel | Message |
+|---|--------------|-------|---------|---------|
+| 1 | **New Signup** | Instant | Email + WhatsApp | "Welcome to Duti Heritage! 🎉 Here's 10% off your first order — use code WELCOME10" |
+| 2 | **Order Placed** | Instant | Email + WhatsApp | "Your order #DH-1234 is confirmed! ✅ We're preparing it with love. Track it anytime from your account." |
+| 3 | **Order Shipped** | Instant | Email + WhatsApp | "Your order #DH-1234 has been shipped! 📦 Track it here: [tracking link]" |
+| 4 | **Order Delivered** | Instant + 3 days | Email | Instant: "Your order has been delivered! 🎁" — After 3 days: "How was your experience? Leave a review and get ₹100 off your next order." |
+| 5 | **Cart Abandoned** | 1 hour, 24 hours, 72 hours | Email + WhatsApp | **1hr:** "You left something behind! Your cart is waiting 🛒" — **24hr:** "Still thinking? Your items are selling fast ⚡" — **72hr:** "Last chance! Here's 5% off to complete your order — use code COMEBACK5" |
+| 6 | **Wishlist Reminder** | 3 days, 7 days | Email | **3 days:** "Still eyeing [Product Name]? It's waiting for you 💫" — **7 days:** "Your wishlisted [Product Name] is back in stock / running low — grab it before it's gone!" |
+| 7 | **Browse Abandonment** | 24 hours | Email | "You were checking out [Product Name] yesterday — still interested? Here's a closer look 👀" (only if user viewed a product 3+ times but never added to cart) |
+| 8 | **Post-Purchase Upsell** | 5 days after delivery | Email | "Customers who bought [Product A] also loved [Product B] — check it out!" |
+| 9 | **Win-Back (Dormant)** | 30 days, 60 days | Email + WhatsApp | **30 days:** "We miss you! Here's what's new at Duti Heritage 🌟" — **60 days:** "It's been a while! Come back with 15% off everything — code MISSYOU15" |
+| 10 | **Birthday/Anniversary** | On date | Email + WhatsApp | "Happy Birthday! 🎂 Enjoy 20% off as our gift to you — code BDAY20" (if user has provided DOB in profile) |
+
+#### 11.14.2 Implementation Architecture
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                    FRONTEND (React)                     │
+│  Events fired on: signup, add-to-cart, wishlist,        │
+│  product view, checkout start, checkout complete        │
+│         │                                               │
+│         ▼                                               │
+│   POST /api/track  { event, userId, productId, meta }   │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│                  MongoDB Collections                    │
+│                                                         │
+│  events     → Raw event log (userId, event, timestamp)  │
+│  carts      → Active carts with status & last_updated   │
+│  wishlists  → Wishlisted products per user              │
+│  automations → Automation rules & templates             │
+│  automationLogs → Sent messages log (prevents dupes)    │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│            Vercel Cron Jobs (run every hour)             │
+│                                                         │
+│  /api/cron/abandoned-carts   → Check carts older than   │
+│                                 1hr/24hr/72hr, send msg │
+│  /api/cron/wishlist-reminders → Check wishlists with no │
+│                                  purchase after 3/7 days│
+│  /api/cron/browse-abandonment → Check 3+ views with no │
+│                                  cart add after 24hrs   │
+│  /api/cron/post-purchase     → Check delivered orders   │
+│                                 older than 5 days       │
+│  /api/cron/winback           → Check customers dormant  │
+│                                 for 30/60 days          │
+│         │                                               │
+│         ▼                                               │
+│  Send via: Resend (email) + Interakt/Wati (WhatsApp)    │
+│  Log to: automationLogs (prevents duplicate sends)      │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 11.14.3 MongoDB Schema Additions
+
+```text
+├── wishlists               # User wishlists
+│   └── { userId, productId, addedAt }
+│
+├── automations             # Automation rules (admin-editable)
+│   └── { trigger, delayMinutes, channel,
+│          subject, body, whatsappTemplate,
+│          enabled: true/false, createdAt }
+│
+├── automationLogs          # Prevents duplicate sends
+│   └── { automationId, customerId, trigger,
+│          channel, sentAt, status }
+```
+
+#### 11.14.4 Admin Controls
+
+The admin panel must have an **"Automations"** section where the admin can:
+- **Toggle ON/OFF** each automation flow independently
+- **Edit message templates** (subject, body, WhatsApp template name)
+- **Change delays** (e.g., change cart abandonment from 1hr to 2hr)
+- **View logs** — see exactly which messages were sent to whom and when
+- **View stats** — open rate, click rate, conversion rate per automation
+
+#### 11.14.5 Cron Job Config (vercel.json)
+
+```json
+{
+  "crons": [
+    { "path": "/api/cron/abandoned-carts", "schedule": "0 * * * *" },
+    { "path": "/api/cron/wishlist-reminders", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/browse-abandonment", "schedule": "0 */4 * * *" },
+    { "path": "/api/cron/post-purchase", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/winback", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/welcome", "schedule": "*/5 * * * *" }
+  ]
+}
+```
+
+*Developer Note: Each cron job MUST check `automationLogs` before sending to prevent duplicate messages. Use a compound index on `{ automationId, customerId, trigger }` to efficiently check if a message was already sent. For the welcome email, fire it immediately on signup via the `/api/auth/sync` endpoint rather than waiting for a cron — the cron is a fallback only. All WhatsApp templates must be pre-approved by Meta before sending — use Interakt/Wati dashboard for template management.*
+
 ---
 
 Good luck! You are stepping into a beautifully structured, heavily optimized codebase. Have fun building!
