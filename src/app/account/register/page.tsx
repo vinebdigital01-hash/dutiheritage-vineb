@@ -81,6 +81,36 @@ export default function RegisterPage() {
           </div>
         )}
 
+        <div className="flex gap-4 mb-4">
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+          >
+            <FcGoogle className="text-xl" />
+            <span className="text-[13px]">Google</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/account")}
+            disabled={loading}
+            className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+          >
+            <FiPhone className="text-xl" />
+            <span className="text-[13px]">Phone</span>
+          </button>
+        </div>
+
+        <div className="relative flex items-center justify-center mb-6 mt-2">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-[var(--color-border)]"></div>
+          </div>
+          <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
+            Or register with email
+          </div>
+        </div>
+
         <form onSubmit={handleRegister} className="flex flex-col gap-4">
           <input
             type="text"
@@ -117,7 +147,7 @@ export default function RegisterPage() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-4 disabled:opacity-50"
+            className="w-full bg-[var(--color-text)] text-white text-[13px] tracking-[2px] uppercase py-4 hover:opacity-90 transition-opacity mt-2 disabled:opacity-50"
           >
             {loading ? "Creating..." : "Create"}
           </button>
@@ -125,42 +155,6 @@ export default function RegisterPage() {
           <div className="text-center mt-2">
             <Link href="/account" className="text-[12px] text-[var(--color-text-muted)] hover:text-black transition-colors">
               Already have an account? <span className="underline underline-offset-4">Sign In</span>
-            </Link>
-          </div>
-
-          <div className="relative flex items-center justify-center mt-6 mb-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[var(--color-border)]"></div>
-            </div>
-            <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
-              Or register with
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
-            >
-              <FcGoogle className="text-xl" />
-              <span className="text-[13px]">Google</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/account")}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-3 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
-            >
-              <FiPhone className="text-xl" />
-              <span className="text-[13px]">Phone</span>
-            </button>
-          </div>
-
-          <div className="text-center mt-6">
-            <Link href="/account" className="text-[13px] text-[var(--color-text)] underline underline-offset-4 hover:opacity-70">
-              Return to login
             </Link>
           </div>
         </form>

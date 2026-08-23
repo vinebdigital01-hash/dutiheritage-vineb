@@ -433,6 +433,49 @@ export default function AccountPage() {
         {/* ------------------------------------------------ */}
         {!forgotMode && authMode === "email" && (
           <>
+            <div className="flex gap-2 sm:gap-4 mb-4">
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+              >
+                <FcGoogle className="text-xl" />
+                <span className="text-[12px] sm:text-[13px]">Google</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleFacebookLogin}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+              >
+                <FaFacebook className="text-xl text-[#1877F2]" />
+                <span className="text-[12px] sm:text-[13px]">Facebook</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("phone");
+                  setError(null);
+                  setMessage(null);
+                }}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+              >
+                <FiPhone className="text-xl" />
+                <span className="text-[12px] sm:text-[13px]">Phone</span>
+              </button>
+            </div>
+
+            <div className="relative flex items-center justify-center mb-6 mt-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[var(--color-border)]"></div>
+              </div>
+              <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
+                Or continue with email
+              </div>
+            </div>
+
             <form onSubmit={handleEmailLogin} className="flex flex-col gap-3">
               <input
                 type="email"
@@ -472,49 +515,6 @@ export default function AccountPage() {
                 <Link href="/account/register" className="text-[12px] text-[var(--color-text-muted)] hover:text-black transition-colors">
                   Don&apos;t have an account? <span className="underline underline-offset-4">Create one</span>
                 </Link>
-              </div>
-
-              <div className="relative flex items-center justify-center mt-4 mb-2">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-[var(--color-border)]"></div>
-                </div>
-                <div className="relative bg-[var(--color-bg)] px-4 text-[12px] text-[var(--color-text-muted)] uppercase tracking-[1px]">
-                  Or continue with
-                </div>
-              </div>
-
-              <div className="flex gap-2 sm:gap-4">
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
-                >
-                  <FcGoogle className="text-xl" />
-                  <span className="text-[12px] sm:text-[13px]">Google</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFacebookLogin}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
-                >
-                  <FaFacebook className="text-xl text-[#1877F2]" />
-                  <span className="text-[12px] sm:text-[13px]">Facebook</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("phone");
-                    setError(null);
-                    setMessage(null);
-                  }}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 border border-[var(--color-border)] py-3 hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
-                >
-                  <FiPhone className="text-xl" />
-                  <span className="text-[12px] sm:text-[13px]">Phone</span>
-                </button>
               </div>
             </form>
           </>
