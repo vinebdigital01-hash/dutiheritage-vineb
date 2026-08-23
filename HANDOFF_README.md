@@ -558,7 +558,23 @@ The system must send **automatic triggered messages** (no manual admin action ne
 | 9 | **Win-Back (Dormant)** | 30 days, 60 days | Email + WhatsApp | **30 days:** "We miss you! Here's what's new at Duti Heritage 🌟" — **60 days:** "It's been a while! Come back with 15% off everything — code MISSYOU15" |
 | 10 | **Birthday/Anniversary** | On date | Email + WhatsApp | "Happy Birthday! 🎂 Enjoy 20% off as our gift to you — code BDAY20" (if user has provided DOB in profile) |
 
-#### 11.14.2 Implementation Architecture
+#### 11.14.2 Event-Driven Triggers (Real-time)
+
+Certain flows execute **instantly** without waiting for cron jobs. These are hooked directly into API actions.
+
+**Example: Admin Shipping Notification Hook**
+When the admin fulfills an order in the dashboard:
+1. Admin enters AWB (Tracking ID) and Courier Name on the order page.
+2. Admin clicks **"Save & Mark as Shipped"**.
+3. Frontend calls `PATCH /api/admin/orders/:id` with `status: "Shipped"` and `trackingInfo`.
+4. **Backend Hook:** Before returning the `200 OK` response, the backend *instantly* fires the Email and WhatsApp APIs.
+5. Customer's phone immediately buzzes: *"Your order #DH-1234 has been shipped via BlueDart! Track here: [link]"*
+
+Other Event-Driven Hooks include:
+- **New Signup:** Hooked into `/api/auth/sync` (Instant Welcome Email)
+- **Order Placed:** Hooked into the Payment Gateway Webhook (`/api/webhooks/payment-success`)
+
+#### 11.14.3 Implementation Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
@@ -602,7 +618,7 @@ The system must send **automatic triggered messages** (no manual admin action ne
 └─────────────────────────────────────────────────────────┘
 ```
 
-#### 11.14.3 MongoDB Schema Additions
+#### 11.14.4 MongoDB Schema Additions
 
 ```text
 ├── wishlists               # User wishlists
@@ -618,7 +634,7 @@ The system must send **automatic triggered messages** (no manual admin action ne
 │          channel, sentAt, status }
 ```
 
-#### 11.14.4 Admin Controls
+#### 11.14.5 Admin Controls
 
 The admin panel must have an **"Automations"** section where the admin can:
 - **Toggle ON/OFF** each automation flow independently
@@ -627,7 +643,7 @@ The admin panel must have an **"Automations"** section where the admin can:
 - **View logs** — see exactly which messages were sent to whom and when
 - **View stats** — open rate, click rate, conversion rate per automation
 
-#### 11.14.5 Cron Job Config (vercel.json)
+#### 11.14.6 Cron Job Config (vercel.json)
 
 ```json
 {
