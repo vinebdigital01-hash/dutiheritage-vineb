@@ -54,7 +54,7 @@ export default function ReturnExchangePage() {
             <li>Exchange/Return not accepted if Customer does not like the material or colour of the dress, we suggest that the customer should read the product description & have a look at all the pictures before ordering.</li>
             <li>Our products are made and handled by human hands involving various processes. There is bound to be variations in colour, finish and overall look. The colours you see on our website will depend on the accuracy of your monitor for which subtle variations must be acknowledged.</li>
             <li>10-12% Colour difference depends on the screen resolution of the device used by the client and camera lights, please don&apos;t expect an exchange or return for the same.</li>
-            <li>We have made every effort to display the colours of our products that appear on dutiheritage.com as accurately as possible. However, as computer monitors, tablets and mobile devices vary, we cannot guarantee that your monitor&apos;s display of a colour will be completely accurate.</li>
+            <li>We have made every effort to display the colours of our products that appear on dutiheritage.co.in as accurately as possible. However, as computer monitors, tablets and mobile devices vary, we cannot guarantee that your monitor&apos;s display of a colour will be completely accurate.</li>
             <li>Exchange/Return not accepted if the product is washed and worn.</li>
             <li>Purchase made from SALE section are not eligible for any kind of return or exchange. All the sale, discounted, brought with a coupon and gift voucher purchases are non returnable, non refundable & non exchangeable.</li>
           </ul>
