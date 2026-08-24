@@ -22,6 +22,8 @@ import {
   signInWithEmailLink,
   sendSignInLinkToEmail
 } from "firebase/auth";
+import { checkEmailExists } from "@/lib/auth-client";
+import { AccountOrders } from "@/components/AccountOrders";
 
 declare global {
   interface Window {
@@ -209,6 +211,11 @@ export default function AccountPage() {
     setError(null);
     setMessage(null);
     try {
+      const { exists, skipped } = await checkEmailExists(cleanEmail);
+      if (!skipped && !exists) {
+        setError("No account found with this email. Please register first.");
+        return;
+      }
       await sendPasswordResetEmail(auth, cleanEmail);
       setMessage(`A password reset link was sent to ${cleanEmail}. Check your inbox!`);
     } catch (err: any) {
@@ -235,6 +242,11 @@ export default function AccountPage() {
     setError(null);
     setMessage(null);
     try {
+      const { exists, skipped } = await checkEmailExists(cleanEmail);
+      if (!skipped && !exists) {
+        setError("No account found with this email. Please register first.");
+        return;
+      }
       const actionCodeSettings = {
         url: window.location.origin + '/account',
         handleCodeInApp: true,
@@ -243,7 +255,7 @@ export default function AccountPage() {
       window.localStorage.setItem('emailForSignIn', cleanEmail);
       setMessage(`A magic login link was sent to ${cleanEmail}. Check your inbox!`);
     } catch (err: any) {
-      setError(err.message);
+      setError(getCleanErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -276,88 +288,7 @@ export default function AccountPage() {
             
             <h2 className="text-[13px] tracking-[2px] uppercase mb-4 mt-8 border-t border-[var(--color-border)] pt-8">Order History</h2>
             
-            <div className="flex flex-col gap-6">
-              {/* Order 1: Delivered */}
-              <div className="border border-[var(--color-border)] p-4 bg-white">
-                <div className="flex justify-between items-start mb-3 pb-3 border-b border-[var(--color-border)]">
-                  <div>
-                    <p className="text-[13px] font-medium">Order #DH-9014</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">Placed on Aug 10, 2026</p>
-                  </div>
-                  <span className="text-[11px] font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full uppercase tracking-wide">
-                    Delivered
-                  </span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded">
-                    <img src="/images/velvet.jpg" className="w-full h-full object-cover rounded" alt="Item" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-[13px]">Midnight Velvet Gown</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">Qty: 1</p>
-                  </div>
-                  <p className="text-[13px] font-medium">₹8,999</p>
-                </div>
-              </div>
-
-              {/* Order 2: In Transit */}
-              <div className="border border-[var(--color-border)] p-4 bg-white">
-                <div className="flex justify-between items-start mb-3 pb-3 border-b border-[var(--color-border)]">
-                  <div>
-                    <p className="text-[13px] font-medium">Order #DH-9022</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">Placed on Aug 18, 2026</p>
-                  </div>
-                  <span className="text-[11px] font-semibold bg-blue-100 text-blue-800 px-2 py-1 rounded-full uppercase tracking-wide">
-                    In Transit
-                  </span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded">
-                    <img src="/images/velvet.jpg" className="w-full h-full object-cover rounded" alt="Item" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-[13px]">Midnight Velvet Gown</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">Qty: 1</p>
-                  </div>
-                  <p className="text-[13px] font-medium">₹8,999</p>
-                </div>
-                {/* Timeline */}
-                <div className="mt-4 pt-4 border-t border-[var(--color-border)] flex gap-2 text-[10px] text-gray-400 overflow-x-auto whitespace-nowrap">
-                  <span className="text-black font-medium">✓ Confirmed</span>
-                  <span>→</span>
-                  <span className="text-black font-medium">✓ Packed</span>
-                  <span>→</span>
-                  <span className="text-black font-medium">✓ Shipped</span>
-                  <span>→</span>
-                  <span className="text-blue-600 font-bold">🚚 In Transit</span>
-                  <span>→</span>
-                  <span>Delivered</span>
-                </div>
-              </div>
-
-              {/* Order 3: Pending */}
-              <div className="border border-[var(--color-border)] p-4 bg-white opacity-75">
-                <div className="flex justify-between items-start mb-3 pb-3 border-b border-[var(--color-border)]">
-                  <div>
-                    <p className="text-[13px] font-medium">Order #DH-9025</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">Placed on Aug 21, 2026</p>
-                  </div>
-                  <span className="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-1 rounded-full uppercase tracking-wide">
-                    Confirmation Pending
-                  </span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded">
-                    <img src="/images/velvet.jpg" className="w-full h-full object-cover rounded" alt="Item" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-[13px]">Midnight Velvet Gown</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">Qty: 1</p>
-                  </div>
-                  <p className="text-[13px] font-medium">₹8,999</p>
-                </div>
-              </div>
-            </div>
+            <AccountOrders />
           </div>
 
           <button 

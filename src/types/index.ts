@@ -28,4 +28,15 @@ export type Product = {
     description: string;
     code?: string; // If undefined, show "NO CODE REQUIRED"
   }[];
+  codAvailable?: boolean;
+};
+
+export type UserProfile = {
+  phone?: string;
+  address?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  country?: string;
 };

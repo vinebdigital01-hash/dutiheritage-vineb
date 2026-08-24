@@ -1,5 +1,6 @@
 "use server";
 import { db } from "@/services/db";
+import type { Product } from "@/types";
 
 export async function searchProducts(query: string) {
   if (!query || query.trim() === "") return [];
@@ -13,4 +14,9 @@ export async function searchProducts(query: string) {
 export async function getTopCollections() {
   const collections = await db.getAllCollections();
   return collections.slice(0, 10);
+}
+
+/** Full catalog for client components (cart/checkout cross-sell). */
+export async function getCatalogProducts(): Promise<Product[]> {
+  return db.getAllProducts();
 }

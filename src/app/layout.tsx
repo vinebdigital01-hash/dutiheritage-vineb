@@ -4,12 +4,8 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 
 import { AppProvider } from "@/context/AppContext";
-import { AnnouncementBar } from "@/components/AnnouncementBar/AnnouncementBar";
-import { Header } from "@/components/Header/Header";
-import { Footer } from "@/components/Footer/Footer";
-import { CartDrawer } from "@/components/CartDrawer/CartDrawer";
-import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
 import { FacebookPixel } from "@/components/FacebookPixel/FacebookPixel";
+import { StoreShell } from "@/components/StoreShell";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -108,14 +104,7 @@ export default async function RootLayout({
           <FacebookPixel />
         </Suspense>
         <AppProvider>
-          <div className="flex flex-col min-h-screen">
-            <AnnouncementBar />
-            <Header />
-            <SearchDrawer />
-            <CartDrawer />
-            <main className="flex-grow">{children}</main>
-            <Footer />
-          </div>
+          <StoreShell>{children}</StoreShell>
         </AppProvider>
       </body>
     </html>

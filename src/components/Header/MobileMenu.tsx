@@ -1,7 +1,14 @@
 "use client";
+
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import {
+  DEFAULT_HEADER_NAV,
+  navHref,
+  resolveHeaderNav,
+} from "@/lib/site-content-server";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -10,6 +17,10 @@ interface MobileMenuProps {
 
 export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
   const { user, logout } = useAppContext();
+  const siteContent = useSiteContent();
+  const navLinks = siteContent
+    ? resolveHeaderNav(siteContent)
+    : DEFAULT_HEADER_NAV;
 
   useEffect(() => {
     if (isOpen) {
@@ -25,15 +36,29 @@ export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed top-0 left-0 w-screen h-screen bg-[var(--color-overlay)] z-[200] flex" onClick={onClose}>
-      <div 
-        className={`w-4/5 max-w-[320px] h-full bg-[var(--color-bg)] shadow-[2px_0_10px_rgba(0,0,0,0.1)] flex flex-col transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+    <div
+      className="fixed top-0 left-0 w-screen h-screen bg-[var(--color-overlay)] z-[200] flex"
+      onClick={onClose}
+    >
+      <div
+        className={`w-4/5 max-w-[320px] h-full bg-[var(--color-bg)] shadow-[2px_0_10px_rgba(0,0,0,0.1)] flex flex-col transition-transform duration-300 ease-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
           <span className="text-sm font-medium tracking-wide">MENU</span>
-          <button className="text-[var(--color-text)] flex items-center justify-center p-1" onClick={onClose} aria-label="Close menu">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <button
+            className="text-[var(--color-text)] flex items-center justify-center p-1"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
@@ -41,36 +66,52 @@ export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
         </div>
 
         <nav className="flex flex-col py-4 flex-1 overflow-y-auto">
-          <Link href="/" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>HOME</Link>
-          <Link href="/collections/all" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>ALL PRODUCTS</Link>
-          <Link href="/collections/dresses" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>DRESSES</Link>
-          <Link href="/collections/premium-night-wear" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>PREMIUM NIGHT WEAR</Link>
-          <Link href="/collections/velvet" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>VELVET COLLECTION</Link>
-          <Link href="/collections/unstitched" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>UNSTITCHED</Link>
-          <Link href="/collections/wedding" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>WEDDING / TROUSSEAU</Link>
-          <Link href="/collections/best-sellers" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>BEST SELLERS</Link>
-          <Link href="/collections/on-sale" className="px-4 py-3 text-base border-b border-[var(--color-surface)]" onClick={onClose}>ON SALE</Link>
+          <Link
+            href="/collections/all"
+            className="px-4 py-3 text-base border-b border-[var(--color-surface)]"
+            onClick={onClose}
+          >
+            ALL PRODUCTS
+          </Link>
+          {navLinks.map((link) => (
+            <Link
+              key={`${link.label}-${link.slug}`}
+              href={navHref(link.slug)}
+              className="px-4 py-3 text-base border-b border-[var(--color-surface)]"
+              onClick={onClose}
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
-        
+
         <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col gap-3">
           {user ? (
             <>
-              <Link href="/account" className="flex items-center text-sm font-medium" onClick={onClose}>
+              <Link
+                href="/account"
+                className="flex items-center text-sm font-medium"
+                onClick={onClose}
+              >
                 My Account
               </Link>
-              <button 
+              <button
                 onClick={() => {
                   logout();
                   onClose();
-                }} 
-                className="text-sm font-medium text-left text-[var(--color-text-muted)] hover:text-black transition-colors"
+                }}
+                className="text-left text-sm text-[var(--color-text-muted)]"
               >
                 Log out
               </button>
             </>
           ) : (
-            <Link href="/account" className="flex items-center text-sm font-medium" onClick={onClose}>
-              Log in / Create account
+            <Link
+              href="/account"
+              className="flex items-center text-sm font-medium"
+              onClick={onClose}
+            >
+              Login / Register
             </Link>
           )}
         </div>

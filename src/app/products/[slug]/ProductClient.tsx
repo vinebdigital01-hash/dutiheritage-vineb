@@ -10,6 +10,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
+import { authHeaders } from "@/lib/checkout-client";
+import { trackEvent, trackPageDuration } from "@/lib/track-client";
+import type { ReviewDTO } from "@/lib/reviews";
 
 export const ProductClient = ({ product, suggestedProducts = [] }: { product: Product; suggestedProducts?: Product[] }) => {
   // Global State
@@ -18,11 +21,17 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
   // Local State for Review Modal & Toast
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [hasMockPurchased, setHasMockPurchased] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const mainActionsRef = useRef<HTMLDivElement>(null);
   const [isMainActionsVisible, setIsMainActionsVisible] = useState(false);
+  const [reviews, setReviews] = useState<ReviewDTO[]>([]);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -64,12 +73,38 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
     return () => clearInterval(interval);
   }, [hasOffers, product.offers]);
 
-  // Track Recently Viewed
+  // Track Recently Viewed + product view analytics
   useEffect(() => {
     if (product) {
       addRecentlyViewed(product);
+      trackEvent({
+        event: "product_view",
+        productId: product.id,
+        productName: product.name,
+      });
     }
+    return trackPageDuration("product_view", {
+      productId: product.id,
+      productName: product.name,
+    });
   }, [product, addRecentlyViewed]);
+
+  // Load approved reviews
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/reviews?productId=${encodeURIComponent(product.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setReviews(data.reviews || []);
+        setReviewCount(data.count || 0);
+        setAverageRating(data.averageRating || 0);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [product.id]);
 
   // Fallback defaults
   const images = product.images || [product.image, product.image, product.image]; 
@@ -85,22 +120,78 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const handleBuyNow = () => {
     setIsNavigating(true);
     addToCart(product, selectedSize);
-    setHasMockPurchased(true); // Mocking purchase for testing the review logic
     router.push("/checkout");
     setTimeout(() => setIsNavigating(false), 1000);
   };
 
-  const handleWriteReviewClick = () => {
+  const handleWriteReviewClick = async () => {
     if (!user) {
       showToast("Please login to write a review.");
+      router.push("/account");
       return;
     }
-    if (!hasMockPurchased) {
-      // In production, this checks if MongoDB order status === 'Delivered'
-      showToast("Only customers who have received this product can review it.");
-      return;
+    setCheckingEligibility(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(
+        `/api/reviews/eligibility?productId=${encodeURIComponent(product.id)}`,
+        { headers }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.eligible) {
+        showToast(
+          data.reason ||
+            "Only customers who have received this product can write a review."
+        );
+        return;
+      }
+      setReviewRating(5);
+      setReviewComment("");
+      setIsReviewModalOpen(true);
+    } catch {
+      showToast("Could not verify review eligibility. Try again.");
+    } finally {
+      setCheckingEligibility(false);
     }
-    setIsReviewModalOpen(true);
+  };
+
+  const handleSubmitReview = async () => {
+    setSubmittingReview(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          productId: product.id,
+          rating: reviewRating,
+          comment: reviewComment,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Submit failed");
+      showToast(data.message || "Review submitted!");
+      setIsReviewModalOpen(false);
+      // Refresh approved list (pending won't show until moderated)
+      const listRes = await fetch(
+        `/api/reviews?productId=${encodeURIComponent(product.id)}`
+      );
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        setReviews(listData.reviews || []);
+        setReviewCount(listData.count || 0);
+        setAverageRating(listData.averageRating || 0);
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Could not submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const starsDisplay = (n: number) => {
+    const full = Math.round(n);
+    return "★".repeat(Math.min(5, Math.max(0, full))) + "☆".repeat(Math.max(0, 5 - full));
   };
 
   return (
@@ -269,12 +360,20 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 </div>
               )}
 
-              {/* Reviews Mock */}
+              {/* Live rating summary */}
               <div className="flex items-center gap-2 text-[14px]">
                 <div className="flex text-[#CDDC39]">
-                  <span>★</span><span>★</span><span>★</span><span>★</span><span>☆</span>
+                  {starsDisplay(averageRating || 0)
+                    .split("")
+                    .map((s, i) => (
+                      <span key={i}>{s === "★" ? "★" : "☆"}</span>
+                    ))}
                 </div>
-                <span className="text-gray-600 font-medium ml-1">732 reviews</span>
+                <span className="text-gray-600 font-medium ml-1">
+                  {reviewCount > 0
+                    ? `${averageRating.toFixed(1)} · ${reviewCount} review${reviewCount === 1 ? "" : "s"}`
+                    : "No reviews yet"}
+                </span>
               </div>
 
               {/* Price Block */}
@@ -412,17 +511,71 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
         </div>
         
         {/* Reviews Section */}
-        <div className="mt-24 border-t border-[var(--color-border)] pt-12 text-center">
-          <div className="flex justify-between items-center max-w-[800px] mx-auto mb-8">
-            <div className="flex gap-1 text-[24px]">☆☆☆☆☆</div>
-            <div className="flex items-center gap-2">
-              <button onClick={handleWriteReviewClick} className="border border-[var(--color-border)] px-4 py-2 text-[13px] hover:border-[var(--color-text)]">Write a review</button>
-              <button className="border border-[var(--color-border)] p-2 hover:border-[var(--color-text)]">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-              </button>
+        <div className="mt-24 border-t border-[var(--color-border)] pt-12">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 max-w-[800px] mx-auto mb-8">
+            <div className="text-center sm:text-left">
+              <div className="flex gap-1 text-[24px] text-[#CDDC39] justify-center sm:justify-start">
+                {starsDisplay(averageRating || 0)}
+              </div>
+              <p className="text-[12px] text-[var(--color-text-muted)] mt-1">
+                {reviewCount > 0
+                  ? `${averageRating.toFixed(1)} average · ${reviewCount} review${reviewCount === 1 ? "" : "s"}`
+                  : "No reviews yet"}
+              </p>
             </div>
+            <button
+              onClick={handleWriteReviewClick}
+              disabled={checkingEligibility}
+              className="border border-[var(--color-border)] px-4 py-2 text-[13px] hover:border-[var(--color-text)] disabled:opacity-50"
+            >
+              {checkingEligibility ? "Checking…" : "Write a review"}
+            </button>
           </div>
-          <p className="text-[13px]">Be the first to <button onClick={handleWriteReviewClick} className="underline underline-offset-4">write a review</button></p>
+
+          {reviews.length === 0 ? (
+            <p className="text-[13px] text-center">
+              Be the first to{" "}
+              <button
+                onClick={handleWriteReviewClick}
+                className="underline underline-offset-4"
+              >
+                write a review
+              </button>
+            </p>
+          ) : (
+            <ul className="max-w-[800px] mx-auto flex flex-col gap-6 text-left">
+              {reviews.map((r) => (
+                <li
+                  key={r.id}
+                  className="border-b border-[var(--color-border)] pb-6 last:border-0"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div>
+                      <p className="text-[13px] font-medium">{r.userName}</p>
+                      <p className="text-[11px] text-[var(--color-text-muted)]">
+                        {r.isVerifiedPurchase ? "Verified purchase" : "Review"}
+                        {r.createdAt
+                          ? ` · ${new Date(r.createdAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}`
+                          : ""}
+                      </p>
+                    </div>
+                    <span className="text-[#CDDC39] text-[14px]">
+                      {starsDisplay(r.rating)}
+                    </span>
+                  </div>
+                  {r.comment && (
+                    <p className="text-[14px] text-[var(--color-text)] leading-relaxed">
+                      {r.comment}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
       </div>
@@ -475,35 +628,37 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
             <div className="flex flex-col gap-5">
               <div>
                 <label className="text-[11px] uppercase tracking-[1px] text-[var(--color-text-muted)] mb-2 block">Rating</label>
-                <div className="flex gap-2 text-[28px] cursor-pointer">
-                  <span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span>
+                <div className="flex gap-1 text-[28px]">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setReviewRating(n)}
+                      className="text-[#CDDC39] hover:scale-110 transition-transform"
+                      aria-label={`${n} stars`}
+                    >
+                      {n <= reviewRating ? "★" : "☆"}
+                    </button>
+                  ))}
                 </div>
               </div>
               
               <div>
                 <label className="text-[11px] uppercase tracking-[1px] text-[var(--color-text-muted)] mb-2 block">Your Review</label>
                 <textarea 
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
                   className="w-full border border-[var(--color-border)] p-3 text-[14px] outline-none min-h-[120px] resize-none"
                   placeholder="What did you like or dislike about this product?"
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="text-[11px] uppercase tracking-[1px] text-[var(--color-text-muted)] mb-2 block">Add a Photo</label>
-                <div className="border-2 border-dashed border-[var(--color-border)] p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <span className="text-[24px] mb-2 block">📸</span>
-                  <span className="text-[12px] text-[var(--color-text-muted)]">Click to upload an image (Cloudinary ready)</span>
-                </div>
+                />
               </div>
 
               <button 
-                onClick={() => {
-                  showToast("Review submitted! (Will save to database in Phase 3)");
-                  setIsReviewModalOpen(false);
-                }}
-                className="w-full mt-2 bg-[var(--color-text)] text-white py-4 text-[12px] uppercase tracking-[2px] hover:opacity-90 transition-opacity"
+                onClick={handleSubmitReview}
+                disabled={submittingReview}
+                className="w-full mt-2 bg-[var(--color-text)] text-white py-4 text-[12px] uppercase tracking-[2px] hover:opacity-90 transition-opacity disabled:opacity-50"
               >
-                Submit Review
+                {submittingReview ? "Submitting…" : "Submit Review"}
               </button>
             </div>
           </div>

@@ -1,6 +1,11 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "crons": [
+    { "path": "/api/cron/abandoned-carts", "schedule": "0 * * * *" },
+    { "path": "/api/cron/post-purchase", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/winback", "schedule": "0 10 * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

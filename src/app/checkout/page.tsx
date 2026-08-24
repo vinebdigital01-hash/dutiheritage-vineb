@@ -6,29 +6,26 @@ import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import { State, City } from "country-state-city";
 import { Product } from "@/types";
-import { products as allProducts } from "@/data/mock-products";
+import { getCatalogProducts } from "@/app/actions";
+import { authHeaders, openRazorpayCheckout } from "@/lib/checkout-client";
+import { syncCartToServer } from "@/lib/cart-client";
+import { trackEvent } from "@/lib/track-client";
+import { trackMetaEvent } from "@/lib/meta-pixel";
+import type { CheckoutSettings } from "@/services/checkout";
+import type { PublicCouponDTO } from "@/lib/coupons";
 
-// ============================================================
-// DEMO CONFIG — Will be replaced by MongoDB settings later
-// ============================================================
-const DEMO_CONFIG = {
+const FALLBACK_SETTINGS: CheckoutSettings = {
   freeShippingAbove: 999,
   flatShippingFee: 99,
   codExtraCharge: 49,
-  prepaidDiscount: { type: "FLAT" as const, value: 50 },
-  partialCodAdvance: 199, // User pays this online, rest on delivery
-  // Major city pincodes for COD demo
-  codPrefixes: ["1100","4000","5600","3020","5000","6000","7000","3800","4110","2260","2080"],
-  demoCoupons: [
-    { code: "WELCOME10", discountType: "PERCENT" as const, discountValue: 10, minOrderAmount: 0 },
-    { code: "FLAT200", discountType: "FLAT" as const, discountValue: 200, minOrderAmount: 1500 },
-    { code: "DUTI25", discountType: "PERCENT" as const, discountValue: 25, minOrderAmount: 2000 },
-  ],
+  prepaidDiscount: { type: "FLAT", value: 50 },
+  partialCodAdvance: 199,
+  codPrefixes: ["1100", "4000", "5600", "3020", "5000", "6000", "7000", "3800", "4110", "2260", "2080"],
+  codPincodes: [],
+  codCities: [],
+  codMode: "PINCODE_LIST",
+  codEnabled: true,
 };
-
-function isCodAvailableForPin(pin: string): boolean {
-  return DEMO_CONFIG.codPrefixes.some(prefix => pin.startsWith(prefix));
-}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -41,7 +38,13 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<"prepaid" | "cod" | "partial">("prepaid");
   const [codAvailable, setCodAvailable] = useState<boolean | null>(null);
   const [codChecking, setCodChecking] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [razorpayEnabled, setRazorpayEnabled] = useState(false);
+  const [catalog, setCatalog] = useState<Product[]>([]);
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
+  const [settings, setSettings] = useState<CheckoutSettings>(FALLBACK_SETTINGS);
+  const [availableCoupons, setAvailableCoupons] = useState<PublicCouponDTO[]>([]);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   // FOMO / Urgency States
   const [timeLeft, setTimeLeft] = useState(600); // 10 mins
@@ -51,6 +54,37 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState({
     email: "", country: "India", firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: ""
   });
+
+  useEffect(() => {
+    getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
+
+    fetch("/api/checkout/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setRazorpayEnabled(Boolean(data.razorpayEnabled));
+        setSettings({
+          freeShippingAbove: data.freeShippingAbove ?? FALLBACK_SETTINGS.freeShippingAbove,
+          flatShippingFee: data.flatShippingFee ?? FALLBACK_SETTINGS.flatShippingFee,
+          codExtraCharge: data.codExtraCharge ?? FALLBACK_SETTINGS.codExtraCharge,
+          prepaidDiscount: data.prepaidDiscount ?? FALLBACK_SETTINGS.prepaidDiscount,
+          partialCodAdvance: data.partialCodAdvance ?? FALLBACK_SETTINGS.partialCodAdvance,
+          codPrefixes: data.codPrefixes ?? FALLBACK_SETTINGS.codPrefixes,
+          codPincodes: data.codPincodes ?? [],
+          codCities: data.codCities ?? [],
+          codMode: data.codMode ?? "PINCODE_LIST",
+          codEnabled: data.codEnabled !== false,
+        });
+      })
+      .catch(() => {});
+
+    fetch("/api/coupons?public=1")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.coupons) setAvailableCoupons(data.coupons);
+      })
+      .catch(() => {});
+  }, []);
 
   // Pre-fill from user profile
   useEffect(() => {
@@ -71,6 +105,51 @@ export default function CheckoutPage() {
     }
   }, [user, userProfile]);
 
+  // Attach checkout email/phone to server cart for abandoned-cart recovery
+  useEffect(() => {
+    const email = formData.email.trim();
+    const phone = formData.phone.trim();
+    if (!email.includes("@") && !phone) return;
+    if (cart.length === 0) return;
+    const t = setTimeout(() => {
+      void syncCartToServer({
+        items: cart.map((item) => ({
+          productId: item.id,
+          size: item.selectedSize,
+          quantity: item.quantity,
+          price: item.salePrice || item.price,
+          name: item.name,
+          image: item.image,
+        })),
+        email: email.includes("@") ? email : undefined,
+        phone: phone || undefined,
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [formData.email, formData.phone, cart]);
+
+  useEffect(() => {
+    if (cart.length > 0) {
+      trackEvent({ event: "checkout_start" });
+    }
+  }, [cart.length]);
+
+  useEffect(() => {
+    if (
+      formData.address &&
+      formData.city &&
+      formData.pinCode &&
+      formData.phone
+    ) {
+      trackEvent({ event: "checkout_shipping" });
+    }
+  }, [
+    formData.address,
+    formData.city,
+    formData.pinCode,
+    formData.phone,
+  ]);
+
   // Countdown timer for FOMO banner
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -90,32 +169,46 @@ export default function CheckoutPage() {
   const seconds = timeLeft % 60;
   const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-  // Check COD availability when pincode changes
+  // Check COD availability when pincode/city changes
   useEffect(() => {
     const pin = formData.pinCode.trim();
     if (pin.length === 6) {
       setCodChecking(true);
-      const timer = setTimeout(() => {
-        const isAvailable = isCodAvailableForPin(pin);
-        setCodAvailable(isAvailable);
-        if (!isAvailable) setPaymentMethod("prepaid");
-        setCodChecking(false);
-      }, 500);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch("/api/settings/cod/check-pincode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pinCode: pin, city: formData.city }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setCodAvailable(Boolean(data.available));
+            if (!data.available) setPaymentMethod("prepaid");
+          } else {
+            setCodAvailable(null);
+          }
+        } catch {
+          setCodAvailable(null);
+        } finally {
+          setCodChecking(false);
+        }
+      }, 400);
       return () => clearTimeout(timer);
     } else {
       setCodAvailable(null);
     }
-  }, [formData.pinCode]);
+  }, [formData.pinCode, formData.city]);
 
   const indianStates = State.getStatesOfCountry("IN");
   const selectedState = indianStates.find(s => s.name === formData.state);
   const indianCities = selectedState ? City.getCitiesOfState("IN", selectedState.isoCode) : [];
 
-  // ---- PRICING CALCULATIONS ----
+  // ---- PRICING CALCULATIONS (from live settings) ----
   const subtotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
-  const isFreeShipping = subtotal >= DEMO_CONFIG.freeShippingAbove;
-  const shipping = subtotal > 0 ? (isFreeShipping ? 0 : DEMO_CONFIG.flatShippingFee) : 0;
-  const amountForFreeShipping = DEMO_CONFIG.freeShippingAbove - subtotal;
+  const isFreeShipping = subtotal >= settings.freeShippingAbove;
+  const shipping = subtotal > 0 ? (isFreeShipping ? 0 : settings.flatShippingFee) : 0;
+  const amountForFreeShipping = settings.freeShippingAbove - subtotal;
 
   const discountAmount = discountApplied
     ? discountApplied.type === "PERCENT"
@@ -123,48 +216,81 @@ export default function CheckoutPage() {
       : discountApplied.value
     : 0;
 
-  const codCharge = paymentMethod === "cod" ? DEMO_CONFIG.codExtraCharge : 0;
-  const prepaidDiscount = paymentMethod === "prepaid" ? DEMO_CONFIG.prepaidDiscount.value : 0;
-  const total = subtotal + shipping - discountAmount + codCharge - prepaidDiscount;
-  const totalSavings = discountAmount + prepaidDiscount + (isFreeShipping ? DEMO_CONFIG.flatShippingFee : 0);
+  const codCharge = paymentMethod === "cod" ? settings.codExtraCharge : 0;
+  const prepaidDiscount =
+    paymentMethod === "prepaid"
+      ? settings.prepaidDiscount.type === "PERCENT"
+        ? Math.round((subtotal * settings.prepaidDiscount.value) / 100)
+        : settings.prepaidDiscount.value
+      : 0;
+  const prepaidDiscountLabel =
+    settings.prepaidDiscount.type === "PERCENT"
+      ? `${settings.prepaidDiscount.value}%`
+      : settings.prepaidDiscount.value.toLocaleString("en-IN");
+  const total = Math.max(0, subtotal + shipping - discountAmount + codCharge - prepaidDiscount);
+  const totalSavings = discountAmount + prepaidDiscount + (isFreeShipping ? settings.flatShippingFee : 0);
 
   // Partial COD logic
-  const advanceAmount = DEMO_CONFIG.partialCodAdvance;
+  const advanceAmount = Math.min(settings.partialCodAdvance, total);
   const payOnDeliveryAmount = paymentMethod === "partial" ? total - advanceAmount : 0;
   const amountToPayNow = paymentMethod === "partial" ? advanceAmount : (paymentMethod === "cod" ? 0 : total);
 
   // ---- CROSS-SELL PRODUCTS ----
   const crossSellProducts = useMemo(() => {
+    if (catalog.length === 0) return [];
     const cartIds = new Set(cart.map(item => item.id));
     const cartCollectionIds = new Set(cart.map(item => item.collectionId));
-    const related = allProducts.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 6);
+    const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 6);
     if (related.length < 4) {
-      const extra = allProducts.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 4 - related.length);
+      const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 4 - related.length);
       related.push(...extra);
     }
     return related.slice(0, 4);
-  }, [cart]);
+  }, [cart, catalog]);
 
   // ---- HANDLERS ----
-  const handleApplyDiscount = (e: React.FormEvent) => {
+  const handleApplyDiscount = async (e: React.FormEvent) => {
     e.preventDefault();
     setDiscountError("");
-    const code = discountCode.trim().toUpperCase();
     if (discountApplied) {
       setDiscountApplied(null);
       setDiscountCode("");
       return;
     }
-    const coupon = DEMO_CONFIG.demoCoupons.find(c => c.code === code);
-    if (!coupon) {
-      setDiscountError("Invalid coupon code. Try WELCOME10, FLAT200, or DUTI25");
+
+    const code = discountCode.trim().toUpperCase();
+    if (!code) {
+      setDiscountError("Enter a coupon code");
       return;
     }
-    if (subtotal < coupon.minOrderAmount) {
-      setDiscountError(`Minimum order of ₹${coupon.minOrderAmount} required for this coupon`);
-      return;
+
+    setValidatingCoupon(true);
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          subtotal,
+          productIds: cart.map((i) => i.id),
+          collectionIds: cart.map((i) => i.collectionId),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDiscountError(data.error || "Invalid coupon code");
+        return;
+      }
+      setDiscountApplied({
+        code: data.code,
+        type: data.discountType,
+        value: data.discountValue,
+      });
+    } catch {
+      setDiscountError("Could not validate coupon. Try again.");
+    } finally {
+      setValidatingCoupon(false);
     }
-    setDiscountApplied({ code: coupon.code, type: coupon.discountType, value: coupon.discountValue });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -179,19 +305,124 @@ export default function CheckoutPage() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isProcessing) return;
+    setCheckoutError(null);
     setIsProcessing(true);
-    const orderPayload = {
-      customer: formData,
-      items: cart,
-      paymentMethod,
-      summary: { subtotal, shipping, discountAmount, codCharge, prepaidDiscount, total, couponCode: discountApplied?.code || null }
-    };
-    console.log("Order Payload:", orderPayload);
-    if (user && saveToProfile) console.log("TODO: Save profile to MongoDB");
-    setTimeout(() => {
+    trackEvent({ event: "checkout_payment", metadata: { paymentMethod } });
+
+    try {
+      const customerName = `${formData.firstName} ${formData.lastName}`.trim();
+      if (!customerName || !formData.phone || !formData.address || !formData.city || !formData.state || !formData.pinCode) {
+        throw new Error("Please fill in all required shipping fields.");
+      }
+
+      if ((paymentMethod === "cod" || paymentMethod === "partial") && codAvailable === false) {
+        throw new Error("COD is not available for your pincode. Please pay online.");
+      }
+
+      const headers = await authHeaders();
+      const items = cart.map((item) => ({
+        productId: item.id,
+        quantity: item.quantity,
+        size: item.selectedSize,
+        color: item.colors?.[0],
+      }));
+
+      let razorpay:
+        | { orderId: string; paymentId: string; signature: string }
+        | null = null;
+
+      const needsOnlinePay =
+        (paymentMethod === "prepaid" || paymentMethod === "partial") &&
+        amountToPayNow > 0;
+
+      if (needsOnlinePay && razorpayEnabled) {
+        const createRes = await fetch("/api/checkout/create-razorpay-order", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ amount: amountToPayNow }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) {
+          throw new Error(createData.error || "Could not start payment");
+        }
+
+        const payment = await openRazorpayCheckout({
+          key: createData.key,
+          razorpayOrderId: createData.razorpayOrderId,
+          amountPaise: createData.amount,
+          name: customerName,
+          email: formData.email,
+          phone: formData.phone,
+          description: `Duti Heritage order — ₹${amountToPayNow}`,
+        });
+
+        if (!payment) {
+          throw new Error("Payment cancelled. Your order was not placed.");
+        }
+
+        razorpay = payment;
+      } else if (needsOnlinePay && !razorpayEnabled) {
+        // Dev fallback when Razorpay keys are missing
+        console.warn("[checkout] Razorpay not configured — placing unpaid prepaid/partial order (dev)");
+      }
+
+      const placeRes = await fetch("/api/checkout/place-order", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          paymentMethod,
+          customer: {
+            email: formData.email,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            name: customerName,
+            phone: formData.phone,
+            address: formData.address,
+            apartment: formData.apartment,
+            city: formData.city,
+            state: formData.state,
+            pinCode: formData.pinCode,
+            country: formData.country || "IN",
+          },
+          items,
+          couponCode: discountApplied?.code || null,
+          saveToProfile: Boolean(user && saveToProfile),
+          razorpay,
+          allowUnpaidDev: needsOnlinePay && !razorpayEnabled,
+        }),
+      });
+
+      const placeData = await placeRes.json();
+      if (!placeRes.ok) {
+        throw new Error(placeData.error || "Could not place order");
+      }
+
+      const orderId = placeData.order?.orderId as string;
+
+      trackMetaEvent("Purchase", {
+        content_ids: cart.map((i) => i.id),
+        contents: cart.map((i) => ({
+          id: i.id,
+          quantity: i.quantity,
+        })),
+        currency: "INR",
+        value: total,
+        num_items: cart.reduce((n, i) => n + i.quantity, 0),
+      });
+      trackEvent({
+        event: "purchase",
+        metadata: { orderId, total, paymentMethod },
+      });
+
       clearCart();
-      router.push("/checkout/success");
-    }, 2000);
+      router.push(`/checkout/success?orderId=${encodeURIComponent(orderId)}`);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setCheckoutError(message);
+      setIsProcessing(false);
+    }
   };
 
   // ---- EMPTY CART ----
@@ -223,7 +454,7 @@ export default function CheckoutPage() {
             🎉 Add ₹{amountForFreeShipping.toLocaleString("en-IN")} more for <span className="font-bold">FREE Shipping!</span>
           </p>
           <div className="w-full bg-amber-200 rounded-full h-2">
-            <div className="bg-amber-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min((subtotal / DEMO_CONFIG.freeShippingAbove) * 100, 100)}%` }}></div>
+            <div className="bg-amber-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min((subtotal / settings.freeShippingAbove) * 100, 100)}%` }}></div>
           </div>
         </div>
       )}
@@ -272,17 +503,17 @@ export default function CheckoutPage() {
           <input type="text" placeholder="Discount code" value={discountCode} onChange={(e) => { setDiscountCode(e.target.value); setDiscountError(""); }} disabled={!!discountApplied} className="w-full border border-[var(--color-border)] p-3 text-[14px] rounded focus:border-black outline-none transition-colors bg-white shadow-sm disabled:bg-gray-100" />
           {discountError && <p className="text-[12px] text-red-500 mt-1">{discountError}</p>}
         </div>
-        <button type="submit" className={`px-6 text-[14px] font-medium rounded transition-colors shadow-sm shrink-0 h-[46px] ${discountApplied ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-gray-800 text-white hover:bg-black"}`}>
-          {discountApplied ? "Remove" : "Apply"}
+        <button type="submit" disabled={validatingCoupon} className={`px-6 text-[14px] font-medium rounded transition-colors shadow-sm shrink-0 h-[46px] ${discountApplied ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-gray-800 text-white hover:bg-black"} disabled:opacity-60`}>
+          {discountApplied ? "Remove" : validatingCoupon ? "..." : "Apply"}
         </button>
       </form>
 
       {/* Available Coupons */}
-      {!discountApplied && (
+      {!discountApplied && availableCoupons.length > 0 && (
         <div className="mb-6">
           <p className="text-[11px] text-[var(--color-text-muted)] mb-2 font-medium uppercase tracking-wider">Available coupons:</p>
           <div className="flex flex-wrap gap-2">
-            {DEMO_CONFIG.demoCoupons.map(c => (
+            {availableCoupons.map(c => (
               <button key={c.code} type="button" onClick={() => setDiscountCode(c.code)} className="text-[11px] border border-dashed border-gray-400 bg-white px-2 py-1.5 rounded hover:border-black transition-colors shadow-sm font-medium">
                 {c.code} — {c.discountType === "PERCENT" ? `${c.discountValue}% off` : `₹${c.discountValue} off`}
                 {c.minOrderAmount > 0 && <span className="font-normal text-gray-500"> (min ₹{c.minOrderAmount})</span>}
@@ -391,7 +622,7 @@ export default function CheckoutPage() {
           {!isFreeShipping && amountForFreeShipping > 0 && amountForFreeShipping <= 500 && (
             <div className="mt-4 p-3 border border-dashed border-green-400 rounded-lg bg-green-50 text-center shadow-sm">
               <p className="text-[12px] text-green-800">
-                💡 <span className="font-bold">Pro tip:</span> Add one more item worth ₹{amountForFreeShipping.toLocaleString("en-IN")}+ to get <span className="font-bold">FREE shipping</span> &amp; save ₹{DEMO_CONFIG.flatShippingFee}!
+                💡 <span className="font-bold">Pro tip:</span> Add one more item worth ₹{amountForFreeShipping.toLocaleString("en-IN")}+ to get <span className="font-bold">FREE shipping</span> &amp; save ₹{settings.flatShippingFee}!
               </p>
             </div>
           )}
@@ -554,9 +785,11 @@ export default function CheckoutPage() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[15px] font-bold">Pay Online (UPI / Card / Net Banking)</span>
-                      <span className="text-[12px] font-bold bg-green-100 text-green-800 border border-green-200 px-2 py-1 rounded shadow-sm animate-pulse">SAVE ₹{DEMO_CONFIG.prepaidDiscount.value}</span>
+                      <span className="text-[12px] font-bold bg-green-100 text-green-800 border border-green-200 px-2 py-1 rounded shadow-sm animate-pulse">SAVE {settings.prepaidDiscount.type === "PERCENT" ? `${settings.prepaidDiscount.value}%` : `₹${prepaidDiscountLabel}`}</span>
                     </div>
-                    <p className="text-[13px] text-gray-600 mt-1">Get ₹{DEMO_CONFIG.prepaidDiscount.value} instant off on prepaid orders</p>
+                    <p className="text-[13px] text-gray-600 mt-1">
+                      Get {settings.prepaidDiscount.type === "PERCENT" ? `${settings.prepaidDiscount.value}%` : `₹${prepaidDiscountLabel}`} instant off on prepaid orders
+                    </p>
                     {paymentMethod === "prepaid" && (
                       <div className="mt-4 flex items-center gap-2 flex-wrap">
                         {["UPI", "Visa", "MasterCard", "RuPay", "GPay", "PhonePe"].map(m => (
@@ -572,11 +805,11 @@ export default function CheckoutPage() {
                   <input type="radio" name="paymentMethod" value="partial" checked={paymentMethod === "partial"} onChange={() => { if (codAvailable !== false) setPaymentMethod("partial"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
                   <div className="flex-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-[15px] font-bold">Pay ₹{DEMO_CONFIG.partialCodAdvance} Advance (Rest on Delivery)</span>
+                      <span className="text-[15px] font-bold">Pay ₹{settings.partialCodAdvance} Advance (Rest on Delivery)</span>
                       <span className="text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-1 rounded shadow-sm">No COD Charge</span>
                     </div>
                     <p className="text-[13px] text-gray-600 mt-1">
-                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${DEMO_CONFIG.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
+                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${settings.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
                     </p>
                   </div>
                 </label>
@@ -587,10 +820,10 @@ export default function CheckoutPage() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[15px] font-bold">Cash on Delivery (COD)</span>
-                      <span className="text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-1 rounded shadow-sm">+₹{DEMO_CONFIG.codExtraCharge} charge</span>
+                      <span className="text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-1 rounded shadow-sm">+₹{settings.codExtraCharge} charge</span>
                     </div>
                     <p className="text-[13px] text-gray-600 mt-1">
-                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check COD availability" : `A non-refundable ₹${DEMO_CONFIG.codExtraCharge} handling charge will be added.`}
+                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check COD availability" : `A non-refundable ₹${settings.codExtraCharge} handling charge will be added.`}
                     </p>
                   </div>
                 </label>
@@ -605,6 +838,18 @@ export default function CheckoutPage() {
                   Save this delivery information to my profile for faster checkout next time.
                 </label>
               </div>
+            )}
+
+            {checkoutError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-[13px] rounded-lg">
+                {checkoutError}
+              </div>
+            )}
+
+            {!razorpayEnabled && paymentMethod !== "cod" && (
+              <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-2 rounded">
+                Razorpay keys are not configured — prepaid/partial will place a pending order (dev mode). COD works fully.
+              </p>
             )}
 
             {/* Desktop Submit Button (Hidden on Mobile due to Sticky Footer) */}

@@ -1,15 +1,20 @@
-import { Metadata } from 'next';
+import { Metadata } from "next";
+import { PolicyPageShell } from "@/components/PolicyPageShell";
+import { getPageContent } from "@/lib/site-content-server";
 
 export const metadata: Metadata = {
-  title: 'Terms & Conditions | Duti Heritage',
-  description: 'Terms and Conditions of Duti Heritage',
+  title: "Terms & Conditions | Duti Heritage",
+  description: "Terms and Conditions of Duti Heritage",
 };
 
-export default function TermsConditionsPage() {
+export default async function TermsConditionsPage() {
+  const live = await getPageContent("terms-conditions");
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-16">
-      <h1 className="text-3xl font-bold mb-12 uppercase tracking-widest text-center">Terms & Conditions</h1>
-      
+    <PolicyPageShell
+      title={live?.title || "Terms & Conditions"}
+      content={live?.content}
+    >
       <div className="space-y-8 text-[var(--color-text-muted)] leading-relaxed">
         <section>
           <p className="mb-4">
@@ -93,6 +98,6 @@ export default function TermsConditionsPage() {
           </p>
         </section>
       </div>
-    </div>
+    </PolicyPageShell>
   );
 }

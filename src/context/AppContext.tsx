@@ -1,24 +1,17 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { Product } from "@/types";
+import { Product, UserProfile } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";
+import { trackEvent } from "@/lib/track-client";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { syncAuthToBackend } from "@/lib/auth-client";
+import { syncCartToServer } from "@/lib/cart-client";
 
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
   selectedSize: string;
   quantity: number;
-}
-
-export interface UserProfile {
-  phone?: string;
-  address?: string;
-  apartment?: string;
-  city?: string;
-  state?: string;
-  pinCode?: string;
-  country?: string;
 }
 
 interface AppContextType {
@@ -35,6 +28,7 @@ interface AppContextType {
   addRecentlyViewed: (product: Product) => void;
   user: { name: string; email: string; uid: string; phone?: string } | null;
   userProfile: UserProfile | null;
+  isAdmin: boolean;
   authLoading: boolean;
   login: (email: string) => void;
   logout: () => void;
@@ -48,6 +42,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
   const [user, setUser] = useState<{ name: string; email: string; uid: string; phone?: string } | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -76,11 +71,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           phone: firebaseUser.phoneNumber || undefined
         });
 
-        // TODO: Fetch user profile from MongoDB backend when built
-        setUserProfile(null); // Temporarily null until MongoDB is hooked up
+        const synced = await syncAuthToBackend(firebaseUser);
+        setUserProfile(synced.profile);
+        setIsAdmin(synced.isAdmin);
       } else {
         setUser(null);
         setUserProfile(null);
+        setIsAdmin(false);
       }
       setAuthLoading(false);
     });
@@ -94,7 +91,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       localStorage.setItem("duti-heritage_cart", JSON.stringify(cart));
     } catch {}
-  }, [cart, isInitialized]);
+
+    // Sync to Mongo for abandoned-cart automations (debounced)
+    const t = setTimeout(() => {
+      void syncCartToServer({
+        items: cart.map((item) => ({
+          productId: item.id,
+          size: item.selectedSize,
+          quantity: item.quantity,
+          price: item.salePrice || item.price,
+          name: item.name,
+          image: item.image,
+        })),
+        email: user?.email,
+        phone: user?.phone || userProfile?.phone,
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [cart, isInitialized, user?.email, user?.phone, userProfile?.phone]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -122,6 +136,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       content_name: product.name,
       currency: "INR",
       value: product.salePrice || product.price,
+    });
+    trackEvent({
+      event: "add_to_cart",
+      productId: product.id,
+      productName: product.name,
     });
   }, []);
 
@@ -154,8 +173,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = React.useCallback((_email: string) => {
-    // This is now handled by the UI calling Firebase directly, 
-    // but keeping it here to avoid breaking other components if they use it.
+    // Handled by account UI via Firebase; AppContext syncs on onAuthStateChanged.
   }, []);
 
   const logout = React.useCallback(async () => {
@@ -182,6 +200,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         addRecentlyViewed,
         user,
         userProfile,
+        isAdmin,
         authLoading,
         login,
         logout,

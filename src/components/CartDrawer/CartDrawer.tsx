@@ -1,9 +1,9 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
-import { products as allProducts } from "@/data/mock-products";
+import { getCatalogProducts } from "@/app/actions";
 import { Product } from "@/types";
 
 export const CartDrawer = () => {
@@ -19,6 +19,11 @@ export const CartDrawer = () => {
   const router = useRouter();
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
   const [isNavigating, setIsNavigating] = useState(false);
+  const [catalog, setCatalog] = useState<Product[]>([]);
+
+  useEffect(() => {
+    getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
+  }, []);
 
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   
@@ -27,20 +32,20 @@ export const CartDrawer = () => {
   const amountForFreeShipping = FREE_SHIPPING_ABOVE - cartTotal;
 
   const crossSellProducts = useMemo(() => {
-    if (cart.length === 0) return [];
+    if (cart.length === 0 || catalog.length === 0) return [];
     const cartIds = new Set(cart.map(item => item.id));
     const cartCollectionIds = new Set(cart.map(item => item.collectionId));
     
     // First try to find products in same collection
-    const related = allProducts.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 4);
+    const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 4);
     
     // Fallback to bestsellers if not enough related
     if (related.length < 3) {
-      const extra = allProducts.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 3 - related.length);
+      const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 3 - related.length);
       related.push(...extra);
     }
     return related.slice(0, 3);
-  }, [cart]);
+  }, [cart, catalog]);
 
   const handleAddCrossSell = (product: Product) => {
     addToCart(product, product.sizes?.[0] || "Free Size");
