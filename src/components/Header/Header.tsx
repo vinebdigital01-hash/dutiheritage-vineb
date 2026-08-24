@@ -9,7 +9,7 @@ import {
   DEFAULT_HEADER_NAV,
   navHref,
   resolveHeaderNav,
-} from "@/lib/site-content-server";
+} from "@/lib/site-content-shared";
 
 export const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

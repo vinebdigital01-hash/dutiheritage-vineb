@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useSiteContent } from "@/hooks/useSiteContent";
-import { POLICY_LINKS } from "@/lib/site-content-server";
+import { POLICY_LINKS } from "@/lib/site-content-shared";
 
 export const Footer = () => {
   const content = useSiteContent();

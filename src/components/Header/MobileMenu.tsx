@@ -8,7 +8,7 @@ import {
   DEFAULT_HEADER_NAV,
   navHref,
   resolveHeaderNav,
-} from "@/lib/site-content-server";
+} from "@/lib/site-content-shared";
 
 interface MobileMenuProps {
   isOpen: boolean;

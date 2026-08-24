@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SiteContentData } from "@/lib/site-content-server";
+import type { SiteContentData } from "@/lib/site-content-shared";
 
 let cache: SiteContentData | null = null;
 let pending: Promise<SiteContentData | null> | null = null;
