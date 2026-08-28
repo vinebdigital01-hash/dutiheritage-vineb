@@ -735,9 +735,9 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
       {/* Full Screen Video Overlay */}
       {activeVideoUrl && (
-        <div className="fixed top-0 left-0 w-full h-[100dvh] z-[100] bg-black flex flex-col">
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
           {/* Header */}
-          <div className="w-full p-4 flex justify-end absolute top-0 z-[110]">
+          <div className="absolute top-4 right-4 z-[120]">
             <button 
               onClick={() => setActiveVideoUrl(null)}
               className="text-white p-2 bg-black/50 rounded-full hover:bg-black transition-colors"
@@ -746,34 +746,48 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
             </button>
           </div>
 
-          {/* Video Feed */}
-          <div className="flex-1 w-full overflow-y-auto snap-y snap-mandatory no-scrollbar">
+          {/* TikTok Style Video Feed */}
+          <div className="flex-1 w-full overflow-y-auto snap-y snap-mandatory no-scrollbar pb-[80px]">
             {(product.videoUrls || []).map((url, idx) => {
               const info = getVideoInfo(url);
               return (
-                <div key={idx} className="w-full h-full shrink-0 snap-start flex items-center justify-center relative" id={`video-${idx}`}>
+                <div key={idx} className="w-full h-full min-h-[100vh] shrink-0 snap-start flex items-center justify-center relative bg-black" id={`video-${idx}`}>
                   {info.type === 'raw' ? (
-                    <video src={info.embedUrl} className="w-full h-full object-contain" autoPlay={url === activeVideoUrl} controls playsInline loop />
+                    <video 
+                      src={info.embedUrl} 
+                      className="w-full h-full object-contain" 
+                      autoPlay={url === activeVideoUrl} 
+                      controls 
+                      playsInline 
+                      loop 
+                      muted 
+                    />
                   ) : (
-                    <iframe src={info.embedUrl} className="w-full h-full max-w-[500px]" frameBorder="0" allow="autoplay; fullscreen" allowFullScreen scrolling="no" />
+                    <iframe 
+                      src={info.embedUrl} 
+                      className="w-full h-full max-w-[500px] border-0" 
+                      allow="autoplay; fullscreen" 
+                      allowFullScreen 
+                      scrolling="no" 
+                    />
                   )}
                 </div>
               );
             })}
           </div>
 
-          {/* Sticky Actions */}
-          <div className="w-full bg-white p-3 md:p-4 flex gap-3 z-[110] shadow-[0_-10px_20px_rgba(0,0,0,0.1)] shrink-0">
+          {/* Sticky Actions - Forced to Absolute Bottom */}
+          <div className="absolute bottom-0 left-0 w-full bg-white px-4 py-3 md:py-4 flex gap-3 z-[120] shadow-[0_-10px_20px_rgba(0,0,0,0.1)] border-t border-gray-100">
             <button 
               onClick={() => { setActiveVideoUrl(null); handleAddToCart(); }}
-              className={`flex-1 py-3.5 md:py-4 rounded-xl border-2 text-[12px] font-bold uppercase tracking-wider transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-gray-900 text-gray-900 hover:bg-gray-50'}`}
+              className={`flex-1 py-3.5 rounded-xl border-2 text-[12px] font-bold uppercase tracking-wider transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-gray-900 text-gray-900 hover:bg-gray-50'}`}
             >
               {isAdded ? "Added to Cart" : "Add to Cart"}
             </button>
             <button 
               onClick={() => { setActiveVideoUrl(null); handleBuyNow(); }}
               disabled={isNavigating}
-              className="flex-1 py-3.5 md:py-4 rounded-xl bg-gray-900 text-white font-bold text-[12px] uppercase tracking-wider hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-3.5 rounded-xl bg-gray-900 text-white font-bold text-[12px] uppercase tracking-wider hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isNavigating ? "Wait..." : "Buy Now"}
             </button>
