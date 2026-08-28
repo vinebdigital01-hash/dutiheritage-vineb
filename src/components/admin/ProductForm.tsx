@@ -18,6 +18,8 @@ import type { Collection, Product } from "@/types";
 import Image from "next/image";
 import { FiX } from "react-icons/fi";
 
+type OfferForm = { title: string; description: string; code: string };
+
 type FormState = {
   name: string;
   slug: string;
@@ -36,6 +38,7 @@ type FormState = {
   videoUrls: string;
   codAvailable: boolean;
   isActive: boolean;
+  offers: OfferForm[];
 };
 
 const emptyForm = (): FormState => ({
@@ -56,6 +59,7 @@ const emptyForm = (): FormState => ({
   videoUrls: "",
   codAvailable: true,
   isActive: true,
+  offers: [],
 });
 
 function slugify(s: string) {
@@ -86,6 +90,7 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     videoUrls: (p.videoUrls || []).join("\n"),
     codAvailable: p.codAvailable !== false,
     isActive: p.isActive !== false,
+    offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
   };
 }
 
@@ -181,8 +186,9 @@ export function ProductForm({ productId }: { productId?: string }) {
           .map((s) => s.trim())
           .filter(Boolean),
         codAvailable: form.codAvailable,
-        isActive: form.isActive,
-      };
+          isActive: form.isActive,
+          offers: (form.offers || []).filter(o => o.title.trim() && o.description.trim()),
+        };
 
       if (!payload.name || !payload.image || !payload.collectionId) {
         throw new Error("Name, image, and collection are required");
@@ -411,8 +417,51 @@ export function ProductForm({ productId }: { productId?: string }) {
           onChange={(e) => set("colors", e.target.value)}
         />
 
-        <AdminTextarea
-          label="Video URLs (one per line)"
+                  <div className="col-span-1 md:col-span-2 mt-4 border-t border-[var(--color-border)] pt-8 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[14px] font-bold tracking-[1px] uppercase text-gray-700">Special Offers</h3>
+              <AdminButton type="button" variant="secondary" onClick={() => setForm(f => ({ ...f, offers: [...(f.offers || []), { title: "", description: "", code: "" }] }))}>
+                + Add Offer
+              </AdminButton>
+            </div>
+            
+            <div className="space-y-4">
+              {(form.offers || []).map((offer, idx) => (
+                <div key={idx} className="flex gap-4 items-start bg-gray-50 p-4 rounded-xl border border-gray-100 relative">
+                  <div className="flex-1 grid md:grid-cols-3 gap-4">
+                    <AdminInput label="Offer Title *" placeholder="e.g. Welcome Discount" value={offer.title} onChange={e => {
+                      const newOffers = [...form.offers];
+                      newOffers[idx].title = e.target.value;
+                      set("offers", newOffers as any);
+                    }} />
+                    <AdminInput label="Description *" placeholder="e.g. 10% off your first order" value={offer.description} onChange={e => {
+                      const newOffers = [...form.offers];
+                      newOffers[idx].description = e.target.value;
+                      set("offers", newOffers as any);
+                    }} />
+                    <AdminInput label="Coupon Code (Optional)" placeholder="e.g. WELCOME10" value={offer.code} onChange={e => {
+                      const newOffers = [...form.offers];
+                      newOffers[idx].code = e.target.value;
+                      set("offers", newOffers as any);
+                    }} />
+                  </div>
+                  <button type="button" onClick={() => {
+                    const newOffers = [...form.offers];
+                    newOffers.splice(idx, 1);
+                    set("offers", newOffers as any);
+                  }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg mt-6 bg-white shadow-sm border border-red-100">
+                    <FiX size={18} />
+                  </button>
+                </div>
+              ))}
+              {(!form.offers || form.offers.length === 0) && (
+                <p className="text-[13px] text-gray-500 italic p-4 bg-gray-50 rounded-lg text-center border border-dashed border-gray-200">No special offers added yet. Click "+ Add Offer" to create one.</p>
+              )}
+            </div>
+          </div>
+
+          <AdminTextarea
+            label="Video URLs (one per line)"
           value={form.videoUrls}
           onChange={(e) => set("videoUrls", e.target.value)}
         />

@@ -36,6 +36,9 @@ const ProductSchema = new Schema(
 
 ProductSchema.index({ name: "text", description: "text", tags: "text" });
 
+ProductSchema.index({ isActive: 1, createdAt: 1 });
+ProductSchema.index({ collectionId: 1, isActive: 1, createdAt: 1 });
+
 export type ProductDocument = InferSchemaType<typeof ProductSchema> & {
   _id: Schema.Types.ObjectId;
 };

@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "Duti Heritage | Premium Fashion",
   "short_name": "Duti Heritage",
   "description": "Premium Fashion E-Commerce",
@@ -13,12 +13,12 @@
       "type": "image/x-icon"
     },
     {
-      "src": "/favicon.ico",
+      "src": "/icon-192x192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/favicon.ico",
+      "src": "/icon-512x512.png",
       "type": "image/png",
       "sizes": "512x512"
     }

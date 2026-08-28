@@ -22,8 +22,10 @@ export const SearchDrawer = () => {
   const [, startTransition] = useTransition();
 
   useEffect(() => {
-    getTopCollections().then(setSuggestedCollections);
-  }, []);
+    if (isSearchOpen && suggestedCollections.length === 0) {
+      getTopCollections().then(setSuggestedCollections);
+    }
+  }, [isSearchOpen, suggestedCollections.length]);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -79,12 +81,12 @@ export const SearchDrawer = () => {
               autoFocus
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="text-[var(--color-text-muted)] hover:text-black">
+              <button aria-label="Clear search" onClick={() => setSearchQuery("")} className="text-[var(--color-text-muted)] hover:text-black">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
             )}
           </div>
-          <button onClick={() => setIsSearchOpen(false)} className="p-2 hover:bg-[var(--color-border)] transition-colors rounded-full shrink-0">
+          <button aria-label="Close search" onClick={() => setIsSearchOpen(false)} className="p-2 hover:bg-[var(--color-border)] transition-colors rounded-full shrink-0">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>

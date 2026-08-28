@@ -1,3 +1,5 @@
+import { logSystemEvent } from "./logger";
+import { ZodError } from "zod";
 import { NextResponse } from "next/server";
 import { AuthError } from "@/lib/auth";
 import mongoose from "mongoose";
@@ -32,7 +34,19 @@ export class ApiError extends Error {
   }
 }
 
-export function handleApiError(error: unknown) {
+export function handleApiError(error: unknown, reqPath?: string) {
+  // Fire and forget log
+  logSystemEvent({
+    level: "error",
+    source: "api_error_handler",
+    message: error instanceof Error ? error.message : "Unknown error",
+    details: error,
+    path: reqPath,
+  }).catch(() => {});
+
+  if (error instanceof ZodError) {
+    return NextResponse.json({ error: "Invalid request payload", details: (error as any).errors }, { status: 400 });
+  }
   if (error instanceof AuthError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }

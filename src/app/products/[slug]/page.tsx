@@ -1,9 +1,18 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/services/db";
+import { Review } from "@/models";
+import { connectDB } from "@/lib/mongodb";
 import { ProductClient } from "./ProductClient";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  const products = await db.getAllProducts();
+  return products.slice(0, 50).map((product) => ({
+    slug: product.slug,
+  }));
+}
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -81,8 +90,14 @@ export default async function ProductPage({ params }: Props) {
 
   const absoluteImageUrl = product.image.startsWith('http') ? product.image : `${baseUrl}${product.image}`;
 
+
+  await connectDB();
+  const reviews = await Review.find({ productId: product.id, status: "approved" }).lean();
+  const reviewCount = reviews.length;
+  const averageRating = reviewCount > 0 ? reviews.reduce((acc, r) => acc + (r.rating || 5), 0) / reviewCount : 0;
+
   // JSON-LD Product Schema for Rich Snippets
-  const productJsonLd = {
+  const productJsonLd: any = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
@@ -92,6 +107,26 @@ export default async function ProductPage({ params }: Props) {
       "@type": "Brand",
       name: "Duti Heritage",
     },
+    
+    ...(reviewCount > 0 && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: averageRating.toFixed(1),
+        reviewCount: reviewCount,
+      },
+      review: reviews.slice(0, 5).map(r => ({
+        "@type": "Review",
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: r.rating,
+          bestRating: "5"
+        },
+        author: {
+          "@type": "Person",
+          name: r.userName || "Anonymous"
+        }
+      }))
+    }),
     offers: {
       "@type": "Offer",
       url: `${baseUrl}/products/${product.slug}`,

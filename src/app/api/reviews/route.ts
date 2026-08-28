@@ -1,3 +1,5 @@
+import { reviewSchema } from "@/lib/validators";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/mongodb";
 import { Review } from "@/models";
 import { requireAuth, isAdminEmail } from "@/lib/auth";
@@ -74,12 +76,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rateLimitRes = applyRateLimit(request, { limit: 5, windowMs: 60000 });
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     requireMongo();
     const authUser = await requireAuth(request);
     await connectDB();
 
-    const body = await request.json();
+    const body = await request.json(); reviewSchema.parse(body);
     const productId = String(body.productId || "").trim();
     const rating = Number(body.rating);
     const comment = String(body.comment || "").trim();

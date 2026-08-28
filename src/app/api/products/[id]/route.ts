@@ -1,5 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
-import { Product } from "@/models";
+import { Product, Coupon } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { toProduct } from "@/lib/mappers";
 import { refreshCollectionProductCount } from "@/lib/catalog";
@@ -90,6 +90,44 @@ export async function PUT(request: Request, { params }: Params) {
     }
     if (body.videoUrls !== undefined) existing.videoUrls = body.videoUrls;
     if (body.offers !== undefined) existing.offers = body.offers;
+
+      // Auto-create coupons from offers
+      if (body.offers && Array.isArray(body.offers)) {
+        for (const offer of body.offers) {
+          if (offer.code && offer.code.trim()) {
+            const cCode = offer.code.toUpperCase().trim();
+            const existingCoupon = await Coupon.findOne({ code: cCode });
+            
+            if (!existingCoupon) {
+              let dType: "FLAT" | "PERCENT" = "FLAT";
+              let dValue = 100; // default
+              
+              const desc = (offer.description || "").toLowerCase();
+              const percentMatch = desc.match(/(\d+)\s*%/);
+              const flatMatch = desc.match(/(?:rs\.?|₹|inr)\s*(\d+)/);
+              
+              if (percentMatch) {
+                dType = "PERCENT";
+                dValue = parseInt(percentMatch[1], 10);
+              } else if (flatMatch) {
+                dType = "FLAT";
+                dValue = parseInt(flatMatch[1], 10);
+              }
+
+              await Coupon.create({
+                code: cCode,
+                discountType: dType,
+                discountValue: dValue,
+                scope: "SPECIFIC_PRODUCTS",
+              targetIds: [existing._id.toString()],
+                active: true,
+                minOrderAmount: 0,
+              });
+            }
+          }
+        }
+      }
+
     if (body.codAvailable !== undefined) existing.codAvailable = Boolean(body.codAvailable);
     if (body.isActive !== undefined) existing.isActive = Boolean(body.isActive);
 

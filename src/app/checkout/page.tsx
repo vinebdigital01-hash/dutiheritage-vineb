@@ -37,7 +37,7 @@ const FALLBACK_SETTINGS: CheckoutSettings = {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, user, userProfile, clearCart, addToCart, updateQuantity, removeFromCart } = useAppContext();
+  const { cart, user, userProfile, clearCart, addToCart, updateQuantity, removeFromCart, isInitialized, wishlist } = useAppContext();
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: "PERCENT" | "FLAT"; value: number } | null>(null);
   const [discountError, setDiscountError] = useState("");
@@ -244,17 +244,24 @@ export default function CheckoutPage() {
   const amountToPayNow = paymentMethod === "partial" ? advanceAmount : (paymentMethod === "cod" ? 0 : total);
 
   // ---- CROSS-SELL PRODUCTS ----
-  const crossSellProducts = useMemo(() => {
-    if (catalog.length === 0) return [];
+  const { title: crossSellTitle, products: crossSellProducts } = useMemo(() => {
+    if (catalog.length === 0) return { title: "Complete Your Look", products: [] };
     const cartIds = new Set(cart.map(item => item.id));
+    
+    // 1. Wishlist Priority
+    const wishlistItems = catalog.filter(p => wishlist?.includes(p.id) && !cartIds.has(p.id));
+    if (wishlistItems.length > 0) {
+      return { title: "From Your Wishlist", products: wishlistItems.slice(0, 4) };
+    }
+
     const cartCollectionIds = new Set(cart.map(item => item.collectionId));
     const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 6);
     if (related.length < 4) {
       const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 4 - related.length);
       related.push(...extra);
     }
-    return related.slice(0, 4);
-  }, [cart, catalog]);
+    return { title: "Complete Your Look", products: related.slice(0, 4) };
+  }, [cart, catalog, wishlist]);
 
   // ---- HANDLERS ----
   const handleApplyDiscount = async (e: React.FormEvent) => {
@@ -348,7 +355,25 @@ export default function CheckoutPage() {
         const createRes = await fetch("/api/checkout/create-razorpay-order", {
           method: "POST",
           headers,
-          body: JSON.stringify({ amount: amountToPayNow }),
+          body: JSON.stringify({
+          amount: amountToPayNow, // fallback
+          paymentMethod,
+          customer: {
+            email: formData.email,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            name: customerName,
+            phone: formData.phone,
+            address: formData.address,
+            apartment: formData.apartment,
+            city: formData.city,
+            state: formData.state,
+            pinCode: formData.pinCode,
+            country: "IN",
+          },
+          items,
+          couponCode: discountApplied?.code || null,
+        }),
         });
         const createData = await createRes.json();
         if (!createRes.ok) {
@@ -455,22 +480,6 @@ export default function CheckoutPage() {
   // ============================================
   const OrderSummaryContent = (
     <div className="flex flex-col w-full h-full">
-      {/* Free Shipping Progress */}
-      {!isFreeShipping && subtotal > 0 && (
-        <div className="mb-6 p-3 rounded-lg bg-amber-50 border border-amber-100 shadow-sm">
-          <p className="text-[13px] text-amber-800 font-medium mb-2">
-            🎉 Add ₹{amountForFreeShipping.toLocaleString("en-IN")} more for <span className="font-bold">FREE Shipping!</span>
-          </p>
-          <div className="w-full bg-amber-200 rounded-full h-2">
-            <div className="bg-amber-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min((subtotal / settings.freeShippingAbove) * 100, 100)}%` }}></div>
-          </div>
-        </div>
-      )}
-      {isFreeShipping && (
-        <div className="mb-6 p-3 rounded-lg bg-green-50 border border-green-100 shadow-sm text-[13px] text-green-700 font-medium">
-          ✅ You&apos;ve unlocked <span className="font-bold">FREE Shipping!</span>
-        </div>
-      )}
 
       {/* FOMO Live Viewers */}
       <div className="mb-4 flex items-center gap-2 text-[12px] text-red-600 font-medium bg-red-50 py-2 px-3 rounded">
@@ -512,7 +521,7 @@ export default function CheckoutPage() {
       {/* Discount Code */}
       <form onSubmit={handleApplyDiscount} className="flex gap-2 py-6 border-t border-b border-[var(--color-border)] mb-4">
         <div className="flex-1 flex flex-col">
-          <input type="text" placeholder="Discount code" value={discountCode} onChange={(e) => { setDiscountCode(e.target.value); setDiscountError(""); }} disabled={!!discountApplied} className="w-full border border-[var(--color-border)] p-3 text-[14px] rounded focus:border-black outline-none transition-colors bg-white shadow-sm disabled:bg-gray-100" />
+          <input type="text" placeholder="Discount code" aria-label="Discount code" value={discountCode} onChange={(e) => { setDiscountCode(e.target.value); setDiscountError(""); }} disabled={!!discountApplied} className="w-full border border-[var(--color-border)] p-3 text-[14px] rounded focus:border-black outline-none transition-colors bg-white shadow-sm disabled:bg-gray-100" />
           {discountError && <p className="text-[12px] text-red-500 mt-1">{discountError}</p>}
         </div>
         <button type="submit" disabled={validatingCoupon} className={`px-6 text-[14px] font-medium rounded transition-colors shadow-sm shrink-0 h-[46px] ${discountApplied ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-gray-800 text-white hover:bg-black"} disabled:opacity-60`}>
@@ -560,9 +569,26 @@ export default function CheckoutPage() {
         )}
 
         <div className="flex justify-between">
-          <span className="text-[var(--color-text-muted)]">Shipping</span>
-          <span className="font-medium">{isFreeShipping ? <span className="text-green-700">FREE 🎉</span> : `₹${shipping.toLocaleString("en-IN")}`}</span>
-        </div>
+            <span className="text-[var(--color-text-muted)]">Shipping</span>
+            <span className="font-medium">{isFreeShipping ? <span className="text-green-700">FREE 🚀</span> : `₹${shipping.toLocaleString("en-IN")}`}</span>
+          </div>
+          
+          {/* Moved Free Shipping Progress */}
+          {!isFreeShipping && subtotal > 0 && (
+            <div className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-100 shadow-sm">
+              <p className="text-[12px] text-amber-800 font-medium mb-2">
+                🚀 Add ₹{amountForFreeShipping.toLocaleString("en-IN")} more for <span className="font-bold">FREE Shipping!</span>
+              </p>
+              <div className="w-full bg-amber-200 rounded-full h-1.5">
+                <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.min((subtotal / settings.freeShippingAbove) * 100, 100)}%` }}></div>
+              </div>
+            </div>
+          )}
+          {isFreeShipping && (
+            <div className="mt-2 p-2 rounded-lg bg-green-50 border border-green-100 shadow-sm text-[12px] text-green-700 font-medium flex items-center justify-center">
+              🎉 You've unlocked <span className="font-bold ml-1">FREE Shipping!</span>
+            </div>
+          )}
 
         {codCharge > 0 && (
           <div className="flex justify-between text-amber-700 font-medium">
@@ -602,9 +628,7 @@ export default function CheckoutPage() {
       {/* CROSS-SELL: Complete Your Look */}
       {crossSellProducts.length > 0 && (
         <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
-          <h3 className="text-[14px] font-bold tracking-wide uppercase mb-4 flex items-center gap-2">
-            ✨ Complete Your Look
-          </h3>
+          <h3 className="text-[14px] font-bold tracking-wide uppercase mb-4 flex items-center gap-2"> {crossSellTitle} </h3>
           <div className="flex flex-col gap-3">
             {crossSellProducts.map((product) => {
               const isAdded = addedCrossSell.has(product.id);
@@ -667,11 +691,18 @@ export default function CheckoutPage() {
     <main className="w-full min-h-screen bg-[var(--color-bg)] pb-24 lg:pb-0">
       
       {/* 🚨 FOMO BANNER - TOP */}
-      <div className="bg-red-600 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
-        <span className="animate-bounce">⚡</span> 
-        High demand! Your cart is reserved for 
-        <span className="bg-white text-red-600 px-2 py-0.5 rounded ml-1">{timeString}</span>
-      </div>
+      {timeLeft > 0 ? (
+        <div className="bg-red-600 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
+          <span className="animate-bounce">🔥</span> 
+          High demand! Your cart is reserved for 
+          <span className="bg-white text-red-600 px-2 py-0.5 rounded ml-1">{timeString}</span>
+        </div>
+      ) : (
+        <div className="bg-amber-500 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
+          <span>⏳</span> 
+          Your reservation has expired! Complete checkout now before items sell out.
+        </div>
+      )}
 
       <div className="max-w-[1200px] mx-auto flex flex-col lg:flex-row min-h-screen">
 
@@ -728,7 +759,7 @@ export default function CheckoutPage() {
                 <h2 className="text-xl font-serif tracking-wide font-bold">Contact</h2>
                 {!user && <Link href="/account" className="text-[13px] font-bold text-blue-600 hover:underline">Log in</Link>}
               </div>
-              <input type="text" name="email" value={formData.email} onChange={handleInputChange} placeholder="Email or mobile phone number" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all shadow-sm bg-white" required />
+              <input type="text" name="email" value={formData.email} onChange={handleInputChange} placeholder="Email or mobile phone number" aria-label="Email or mobile phone number" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all shadow-sm bg-white" required />
               <div className="flex items-center gap-2 mt-3">
                 <input type="checkbox" id="news" className="w-4 h-4 accent-black rounded" defaultChecked />
                 <label htmlFor="news" className="text-[14px] text-gray-600">
@@ -741,23 +772,23 @@ export default function CheckoutPage() {
             <section>
               <h2 className="text-xl font-serif tracking-wide font-bold mb-4">Delivery Address</h2>
               <div className="flex flex-col gap-3.5">
-                <select name="country" value={formData.country} onChange={handleInputChange} className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm">
+                <select aria-label="Country" name="country" value={formData.country} onChange={handleInputChange} className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm">
                   <option>India</option>
                   <option>United States</option>
                   <option>United Kingdom</option>
                 </select>
 
                 <div className="flex gap-3.5">
-                  <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} placeholder="First name" className="w-1/2 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
-                  <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} placeholder="Last name" className="w-1/2 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
+                  <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} placeholder="First name" aria-label="First name" className="w-1/2 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
+                  <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} placeholder="Last name" aria-label="Last name" className="w-1/2 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
                 </div>
 
-                <input type="text" name="address" value={formData.address} onChange={handleInputChange} placeholder="Address (House No, Building, Street)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
-                <input type="text" name="apartment" value={formData.apartment} onChange={handleInputChange} placeholder="Apartment, suite, etc. (optional)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" />
+                <input type="text" name="address" value={formData.address} onChange={handleInputChange} placeholder="Address (House No, Building, Street)" aria-label="Address (House No, Building, Street)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
+                <input type="text" name="apartment" value={formData.apartment} onChange={handleInputChange} placeholder="Apartment, suite, etc. (optional)" aria-label="Apartment, suite, etc. (optional)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" />
 
                 <div className="flex gap-3.5">
                   <div className="w-1/3">
-                    <input type="text" name="city" list="cityList" value={formData.city} onChange={handleInputChange} placeholder="City" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
+                    <input type="text" name="city" list="cityList" value={formData.city} onChange={handleInputChange} placeholder="City" aria-label="City" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
                     <datalist id="cityList">
                       {indianCities.map(c => <option key={c.name} value={c.name} />)}
                     </datalist>
@@ -769,7 +800,7 @@ export default function CheckoutPage() {
                   <input type="text" inputMode="numeric" pattern="\d{6}" name="pinCode" value={formData.pinCode} onChange={(e) => { const val = e.target.value.replace(/\D/g, ''); setFormData({...formData, pinCode: val}); }} placeholder="PIN code" maxLength={6} className="w-1/3 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide" required />
                 </div>
 
-                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Mobile number (For delivery updates)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
+                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Mobile number (For delivery updates)" aria-label="Mobile number (For delivery updates)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
 
                 {/* COD Availability Indicator */}
                 {formData.pinCode.length === 6 && (

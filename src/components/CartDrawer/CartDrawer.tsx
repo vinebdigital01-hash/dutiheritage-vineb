@@ -15,50 +15,85 @@ const isCloudinary = (src: string) => {
 };
 
 export const CartDrawer = () => {
-  const { 
+    const { 
     isCartOpen, 
     setIsCartOpen, 
     cart, 
     removeFromCart, 
     updateQuantity,
     isInitialized, 
-    addToCart 
+    addToCart,
+    wishlist
   } = useAppContext();
   const router = useRouter();
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
   const [isNavigating, setIsNavigating] = useState(false);
   const [catalog, setCatalog] = useState<Product[]>([]);
+  const [settings, setSettings] = useState<{ freeShippingAbove: number, flatShippingFee: number } | null>(null);
 
   useEffect(() => {
-    getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
-  }, []);
+    if (isCartOpen && catalog.length === 0) {
+      getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
+      fetch('/api/checkout/config').then(res => res.json()).then(setSettings).catch(() => {});
+    }
+  }, [isCartOpen, catalog.length]);
 
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   
-  const FREE_SHIPPING_ABOVE = 999;
+  const FREE_SHIPPING_ABOVE = settings?.freeShippingAbove ?? 999;
   const isFreeShipping = cartTotal >= FREE_SHIPPING_ABOVE;
   const amountForFreeShipping = FREE_SHIPPING_ABOVE - cartTotal;
 
-  const crossSellProducts = useMemo(() => {
-    if (cart.length === 0 || catalog.length === 0) return [];
+  const { title: crossSellTitle, products: crossSellProducts } = useMemo(() => {
+    if (catalog.length === 0) return { title: "Recommended", products: [] };
     const cartIds = new Set(cart.map(item => item.id));
-    const cartCollectionIds = new Set(cart.map(item => item.collectionId));
     
-    // First try to find products in same collection
+    // 1. Wishlist priority
+    const wishlistItems = catalog.filter(p => wishlist?.includes(p.id) && !cartIds.has(p.id));
+    if (wishlistItems.length > 0) {
+      return { title: "From Your Wishlist", products: wishlistItems.slice(0, 3) };
+    }
+
+    if (cart.length === 0) return { title: "Recommended", products: [] };
+    
+    const cartCollectionIds = new Set(cart.map(item => item.collectionId));
     const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 4);
     
-    // Fallback to bestsellers if not enough related
     if (related.length < 3) {
       const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 3 - related.length);
       related.push(...extra);
     }
-    return related.slice(0, 3);
-  }, [cart, catalog]);
+    return { title: "People Also Bought", products: related.slice(0, 3) };
+  }, [cart, catalog, wishlist]);
 
   const handleAddCrossSell = (product: Product) => {
     addToCart(product, product.sizes?.[0] || "Free Size");
     setAddedCrossSell(prev => new Set([...prev, product.id]));
   };
+
+  useEffect(() => {
+    if (!isCartOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCartOpen(false);
+      }
+      if (e.key === 'Tab') {
+        const focusable = document.querySelectorAll('#cart-drawer button, #cart-drawer a, #cart-drawer input, #cart-drawer [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0] as HTMLElement;
+        const last = focusable[focusable.length - 1] as HTMLElement;
+        if (e.shiftKey && document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        } else if (!e.shiftKey && (document.activeElement === last || !document.activeElement?.closest('#cart-drawer'))) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isCartOpen, setIsCartOpen]);
 
   if (!isCartOpen) return null;
 
@@ -71,12 +106,12 @@ export const CartDrawer = () => {
       />
       
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-[420px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div id="cart-drawer" className="fixed top-0 right-0 h-full w-full max-w-[420px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 px-6 border-b border-[var(--color-border)] bg-gray-50">
           <h2 className="text-[13px] font-bold tracking-[2px] uppercase">Your Cart ({cart.reduce((a, b) => a + b.quantity, 0)})</h2>
-          <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+          <button aria-label="Close cart" onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
@@ -146,9 +181,7 @@ export const CartDrawer = () => {
               {crossSellProducts.length > 0 && (
                 <div className="mt-8 pt-6 border-t border-[var(--color-border)] pb-4">
                   <h3 className="text-[12px] font-bold tracking-[1.5px] uppercase mb-4 text-center text-gray-500 flex items-center justify-center gap-2">
-                    <span className="w-8 h-[1px] bg-gray-300"></span>
-                    People Also Bought
-                    <span className="w-8 h-[1px] bg-gray-300"></span>
+                    <span className="w-8 h-[1px] bg-gray-300"></span> {crossSellTitle} <span className="w-8 h-[1px] bg-gray-300"></span>
                   </h3>
                   <div className="flex flex-col gap-3">
                     {crossSellProducts.map((product) => {

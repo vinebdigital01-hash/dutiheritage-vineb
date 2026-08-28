@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebook } from "react-icons/fa";
-import { FiMail, FiPhone, FiArrowLeft } from "react-icons/fi";
+import { FiMail, FiPhone, FiArrowLeft, FiBox, FiMapPin, FiHeart, FiTag, FiUser, FiClock } from "react-icons/fi";
 import 'react-phone-number-input/style.css';
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import { auth } from "@/lib/firebase";
@@ -272,35 +272,66 @@ export default function AccountPage() {
     );
   }
 
+  
   if (user) {
     return (
-      <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
-        <div className="max-w-[600px] w-full text-center">
-          <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-4">My Account</h1>
-          <p className="text-[14px] text-[var(--color-text-muted)] mb-12">
-            Welcome back, {user.name}!
-          </p>
-
-          <div className="bg-gray-50 border border-[var(--color-border)] p-8 text-left mb-8">
-            <h2 className="text-[13px] tracking-[2px] uppercase mb-4">Account Details</h2>
-            <p className="text-[14px] mb-1"><span className="text-[var(--color-text-muted)]">Name:</span> {user.name}</p>
-            {user.email && <p className="text-[14px] mb-4"><span className="text-[var(--color-text-muted)]">Email:</span> {user.email}</p>}
-            
-            <h2 className="text-[13px] tracking-[2px] uppercase mb-4 mt-8 border-t border-[var(--color-border)] pt-8">Order History</h2>
-            
-            <AccountOrders />
+      <div className="w-full h-full p-4 md:p-8 lg:p-12">
+        <div className="md:hidden flex items-center justify-between mb-8 pb-6 border-b border-[var(--color-border)]">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-gray-100 text-gray-700 rounded-full flex items-center justify-center text-xl font-serif border border-gray-200">
+              {user.name.split(" ").map(n => n[0]).join("").substring(0,2).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="text-[16px] font-bold uppercase tracking-wider">{user.name}</h1>
+              <p className="text-[12px] text-[var(--color-text-muted)]">{user.email}</p>
+            </div>
           </div>
-
-          <button 
-            onClick={logout}
-            className="text-[13px] tracking-[2px] uppercase border border-[var(--color-text)] px-8 py-3 hover:bg-[var(--color-text)] hover:text-white transition-colors"
-          >
-            Log out
-          </button>
         </div>
-      </main>
+
+        <h1 className="hidden md:block text-3xl font-serif tracking-[2px] uppercase mb-2">Overview</h1>
+        <p className="hidden md:block text-[14px] text-[var(--color-text-muted)] mb-10">Welcome to your Duti Heritage account dashboard.</p>
+        
+        {/* Quick Action Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+          {[
+            { name: "My Orders", icon: <FiBox className="text-2xl mb-3 text-blue-600" />, href: "/account/orders", desc: "Track & manage" },
+            { name: "Wishlist", icon: <FiHeart className="text-2xl mb-3 text-rose-500" />, href: "/account/wishlist", desc: "Saved items" },
+            { name: "Addresses", icon: <FiMapPin className="text-2xl mb-3 text-amber-600" />, href: "/account/addresses", desc: "Delivery info" },
+            { name: "Coupons", icon: <FiTag className="text-2xl mb-3 text-green-600" />, href: "/account/coupons", desc: "Special offers" },
+            { name: "Recently Viewed", icon: <FiClock className="text-2xl mb-3 text-purple-600" />, href: "/account/recently-viewed", desc: "Your history" },
+            { name: "Profile Settings", icon: <FiUser className="text-2xl mb-3 text-gray-700" />, href: "/account/profile", desc: "Edit details" }
+          ].map((action, i) => (
+            <Link key={i} href={action.href} className="bg-white border border-[var(--color-border)] p-5 md:p-6 rounded-xl hover:shadow-md transition-shadow hover:border-black flex flex-col items-center text-center group">
+              <div className="transform group-hover:scale-110 transition-transform">
+                {action.icon}
+              </div>
+              <h3 className="text-[13px] font-bold tracking-[1px] uppercase mb-1">{action.name}</h3>
+              <p className="text-[11px] text-[var(--color-text-muted)]">{action.desc}</p>
+            </Link>
+          ))}
+        </div>
+
+        {/* Recent Orders Preview */}
+        <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden">
+          <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
+            <h2 className="text-[14px] font-bold tracking-[2px] uppercase">Recent Orders</h2>
+            <Link href="/account/orders" className="text-[12px] text-blue-600 font-medium hover:underline">View All &rarr;</Link>
+          </div>
+          <div className="p-6 bg-gray-50/50">
+            <AccountOrders limit={2} />
+          </div>
+        </div>
+
+        <button 
+          onClick={logout}
+          className="md:hidden mt-8 w-full border border-red-200 text-red-600 bg-red-50 py-4 text-[13px] font-bold tracking-[2px] uppercase rounded-lg"
+        >
+          Log Out
+        </button>
+      </div>
     );
   }
+
 
   // ----------------------------------------------------
   // RENDER LOGGED OUT VIEW (LOGIN FORM)

@@ -20,7 +20,6 @@ export async function sendEmail(input: {
   text?: string;
   type?: "auth" | "orders" | "marketing";
 }): Promise<SendEmailResult> {
-  console.log("[email] Attempting to send email:", { to: input.to, subject: input.subject, type: input.type });
   
   let apiKey = process.env.RESEND_API_KEY;
   if (input.type === "auth") apiKey = process.env.RESEND_AUTH_KEY || apiKey;
@@ -30,7 +29,6 @@ export async function sendEmail(input: {
   let from = process.env.EMAIL_FROM;
   if (input.type === "marketing") from = "Duti Heritage <marketing@dutiheritage.co.in>";
   
-  console.log("[email] API Key present:", !!apiKey, "From address:", from);
 
   if (!apiKey || !from) {
     console.info("[email] skipped — RESEND_API_KEY / EMAIL_FROM not set");
@@ -64,7 +62,6 @@ export async function sendEmail(input: {
       error?: { message?: string };
     };
 
-    console.log("[email] Resend response status:", res.status, "data:", data);
 
     if (!res.ok) {
       const msg =
@@ -73,7 +70,6 @@ export async function sendEmail(input: {
       return { ok: false, error: msg };
     }
 
-    console.log("[email] Successfully sent! ID:", data.id);
     return { ok: true, id: data.id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Email send failed";

@@ -90,6 +90,10 @@ const OrderSchema = new Schema(
   { timestamps: true }
 );
 
+
+OrderSchema.index({ firebaseUid: 1, createdAt: -1 });
+OrderSchema.index({ status: 1, createdAt: -1 });
+
 export type OrderDocument = InferSchemaType<typeof OrderSchema> & {
   _id: Schema.Types.ObjectId;
 };

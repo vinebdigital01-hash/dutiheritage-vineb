@@ -56,7 +56,7 @@ function OrderTimeline({ status }: { status: OrderStatus | string }) {
   );
 }
 
-export function AccountOrders() {
+export function AccountOrders({ limit }: { limit?: number }) {
   const [orders, setOrders] = useState<OrderDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export function AccountOrders() {
     (async () => {
       try {
         const headers = await authHeaders();
-        const res = await fetch("/api/orders?limit=50", { headers });
+        const res = await fetch(`/api/orders?limit=${limit || 50}`, { headers });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Could not load orders");
         if (!cancelled) setOrders(data.orders || []);

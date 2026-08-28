@@ -1,12 +1,14 @@
-"use client";
+﻿"use client";
 
 import { usePathname } from "next/navigation";
+import dynamic from 'next/dynamic';
 import { AnnouncementBar } from "@/components/AnnouncementBar/AnnouncementBar";
 import { Header } from "@/components/Header/Header";
 import { Footer } from "@/components/Footer/Footer";
-import { CartDrawer } from "@/components/CartDrawer/CartDrawer";
-import { SearchDrawer } from "@/components/SearchDrawer/SearchDrawer";
 import { AdminFloatingButton } from "@/components/admin/AdminFloatingButton";
+
+const CartDrawer = dynamic(() => import('@/components/CartDrawer/CartDrawer').then(m => ({ default: m.CartDrawer })), { ssr: false });
+const SearchDrawer = dynamic(() => import('@/components/SearchDrawer/SearchDrawer').then(m => ({ default: m.SearchDrawer })), { ssr: false });
 
 export function StoreShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

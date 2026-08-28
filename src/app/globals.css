@@ -58,3 +58,15 @@
 .PhoneInputInput { border: none !important; outline: none !important; background: transparent !important; margin-left: 8px; font-size: 14px; }
 .PhoneInput { display: flex; align-items: center; }
 
+@layer utilities {
+  .animate-marquee {
+    will-change: transform;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

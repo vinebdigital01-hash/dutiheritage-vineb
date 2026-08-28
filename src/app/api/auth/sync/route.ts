@@ -1,3 +1,4 @@
+import { applyRateLimit } from "@/lib/rate-limit";
 import { requireAuth, getStaffRole } from "@/lib/auth";
 import {
   upsertCustomerFromAuth,
@@ -16,6 +17,9 @@ import { handleApiError, jsonOk, jsonError } from "@/lib/api";
  * Fires welcome automation once for brand-new customers.
  */
 export async function POST(request: Request) {
+  const rateLimitRes = applyRateLimit(request, { limit: 10, windowMs: 60000 });
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     if (!process.env.MONGODB_URI) {
       return jsonError(

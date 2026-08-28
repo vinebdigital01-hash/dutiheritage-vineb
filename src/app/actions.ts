@@ -1,14 +1,23 @@
-"use server";
+﻿"use server";
+import { connectDB } from "@/lib/mongodb";
+import { Product as ProductModel } from "@/models";
+import { toProduct } from "@/lib/mappers";
 import { db } from "@/services/db";
 import type { Product } from "@/types";
 
-export async function searchProducts(query: string) {
+export async function searchProducts(query: string): Promise<Product[]> {
   if (!query || query.trim() === "") return [];
-  const products = await db.getAllProducts();
-  const q = query.toLowerCase();
-  return products.filter(
-    (p) => p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)
-  ).slice(0, 12);
+  await connectDB();
+  
+  // Use MongoDB native text search index
+  const docs = await ProductModel.find({
+    $text: { $search: query },
+    isActive: true
+  })
+    .limit(12)
+    .lean();
+    
+  return docs.map(toProduct as any);
 }
 
 export async function getTopCollections() {

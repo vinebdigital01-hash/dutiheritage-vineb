@@ -10,6 +10,9 @@ const CollectionSchema = new Schema(
   { timestamps: true }
 );
 
+
+CollectionSchema.index({ isActive: 1, createdAt: 1 });
+
 export type CollectionDocument = InferSchemaType<typeof CollectionSchema> & {
   _id: Schema.Types.ObjectId;
 };

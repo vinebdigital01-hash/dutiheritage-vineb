@@ -1,3 +1,5 @@
+import { validateCouponSchema } from "@/lib/validators";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCouponCode } from "@/lib/coupons";
 import { handleApiError, jsonOk, requireMongo, ApiError } from "@/lib/api";
 
@@ -6,9 +8,12 @@ import { handleApiError, jsonOk, requireMongo, ApiError } from "@/lib/api";
  * Body: { code, subtotal, productIds?, collectionIds? }
  */
 export async function POST(request: Request) {
+  const rateLimitRes = applyRateLimit(request, { limit: 20, windowMs: 60000 });
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     requireMongo();
-    const body = await request.json();
+    const body = await request.json(); validateCouponSchema.parse(body);
     const code = String(body.code || "");
     const subtotal = Number(body.subtotal);
 

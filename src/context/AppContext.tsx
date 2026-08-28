@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { Product, UserProfile } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { trackEvent } from "@/lib/track-client";
@@ -80,6 +80,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setUserProfile(synced.profile);
         setIsAdmin(synced.isAdmin);
         setAdminRole(synced.adminRole || null);
+
+        // Fetch wishlist items
+        try {
+          const token = await firebaseUser.getIdToken();
+          const wRes = await fetch("/api/wishlist", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (wRes.ok) {
+            const wData = await wRes.json();
+            setWishlist(wData.wishlists.map((w: any) => w.productId));
+          }
+        } catch (e) {
+          console.error("Failed to load wishlist", e);
+        }
       } else {
         setUser(null);
         setUserProfile(null);
@@ -222,30 +236,37 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
+  const contextValue = useMemo(() => ({
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    isCartOpen,
+    setIsCartOpen,
+    isSearchOpen,
+    setIsSearchOpen,
+    recentlyViewed,
+    addRecentlyViewed,
+    user,
+    userProfile,
+    isAdmin,
+    adminRole,
+    authLoading,
+    login,
+    logout,
+    isInitialized,
+    wishlist,
+    toggleWishlist,
+  }), [
+    cart, addToCart, removeFromCart, updateQuantity, clearCart,
+    isCartOpen, isSearchOpen, recentlyViewed, addRecentlyViewed,
+    user, userProfile, isAdmin, adminRole, authLoading, login, logout,
+    isInitialized, wishlist, toggleWishlist
+  ]);
+
   return (
-    <AppContext.Provider
-      value={{
-        cart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        isCartOpen,
-        setIsCartOpen,
-        isSearchOpen,
-        setIsSearchOpen,
-        recentlyViewed,
-        addRecentlyViewed,
-        user,
-        userProfile,
-        isAdmin,
-        adminRole,
-        authLoading,
-        login,
-        logout,
-        isInitialized, wishlist, toggleWishlist,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

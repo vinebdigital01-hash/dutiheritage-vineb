@@ -1,3 +1,5 @@
+import { placeOrderSchema } from "@/lib/validators";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/mongodb";
 import { Order, Coupon, Customer, Cart } from "@/models";
 import { verifyIdToken } from "@/lib/auth";
@@ -55,11 +57,14 @@ type PlaceOrderBody = {
  * Recalculates totals server-side, verifies Razorpay when needed, creates Order.
  */
 export async function POST(request: Request) {
+  const rateLimitRes = applyRateLimit(request, { limit: 5, windowMs: 60000 });
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     requireMongo();
     await connectDB();
 
-    const body = (await request.json()) as PlaceOrderBody;
+    const body = (await request.json()) as PlaceOrderBody; placeOrderSchema.parse(body);
     const paymentMethod = body.paymentMethod;
 
     if (!["prepaid", "cod", "partial"].includes(paymentMethod)) {

@@ -1,3 +1,4 @@
+import { applyRateLimit } from "@/lib/rate-limit";
 import { findCustomerByEmail } from "@/lib/customers";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api";
 
@@ -9,6 +10,9 @@ import { handleApiError, jsonOk, jsonError } from "@/lib/api";
  * when Firebase Email Enumeration Protection is on.
  */
 export async function POST(request: Request) {
+  const rateLimitRes = applyRateLimit(request, { limit: 10, windowMs: 60000 });
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const body = (await request.json()) as { email?: string };
     const email = body.email?.trim().toLowerCase();

@@ -1,4 +1,5 @@
 import { db } from "@/services/db";
+import { Coupon } from "@/models/Coupon";
 import { connectDB } from "@/lib/mongodb";
 import { Product } from "@/models";
 import { requireAuth } from "@/lib/auth";

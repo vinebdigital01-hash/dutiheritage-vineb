@@ -35,11 +35,11 @@ export async function GET(request: Request) {
     if (slug) {
       const collection = await db.getCollectionBySlug(slug);
       if (!collection) return jsonError("Collection not found", 404);
-      return jsonOk({ collection });
+      return jsonOk({ collection }, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } });
     }
 
     const collections = await db.getAllCollections();
-    return jsonOk({ collections, count: collections.length });
+    return jsonOk({ collections, count: collections.length }, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } });
   } catch (error) {
     return handleApiError(error);
   }

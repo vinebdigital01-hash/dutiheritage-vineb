@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { Product } from "@/types";
-import { FaTwitter, FaPinterestP } from "react-icons/fa";
+import { FaTwitter, FaPinterestP, FaInstagram } from "react-icons/fa";
 import { FiShare2, FiLink, FiCopy, FiHeart, FiX } from "react-icons/fi";
 import { MdLocalOffer } from "react-icons/md";
 import { ProductGallery } from "@/components/ProductGallery/ProductGallery";
@@ -19,7 +19,7 @@ const getVideoInfo = (url: string) => {
     const rawId = (url.split('/reel/')[1] || url.split('/reels/')[1] || url.split('/p/')[1])?.split('/')[0] || url.split('?')[0].split('/').pop();
     const id = rawId ? rawId.split('?')[0] : '';
     if (id) {
-      return { type: 'instagram', id, embedUrl: `https://www.instagram.com/p/${id}/embed/captioned/` };
+      return { type: 'instagram', id, embedUrl: `https://www.instagram.com/p/${id}/embed/` };
     }
   }
   return { type: "raw", id: url, embedUrl: url };
@@ -28,12 +28,14 @@ const getVideoInfo = (url: string) => {
 export const ProductClient = ({ product, suggestedProducts = [] }: { product: Product; suggestedProducts?: Product[] }) => {
   // Global State
   const { addToCart, addRecentlyViewed, recentlyViewed, user, cart, isCartOpen, setIsCartOpen, wishlist, toggleWishlist } = useAppContext();
+  const isWishlisted = wishlist?.includes(product.id);
   const router = useRouter();
 
   // Local State for Review Modal & Toast
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [modalKey, setModalKey] = useState(0);
   const mainActionsRef = useRef<HTMLDivElement>(null);
   const [isMainActionsVisible, setIsMainActionsVisible] = useState(false);
   const [reviews, setReviews] = useState<ReviewDTO[]>([]);
@@ -73,16 +75,18 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   // Rotating Offers Logic
   const hasOffers = product.offers && product.offers.length > 0;
   const [currentOfferIndex, setCurrentOfferIndex] = useState(0);
+  const [isOffersHovered, setIsOffersHovered] = useState(false);
 
   useEffect(() => {
     if (!hasOffers || product.offers!.length <= 1) return;
+    if (isOffersHovered) return;
     
     const interval = setInterval(() => {
       setCurrentOfferIndex((prev) => (prev + 1) % product.offers!.length);
-    }, 4000); // Rotate every 4 seconds
+    }, 4000);
     
     return () => clearInterval(interval);
-  }, [hasOffers, product.offers]);
+  }, [hasOffers, product.offers, isOffersHovered]);
 
   // Track Recently Viewed + product view analytics
   useEffect(() => {
@@ -224,13 +228,22 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                     return (
                       <div 
                         key={idx}
-                        onClick={() => setActiveVideoUrl(url)}
+                        onClick={() => { setActiveVideoUrl(url); setModalKey(Date.now()); }}
                         className="relative w-[120px] h-[213px] shrink-0 rounded-xl overflow-hidden cursor-pointer group shadow-md border-2 border-transparent hover:border-gray-900 transition-all duration-300 bg-gray-100 flex items-center justify-center"
                       >
                         {info.type === 'raw' ? (
                           <video src={info.embedUrl} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline />
                         ) : (
-                          <iframe src={info.embedUrl} className="absolute top-[-40px] left-[-20px] w-[160px] h-[300px] pointer-events-none opacity-90" frameBorder="0" scrolling="no" tabIndex={-1} />
+                          <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-gray-100">
+                            <iframe 
+                              src={info.embedUrl} 
+                              className="absolute w-[200px] h-[350px] scale-[1.35] pointer-events-none opacity-90 origin-center" 
+                              frameBorder="0" 
+                              scrolling="no" 
+                              tabIndex={-1} 
+                            />
+                            <div className="absolute inset-0 bg-black/10" />
+                          </div>
                         )}
                         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                           <div className="w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center">
@@ -251,13 +264,26 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           {/* Right Column: Product Info */}
           <div className="w-full lg:w-1/2 flex flex-col pt-4 lg:pt-0 max-w-[600px]">
 
-            <h1 className="text-2xl md:text-[28px] font-normal tracking-[2px] uppercase mb-3 font-serif leading-tight">
-              {product.name}
-            </h1>
+            <div className="flex justify-between items-start gap-4">
+              <h1 className="text-2xl md:text-[28px] font-normal tracking-[2px] uppercase mb-3 font-serif leading-tight">
+                {product.name}
+              </h1>
+              <button 
+                onClick={() => toggleWishlist(product.id)}
+                className="mt-1 p-2.5 rounded-full bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors flex shrink-0"
+                aria-label="Wishlist"
+              >
+                <FiHeart className={`text-xl ${isWishlisted ? "fill-rose-500 text-rose-500" : "text-gray-400"}`} />
+              </button>
+            </div>
             
-            <p className="text-[15px] text-gray-600 mb-6 leading-relaxed">
-              Give your Festive look a dreamy update with this beautiful set. Team these with heels or flats and shoulder bag for a look we&apos;re loving. Made with high-quality materials for maximum comfort.
-            </p>
+            {product.description && (
+              <div className="mb-6">
+                <p className="text-[15px] text-gray-600 leading-relaxed whitespace-pre-line">
+                  {product.description}
+                </p>
+              </div>
+            )}
 
             {/* Premium Info Card */}
             <div className="border border-gray-200 rounded-[24px] p-5 md:p-7 bg-white flex flex-col gap-5 relative shadow-sm">
@@ -293,7 +319,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
               {/* Special Offer Box (Moved Inside Card) */}
               {hasOffers && (
-                <div className="bg-[#FDF9F1] border border-[#E8DFCE] rounded-lg p-5">
+                <div className="bg-[#FDF9F1] border border-[#E8DFCE] rounded-lg p-5" onMouseEnter={() => setIsOffersHovered(true)} onMouseLeave={() => setIsOffersHovered(false)}>
                   <div className="text-[#9B7126] font-bold text-[12px] tracking-wider mb-4 flex items-center gap-1">
                     SPECIAL OFFERS <span className="text-[14px]">🎉</span>
                   </div>
@@ -353,16 +379,20 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                       <div className="flex gap-2 mt-4">
                         {product.offers!.map((_, idx) => (
                           <div 
-                            key={idx} 
-                            className="relative h-[2px] flex-1 rounded-full bg-[#E8DFCE] overflow-hidden"
-                          >
-                            {idx === currentOfferIndex && (
-                              <div 
-                                className="absolute top-0 left-0 h-full bg-[#D4C3A3]"
-                                style={{ animation: 'fillProgress 4s linear forwards' }}
-                              />
-                            )}
-                          </div>
+                              key={idx} 
+                              onClick={() => setCurrentOfferIndex(idx)}
+                              className="relative h-[2.5px] cursor-pointer flex-1 rounded-full bg-[#E8DFCE] overflow-hidden"
+                            >
+                              {idx === currentOfferIndex && (
+                                <div 
+                                  className="absolute top-0 left-0 h-full bg-[#D4C3A3]"
+                                  style={{ 
+                                    animation: 'fillProgress 4s linear forwards',
+                                    animationPlayState: isOffersHovered ? 'paused' : 'running'
+                                  }}
+                                />
+                              )}
+                            </div>
                         ))}
                       </div>
                     </>
@@ -406,6 +436,9 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 Tax included. <Link href="/shipping" className="underline underline-offset-2">Shipping</Link> calculated at checkout.
               </span>
 
+
+
+              
               {/* Size Selector */}
               <div className="flex flex-col gap-2 mt-2">
                 <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Size</span>
@@ -682,28 +715,6 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
         </div>
       )}
 
-      {/* Video Modal (Reels style) */}
-      {activeVideoUrl && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center animate-in fade-in zoom-in-95 duration-200">
-          <button 
-            onClick={() => setActiveVideoUrl(null)}
-            className="absolute top-6 right-6 z-[210] w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors backdrop-blur-md"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-          
-          <div className="relative w-full max-w-[450px] h-[100dvh] md:h-[85vh] md:rounded-2xl overflow-hidden shadow-2xl bg-black">
-            <video 
-              src={activeVideoUrl} 
-              className="absolute inset-0 w-full h-full object-cover"
-              autoPlay 
-              controls
-              playsInline
-            />
-          </div>
-        </div>
-      )}
-
       {/* Sticky Mobile Actions Bar */}
       <div 
         className={`fixed bottom-0 left-0 w-full bg-white border-t border-[var(--color-border)] p-3 px-4 z-[90] flex gap-3 lg:hidden shadow-[0_-5px_15px_rgba(0,0,0,0.05)] transition-all duration-300 ease-in-out ${
@@ -735,27 +746,27 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
       {/* Full Screen Video Overlay */}
       {activeVideoUrl && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+        <div className="fixed top-0 left-0 right-0 bottom-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col md:items-center md:justify-center animate-in fade-in duration-200">
           {/* Header */}
-          <div className="absolute top-4 right-4 z-[120]">
+          <div className="absolute top-4 right-4 md:top-8 md:right-8 z-[120]">
             <button 
               onClick={() => setActiveVideoUrl(null)}
-              className="text-white p-2 bg-black/50 rounded-full hover:bg-black transition-colors"
+              className="text-white p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all backdrop-blur-md"
             >
               <FiX size={24} />
             </button>
           </div>
 
           {/* TikTok Style Video Feed */}
-          <div className="flex-1 w-full overflow-y-auto snap-y snap-mandatory no-scrollbar pb-[80px]">
+          <div className="flex-1 w-full md:max-w-[450px] overflow-y-auto snap-y snap-mandatory no-scrollbar pb-[100px] md:pb-0 md:h-[80vh] md:max-h-[800px] md:rounded-3xl md:border md:border-white/10 md:shadow-2xl relative">
             {(product.videoUrls || []).map((url, idx) => {
               const info = getVideoInfo(url);
               return (
-                <div key={idx} className="w-full h-full min-h-[100vh] shrink-0 snap-start flex items-center justify-center relative bg-black" id={`video-${idx}`}>
+                <div key={`${idx}-${modalKey}`} className="w-full h-full min-h-[100%] shrink-0 snap-start flex flex-col items-center justify-center relative md:bg-black" id={`video-${idx}`}>
                   {info.type === 'raw' ? (
                     <video 
                       src={info.embedUrl} 
-                      className="w-full h-full object-contain" 
+                      className="w-full h-full object-cover md:rounded-3xl" 
                       autoPlay={url === activeVideoUrl} 
                       controls 
                       playsInline 
@@ -763,34 +774,39 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                       muted 
                     />
                   ) : (
-                    <iframe 
-                      src={info.embedUrl} 
-                      className="w-full h-full max-w-[500px] border-0" 
-                      allow="autoplay; fullscreen" 
-                      allowFullScreen 
-                      scrolling="no" 
-                    />
+                    <div className="w-full h-full flex items-center justify-center bg-black">
+                      <iframe 
+                        key={modalKey}
+                        src={`https://www.instagram.com/p/${info.id}/embed/`}
+                        className="w-full max-w-[400px] h-[80vh] max-h-[600px] border-0 rounded-2xl bg-white relative z-[50]" 
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share; fullscreen" 
+                        allowFullScreen 
+                        scrolling="no" 
+                      />
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
 
-          {/* Sticky Actions - Forced to Absolute Bottom */}
-          <div className="absolute bottom-0 left-0 w-full bg-white px-4 py-3 md:py-4 flex gap-3 z-[120] shadow-[0_-10px_20px_rgba(0,0,0,0.1)] border-t border-gray-100">
-            <button 
-              onClick={() => { setActiveVideoUrl(null); handleAddToCart(); }}
-              className={`flex-1 py-3.5 rounded-xl border-2 text-[12px] font-bold uppercase tracking-wider transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-gray-900 text-gray-900 hover:bg-gray-50'}`}
-            >
-              {isAdded ? "Added to Cart" : "Add to Cart"}
-            </button>
-            <button 
-              onClick={() => { setActiveVideoUrl(null); handleBuyNow(); }}
-              disabled={isNavigating}
-              className="flex-1 py-3.5 rounded-xl bg-gray-900 text-white font-bold text-[12px] uppercase tracking-wider hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isNavigating ? "Wait..." : "Buy Now"}
-            </button>
+          {/* Premium Floating Sticky Actions */}
+          <div className="absolute bottom-0 left-0 w-full px-4 py-4 md:bottom-8 md:w-auto md:min-w-[400px] flex gap-3 z-[120]">
+            <div className="w-full max-w-[450px] mx-auto flex gap-3 bg-white/10 backdrop-blur-xl p-2 rounded-2xl border border-white/20 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+              <button 
+                onClick={() => { setActiveVideoUrl(null); handleAddToCart(); }}
+                className={`flex-1 py-3.5 md:py-4 rounded-xl border text-[12px] font-bold tracking-[1.5px] uppercase transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-[var(--color-text)] bg-white text-[var(--color-text)] hover:bg-gray-50'}`}
+              >
+                {isAdded ? "Added to Cart" : "Add to Cart"}
+              </button>
+              <button 
+                onClick={() => { setActiveVideoUrl(null); handleBuyNow(); }}
+                disabled={isNavigating}
+                className="flex-1 py-3.5 md:py-4 rounded-xl bg-[var(--color-text)] text-[var(--color-surface)] font-bold text-[12px] tracking-[1.5px] uppercase hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isNavigating ? "Wait..." : "Buy Now"}
+              </button>
+            </div>
           </div>
         </div>
       )}

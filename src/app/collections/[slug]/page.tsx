@@ -5,7 +5,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { Metadata } from "next";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 600;
+
+export async function generateStaticParams() {
+  const collections = await db.getAllCollections();
+  return collections.map((collection) => ({
+    slug: collection.slug,
+  }));
+}
 
 const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
@@ -76,8 +83,10 @@ export default async function CollectionPage({
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
             "@context": "https://schema.org",
-            "@type": "BreadcrumbList",
-            itemListElement: [
+            "@graph": [
+              {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
               {
                 "@type": "ListItem",
                 position: 1,
@@ -90,7 +99,24 @@ export default async function CollectionPage({
                 name: collection.name,
                 item: `${baseUrl}/collections/${collection.slug}`,
               },
-            ],
+            ]
+              },
+              {
+                "@type": "ItemList",
+                "url": `${baseUrl}/collections/${collection.slug}`,
+                "name": collection.name,
+                "numberOfItems": displayProducts.length,
+                "itemListElement": displayProducts.map((p, index) => ({
+                  "@type": "ListItem",
+                  "position": index + 1,
+                  "item": {
+                    "@type": "Product",
+                    "name": p.name,
+                    "url": `${baseUrl}/products/${p.slug}`
+                  }
+                }))
+              }
+            ]
           }),
         }}
       />
@@ -134,9 +160,9 @@ export default async function CollectionPage({
                   )}
                 </div>
                 
-                <h3 className="text-[13px] tracking-[1px] uppercase mb-1 truncate">
+                <h2 className="text-[13px] tracking-[1px] uppercase mb-1 truncate">
                   {product.name}
-                </h3>
+                </h2>
                 
                 <div className="flex items-center gap-2 text-[13px]">
                   {product.salePrice ? (
