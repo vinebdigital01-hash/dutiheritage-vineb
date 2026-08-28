@@ -219,7 +219,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
               <div className="w-full">
                 <h3 className="text-[13px] font-bold text-gray-500 tracking-[2px] uppercase mb-4">See it in motion</h3>
                 <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                  {product.videoUrls.map((url, idx) => {
+                  {(product.videoUrls || []).map((url, idx) => {
                     const info = getVideoInfo(url);
                     return (
                       <div 
@@ -230,7 +230,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                         {info.type === 'raw' ? (
                           <video src={info.embedUrl} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline />
                         ) : (
-                          <iframe src={info.embedUrl} className="absolute inset-0 w-full h-full pointer-events-none opacity-70 transform scale-150" frameBorder="0" scrolling="no" tabIndex={-1} />
+                          <iframe src={info.embedUrl} className="absolute top-[-40px] left-[-20px] w-[160px] h-[300px] pointer-events-none opacity-90" frameBorder="0" scrolling="no" tabIndex={-1} />
                         )}
                         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                           <div className="w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center">
@@ -735,34 +735,45 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
       {/* Full Screen Video Overlay */}
       {activeVideoUrl && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
-          <button 
-            onClick={() => setActiveVideoUrl(null)}
-            className="absolute top-4 right-4 text-white z-50 p-2 bg-black/50 rounded-full"
-          >
-            <FiX size={24} />
-          </button>
-          
-          <div className="w-full flex-1 max-w-[500px] relative flex items-center justify-center pb-[80px]">
-            {getVideoInfo(activeVideoUrl).type === 'raw' ? (
-              <video src={getVideoInfo(activeVideoUrl).embedUrl} className="w-full h-full object-contain" autoPlay controls playsInline />
-            ) : (
-              <iframe src={getVideoInfo(activeVideoUrl).embedUrl} className="w-full h-[80vh] max-h-[800px]" frameBorder="0" allow="autoplay; fullscreen" allowFullScreen />
-            )}
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+          {/* Header */}
+          <div className="w-full p-4 flex justify-end absolute top-0 z-[110]">
+            <button 
+              onClick={() => setActiveVideoUrl(null)}
+              className="text-white p-2 bg-black/50 rounded-full hover:bg-black transition-colors"
+            >
+              <FiX size={24} />
+            </button>
           </div>
 
-          {/* Sticky Actions inside Video Modal */}
-          <div className="absolute bottom-0 left-0 w-full bg-white p-4 flex gap-3 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]">
+          {/* Video Feed */}
+          <div className="flex-1 w-full overflow-y-auto snap-y snap-mandatory no-scrollbar">
+            {(product.videoUrls || []).map((url, idx) => {
+              const info = getVideoInfo(url);
+              return (
+                <div key={idx} className="w-full h-full shrink-0 snap-start flex items-center justify-center relative" id={`video-${idx}`}>
+                  {info.type === 'raw' ? (
+                    <video src={info.embedUrl} className="w-full h-full object-contain" autoPlay={url === activeVideoUrl} controls playsInline loop />
+                  ) : (
+                    <iframe src={info.embedUrl} className="w-full h-full max-w-[500px]" frameBorder="0" allow="autoplay; fullscreen" allowFullScreen scrolling="no" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Sticky Actions */}
+          <div className="w-full bg-white p-3 md:p-4 flex gap-3 z-[110] shadow-[0_-10px_20px_rgba(0,0,0,0.1)] shrink-0">
             <button 
               onClick={() => { setActiveVideoUrl(null); handleAddToCart(); }}
-              className={`flex-1 py-3 md:py-4 rounded-xl border-2 text-[11px] md:text-[12px] font-bold uppercase tracking-wider transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-gray-900 text-gray-900 hover:bg-gray-50'}`}
+              className={`flex-1 py-3.5 md:py-4 rounded-xl border-2 text-[12px] font-bold uppercase tracking-wider transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-gray-900 text-gray-900 hover:bg-gray-50'}`}
             >
-              {isAdded ? "Added" : "Add to Cart"}
+              {isAdded ? "Added to Cart" : "Add to Cart"}
             </button>
             <button 
               onClick={() => { setActiveVideoUrl(null); handleBuyNow(); }}
               disabled={isNavigating}
-              className="flex-1 py-3 md:py-4 rounded-xl bg-gray-900 text-white font-bold text-[11px] md:text-[12px] uppercase tracking-wider hover:bg-black transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-3.5 md:py-4 rounded-xl bg-gray-900 text-white font-bold text-[12px] uppercase tracking-wider hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isNavigating ? "Wait..." : "Buy Now"}
             </button>
