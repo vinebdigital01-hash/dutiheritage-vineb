@@ -70,6 +70,7 @@ export default function AdminCustomerDetailPage() {
   const addTag = async () => {
     const tag = tagInput.trim();
     if (!tag || !profile) return;
+    if (!window.confirm("Are you sure you want to add this tag?")) return;
     setSaving(true);
     try {
       const data = await adminFetch<{ customer: CustomerDTO }>(

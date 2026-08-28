@@ -29,10 +29,13 @@ interface AppContextType {
   user: { name: string; email: string; uid: string; phone?: string } | null;
   userProfile: UserProfile | null;
   isAdmin: boolean;
+  adminRole: string | null;
   authLoading: boolean;
   login: (email: string) => void;
   logout: () => void;
   isInitialized: boolean;
+  wishlist: string[];
+  toggleWishlist: (productId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -43,9 +46,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<{ name: string; email: string; uid: string; phone?: string } | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [wishlist, setWishlist] = useState<string[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -74,10 +79,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         const synced = await syncAuthToBackend(firebaseUser);
         setUserProfile(synced.profile);
         setIsAdmin(synced.isAdmin);
+        setAdminRole(synced.adminRole || null);
       } else {
         setUser(null);
         setUserProfile(null);
         setIsAdmin(false);
+        setAdminRole(null);
       }
       setAuthLoading(false);
     });
@@ -172,6 +179,37 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, []);
 
+  
+  const toggleWishlist = React.useCallback(async (productId: string) => {
+    if (!user) {
+      alert('Please login to save to your wishlist.');
+      return;
+    }
+    
+    // Optimistic UI update
+    setWishlist(prev => 
+      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+    );
+
+    try {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      await fetch('/api/wishlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ productId })
+      });
+    } catch(e) {
+      console.error('Failed to toggle wishlist', e);
+      // Revert optimistic update
+      setWishlist(prev => 
+        prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+      );
+    }
+  }, [user]);
+
   const login = React.useCallback((_email: string) => {
     // Handled by account UI via Firebase; AppContext syncs on onAuthStateChanged.
   }, []);
@@ -201,10 +239,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         user,
         userProfile,
         isAdmin,
+        adminRole,
         authLoading,
         login,
         logout,
-        isInitialized,
+        isInitialized, wishlist, toggleWishlist,
       }}
     >
       {children}

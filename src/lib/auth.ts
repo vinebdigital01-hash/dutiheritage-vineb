@@ -1,7 +1,7 @@
 import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
 
-function getAdminApp(): App {
+export function getAdminApp(): App {
   if (getApps().length) {
     return getApps()[0]!;
   }
@@ -49,6 +49,9 @@ export type AuthUser = {
   token: DecodedIdToken;
 };
 
+import { connectDB } from "@/lib/mongodb";
+import { Staff, type StaffRole } from "@/models/Staff";
+
 function getAdminEmails(): string[] {
   return (process.env.ADMIN_EMAILS || "")
     .split(",")
@@ -56,9 +59,37 @@ function getAdminEmails(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Legacy synchronous check used sparingly.
+ * Only returns true for SUPERADMINs in .env.local
+ */
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   return getAdminEmails().includes(email.toLowerCase());
+}
+
+/**
+ * Gets the actual RBAC role of a user from .env or MongoDB
+ */
+export async function getStaffRole(email: string | null | undefined): Promise<StaffRole | null> {
+  if (!email) return null;
+  const e = email.toLowerCase();
+  
+  if (getAdminEmails().includes(e)) {
+    return "SUPERADMIN";
+  }
+
+  try {
+    await connectDB();
+    const staff = await Staff.findOne({ email: e, active: true });
+    if (staff) {
+      return staff.role as StaffRole;
+    }
+  } catch (err) {
+    console.error("[getStaffRole]", err);
+  }
+  
+  return null;
 }
 
 /**
@@ -90,16 +121,23 @@ export async function verifyIdToken(
 }
 
 /**
- * Require a valid Firebase user. Optionally require admin email.
+ * Require a valid Firebase user. Optionally require admin role.
  */
 export async function requireAuth(
   request: Request,
-  options?: { admin?: boolean }
-): Promise<AuthUser> {
+  options?: { admin?: boolean; roles?: StaffRole[] }
+): Promise<AuthUser & { role?: StaffRole | null }> {
   const user = await verifyIdToken(request.headers.get("authorization"));
 
-  if (options?.admin && !isAdminEmail(user.email)) {
-    throw new AuthError("Admin access required", 403);
+  if (options?.admin || options?.roles) {
+    const role = await getStaffRole(user.email);
+    if (!role) {
+      throw new AuthError("Admin access required", 403);
+    }
+    if (options.roles && !options.roles.includes(role)) {
+      throw new AuthError(`Forbidden. Requires one of: ${options.roles.join(", ")}`, 403);
+    }
+    return { ...user, role };
   }
 
   return user;

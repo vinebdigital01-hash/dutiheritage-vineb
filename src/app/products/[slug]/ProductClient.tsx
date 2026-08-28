@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Product } from "@/types";
 import { FaTwitter, FaPinterestP } from "react-icons/fa";
-import { FiShare2, FiLink, FiCopy } from "react-icons/fi";
+import { FiShare2, FiLink, FiCopy, FiHeart, FiX } from "react-icons/fi";
 import { MdLocalOffer } from "react-icons/md";
 import { ProductGallery } from "@/components/ProductGallery/ProductGallery";
 import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
@@ -14,9 +14,20 @@ import { authHeaders } from "@/lib/checkout-client";
 import { trackEvent, trackPageDuration } from "@/lib/track-client";
 import type { ReviewDTO } from "@/lib/reviews";
 
+const getVideoInfo = (url: string) => {
+  if (url.includes('instagram.com')) {
+    const rawId = (url.split('/reel/')[1] || url.split('/reels/')[1] || url.split('/p/')[1])?.split('/')[0] || url.split('?')[0].split('/').pop();
+    const id = rawId ? rawId.split('?')[0] : '';
+    if (id) {
+      return { type: 'instagram', id, embedUrl: `https://www.instagram.com/p/${id}/embed/?cr=1&v=14&wp=540` };
+    }
+  }
+  return { type: "raw", id: url, embedUrl: url };
+}
+
 export const ProductClient = ({ product, suggestedProducts = [] }: { product: Product; suggestedProducts?: Product[] }) => {
   // Global State
-  const { addToCart, addRecentlyViewed, recentlyViewed, user } = useAppContext();
+  const { addToCart, addRecentlyViewed, recentlyViewed, user, cart, isCartOpen, setIsCartOpen, wishlist, toggleWishlist } = useAppContext();
   const router = useRouter();
 
   // Local State for Review Modal & Toast
@@ -107,15 +118,14 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   }, [product.id]);
 
   // Fallback defaults
-  const images = product.images || [product.image, product.image, product.image]; 
+  const images = [product.image, ...(product.images || [])].filter(Boolean); 
   const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
   const [selectedSize, setSelectedSize] = useState(sizes[0]);
 
   const [isNavigating, setIsNavigating] = useState(false);
-  const handleAddToCart = () => {
-    addToCart(product, selectedSize);
-  };
+  const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize);
+  const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize); };
 
   const handleBuyNow = () => {
     setIsNavigating(true);
@@ -209,30 +219,30 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
               <div className="w-full">
                 <h3 className="text-[13px] font-bold text-gray-500 tracking-[2px] uppercase mb-4">See it in motion</h3>
                 <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                  {product.videoUrls.map((url, idx) => (
-                    <div 
-                      key={idx}
-                      onClick={() => setActiveVideoUrl(url)}
-                      className="relative w-[120px] h-[213px] shrink-0 rounded-xl overflow-hidden cursor-pointer group shadow-md border-2 border-transparent hover:border-gray-900 transition-all duration-300"
-                    >
-                      <video 
-                        src={url} 
-                        className="absolute inset-0 w-full h-full object-cover"
-                        autoPlay 
-                        muted 
-                        loop 
-                        playsInline
-                      />
-                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                        <div className="w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="white" className="ml-1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  {product.videoUrls.map((url, idx) => {
+                    const info = getVideoInfo(url);
+                    return (
+                      <div 
+                        key={idx}
+                        onClick={() => setActiveVideoUrl(url)}
+                        className="relative w-[120px] h-[213px] shrink-0 rounded-xl overflow-hidden cursor-pointer group shadow-md border-2 border-transparent hover:border-gray-900 transition-all duration-300 bg-gray-100 flex items-center justify-center"
+                      >
+                        {info.type === 'raw' ? (
+                          <video src={info.embedUrl} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline />
+                        ) : (
+                          <iframe src={info.embedUrl} className="absolute inset-0 w-full h-full pointer-events-none opacity-70 transform scale-150" frameBorder="0" scrolling="no" tabIndex={-1} />
+                        )}
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                          <div className="w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="white" className="ml-1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                          </div>
+                        </div>
+                        <div className="absolute bottom-2 left-2 text-white text-[10px] font-bold tracking-wider uppercase bg-black/50 px-2 py-1 rounded z-10">
+                          Reel {idx + 1}
                         </div>
                       </div>
-                      <div className="absolute bottom-2 left-2 text-white text-[10px] font-bold tracking-wider uppercase bg-black/50 px-2 py-1 rounded">
-                        Reel {idx + 1}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -723,6 +733,67 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
         </button>
       </div>
 
+      {/* Full Screen Video Overlay */}
+      {activeVideoUrl && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+          <button 
+            onClick={() => setActiveVideoUrl(null)}
+            className="absolute top-4 right-4 text-white z-50 p-2 bg-black/50 rounded-full"
+          >
+            <FiX size={24} />
+          </button>
+          
+          <div className="w-full flex-1 max-w-[500px] relative flex items-center justify-center pb-[80px]">
+            {getVideoInfo(activeVideoUrl).type === 'raw' ? (
+              <video src={getVideoInfo(activeVideoUrl).embedUrl} className="w-full h-full object-contain" autoPlay controls playsInline />
+            ) : (
+              <iframe src={getVideoInfo(activeVideoUrl).embedUrl} className="w-full h-[80vh] max-h-[800px]" frameBorder="0" allow="autoplay; fullscreen" allowFullScreen />
+            )}
+          </div>
+
+          {/* Sticky Actions inside Video Modal */}
+          <div className="absolute bottom-0 left-0 w-full bg-white p-4 flex gap-3 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]">
+            <button 
+              onClick={() => { setActiveVideoUrl(null); handleAddToCart(); }}
+              className={`flex-1 py-3 md:py-4 rounded-xl border-2 text-[11px] md:text-[12px] font-bold uppercase tracking-wider transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-gray-900 text-gray-900 hover:bg-gray-50'}`}
+            >
+              {isAdded ? "Added" : "Add to Cart"}
+            </button>
+            <button 
+              onClick={() => { setActiveVideoUrl(null); handleBuyNow(); }}
+              disabled={isNavigating}
+              className="flex-1 py-3 md:py-4 rounded-xl bg-gray-900 text-white font-bold text-[11px] md:text-[12px] uppercase tracking-wider hover:bg-black transition-colors flex items-center justify-center gap-2"
+            >
+              {isNavigating ? "Wait..." : "Buy Now"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Sticky Add to Cart */}
+      <div 
+        className={`fixed bottom-0 left-0 w-full bg-white border-t border-[var(--color-border)] p-3 px-4 z-[90] flex gap-3 lg:hidden shadow-[0_-5px_15px_rgba(0,0,0,0.05)] transition-all duration-300 ease-in-out ${
+          isMainActionsVisible ? 'opacity-0 translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+        }`}
+      >
+        <button 
+          onClick={handleAddToCart}
+          className={`flex-1 py-3.5 border text-[12px] font-medium tracking-[1.5px] uppercase transition-colors ${
+            isAdded
+              ? "border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]"
+              : "border-[var(--color-text)] text-[var(--color-text)] active:bg-[var(--color-surface)]"
+          }`}
+        >
+          {isAdded ? "Added to cart" : "Add to cart"}
+        </button>
+        <button 
+          onClick={handleBuyNow}
+          disabled={isNavigating}
+          className="flex-1 py-3.5 bg-[var(--color-text)] text-[var(--color-surface)] text-[12px] font-medium tracking-[1.5px] uppercase transition-transform active:scale-[0.98] disabled:opacity-50"
+        >
+          {isNavigating ? "Wait..." : "Buy Now"}
+        </button>
+      </div>
     </main>
   );
 };

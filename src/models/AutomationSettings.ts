@@ -20,6 +20,7 @@ const AutomationSettingsSchema = new Schema(
       default: () => ({ enabled: true }),
     },
     winback: { type: FlowSchema, default: () => ({ enabled: true }) },
+    wishlist_reminder: { type: FlowSchema, default: () => ({ enabled: true }) },
   },
   { timestamps: true }
 );
@@ -42,4 +43,5 @@ export type AutomationFlowKey =
   | "order_delivered"
   | "cart_abandoned"
   | "post_purchase_review"
-  | "winback";
+  | "winback"
+  | "wishlist_reminder";

@@ -1,10 +1,18 @@
 "use client";
 import React, { useState, useEffect, useTransition } from "react";
 import Image from "next/image";
+import { CldImage } from "next-cloudinary";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { searchProducts, getTopCollections } from "@/app/actions";
 import { Product, Collection } from "@/types";
+
+const isCloudinary = (src: string) => {
+  if (!src) return false;
+  if (src.includes("res.cloudinary.com")) return true;
+  if (src.startsWith("/") || src.startsWith("http") || src.startsWith("blob:")) return false;
+  return true;
+};
 
 export const SearchDrawer = () => {
   const { isSearchOpen, setIsSearchOpen } = useAppContext();
@@ -125,13 +133,23 @@ export const SearchDrawer = () => {
                   className="group flex flex-col items-center text-center"
                 >
                   <div className="relative w-full aspect-[3/4] bg-gray-50 mb-3 overflow-hidden">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      fill
-                      sizes="(max-width: 768px) 33vw, 20vw"
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    {isCloudinary(product.image) ? (
+                      <CldImage
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 33vw, 20vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <Image
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 33vw, 20vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    )}
                   </div>
                   <h4 className="text-[11px] tracking-[1px] uppercase truncate w-full">{product.name}</h4>
                   <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Rs. {product.price.toLocaleString("en-IN")}</p>

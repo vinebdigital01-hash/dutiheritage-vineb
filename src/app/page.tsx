@@ -6,6 +6,8 @@ import {
   resolveHomepageSlugs,
 } from "@/lib/site-content-server";
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   const siteContent = await getSiteContent();
   const slugs = resolveHomepageSlugs(siteContent);

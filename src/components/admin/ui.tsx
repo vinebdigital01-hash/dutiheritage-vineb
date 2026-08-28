@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export function useToast() {
   const [toast, setToast] = useState<{
@@ -14,8 +14,8 @@ export function useToast() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const show = (message: string, type: "success" | "error" = "success") =>
-    setToast({ message, type });
+  const show = useCallback((message: string, type: "success" | "error" = "success") =>
+    setToast({ message, type }), []);
 
   const Toast = toast ? (
     <div

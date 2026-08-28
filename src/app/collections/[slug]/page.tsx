@@ -5,6 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+
 const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;

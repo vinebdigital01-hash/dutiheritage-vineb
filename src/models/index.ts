@@ -20,3 +20,5 @@ export {
 export { Event, TRACK_EVENTS, type EventDocument, type TrackEvent } from "./Event";
 export { CustomerGroup, type CustomerGroupDocument } from "./CustomerGroup";
 export { Campaign, type CampaignDocument } from "./Campaign";
+export { Staff, STAFF_ROLES, type StaffDocument, type StaffRole } from "./Staff";
+export { Wishlist, type WishlistDocument } from "./Wishlist";

@@ -69,14 +69,9 @@ export async function DELETE(request: Request, { params }: Params) {
     if (!isValidObjectId(id)) return jsonError("Invalid coupon id", 400);
 
     await connectDB();
-    const coupon = await Coupon.findById(id);
-    if (!coupon) return jsonError("Coupon not found", 404);
+    await Coupon.findByIdAndDelete(id);
 
-    // Soft-deactivate by default
-    coupon.active = false;
-    await coupon.save();
-
-    return jsonOk({ deleted: true, id, soft: true });
+    return jsonOk({ deleted: true, id });
   } catch (error) {
     return handleApiError(error);
   }

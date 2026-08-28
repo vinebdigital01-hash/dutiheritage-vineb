@@ -73,9 +73,17 @@ export default function AdminProductsPage() {
         title="Products"
         subtitle={`${products.length} in catalog`}
         actions={
-          <Link href="/admin/products/new">
-            <AdminButton>Add product</AdminButton>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/products/bulk-import">
+              <AdminButton variant="secondary">Bulk Import</AdminButton>
+            </Link>
+            <Link href="/admin/products/bulk-offers">
+              <AdminButton variant="secondary">Bulk Offers</AdminButton>
+            </Link>
+            <Link href="/admin/products/new">
+              <AdminButton>Add product</AdminButton>
+            </Link>
+          </div>
         }
       />
 

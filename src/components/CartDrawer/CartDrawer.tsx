@@ -1,10 +1,18 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { CldImage } from "next-cloudinary";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import { getCatalogProducts } from "@/app/actions";
 import { Product } from "@/types";
+
+const isCloudinary = (src: string) => {
+  if (!src) return false;
+  if (src.includes("res.cloudinary.com")) return true;
+  if (src.startsWith("/") || src.startsWith("http") || src.startsWith("blob:")) return false;
+  return true;
+};
 
 export const CartDrawer = () => {
   const { 
@@ -93,7 +101,11 @@ export const CartDrawer = () => {
                 {cart.map((item) => (
                   <div key={item.cartItemId} className="flex gap-4">
                     <div className="relative w-24 aspect-[3/4] bg-gray-50 shrink-0 border border-[var(--color-border)] rounded-md overflow-hidden">
-                      <Image src={item.image} alt={item.name} fill className="object-cover" sizes="96px" />
+                      {isCloudinary(item.image) ? (
+                        <CldImage src={item.image} alt={item.name} fill className="object-cover" sizes="96px" />
+                      ) : (
+                        <Image src={item.image} alt={item.name} fill className="object-cover" sizes="96px" />
+                      )}
                     </div>
                     <div className="flex flex-col flex-1">
                       <h3 className="text-[13px] font-medium leading-tight">{item.name}</h3>
@@ -144,7 +156,11 @@ export const CartDrawer = () => {
                       return (
                         <div key={product.id} className="flex gap-3 items-center p-2 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200">
                           <div className="relative w-16 h-20 bg-gray-50 shrink-0 border border-gray-200 rounded overflow-hidden shadow-sm">
-                            <Image src={product.image} alt={product.name} fill className="object-cover" sizes="64px" />
+                            {isCloudinary(product.image) ? (
+                              <CldImage src={product.image} alt={product.name} fill className="object-cover" sizes="64px" />
+                            ) : (
+                              <Image src={product.image} alt={product.name} fill className="object-cover" sizes="64px" />
+                            )}
                           </div>
                           <div className="flex flex-col flex-1 min-w-0">
                             <p className="text-[12px] font-medium truncate leading-tight">{product.name}</p>

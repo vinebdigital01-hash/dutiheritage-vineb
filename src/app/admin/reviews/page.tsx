@@ -10,8 +10,11 @@ import {
   Badge,
   EmptyState,
   useToast,
+  AdminInput,
+  AdminTextarea,
 } from "@/components/admin/ui";
 import type { ReviewDTO } from "@/lib/reviews";
+import Papa from "papaparse";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -21,6 +24,17 @@ export default function AdminReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>("pending");
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Marketing Review State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
+  const [form, setForm] = useState({
+    productId: "",
+    userName: "",
+    rating: 5,
+    comment: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   const load = async (status: StatusFilter = filter) => {
     setLoading(true);
@@ -44,6 +58,7 @@ export default function AdminReviewsPage() {
   }, [filter]);
 
   const setStatus = async (id: string, status: ReviewDTO["status"]) => {
+    if (!window.confirm(`Are you sure you want to change the status to ${status}?`)) return;
     setBusyId(id);
     try {
       await adminFetch(`/api/reviews/${id}`, {
@@ -85,6 +100,102 @@ export default function AdminReviewsPage() {
     return "warning" as const;
   };
 
+  const openModal = async () => {
+    setIsModalOpen(true);
+    if (products.length === 0) {
+      try {
+        const data = await adminFetch<{ products: { id: string; name: string }[] }>("/api/products");
+        setProducts(data.products || []);
+        if (data.products?.length > 0) {
+          setForm(prev => ({ ...prev, productId: data.products[0].id }));
+        }
+      } catch (e) {
+        show("Failed to load products", "error");
+      }
+    }
+  };
+
+  const submitMarketingReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.productId || !form.userName || !form.comment) {
+      show("Please fill all fields", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await adminFetch("/api/reviews", {
+        method: "POST",
+        body: JSON.stringify({
+          ...form,
+          isMarketing: true,
+        }),
+      });
+      show("Marketing review published!");
+      setIsModalOpen(false);
+      setForm({ productId: products[0]?.id || "", userName: "", rating: 5, comment: "" });
+      load();
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : "Failed to add review", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const data = await adminFetch<{ products: { id: string; name: string }[] }>("/api/products");
+      const templateData = data.products.map(p => ({
+        productId: p.id,
+        productName: p.name,
+        userName: "Priya Sharma",
+        rating: "5",
+        comment: "Amazing product! highly recommended."
+      }));
+      
+      const csv = Papa.unparse(templateData);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "reviews_template.csv";
+      link.click();
+    } catch (e) {
+      show("Failed to generate template", "error");
+    }
+  };
+
+  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm("Upload reviews from this CSV? They will be immediately approved and published.")) {
+      e.target.value = "";
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const res = await adminFetch<{ success: boolean; count: number; message: string }>("/api/reviews/bulk", {
+            method: "POST",
+            body: JSON.stringify({ reviews: results.data }),
+          });
+          show(res.message);
+          load();
+        } catch (err) {
+          show(err instanceof AdminApiError ? err.message : "Bulk upload failed", "error");
+        }
+        e.target.value = "";
+      },
+      error: () => {
+        show("Failed to parse CSV file", "error");
+        e.target.value = "";
+      }
+    });
+  };
+
   return (
     <div>
       {Toast}
@@ -92,16 +203,33 @@ export default function AdminReviewsPage() {
         title="Reviews"
         subtitle="Moderate customer reviews before they appear on product pages"
         actions={
-          <AdminSelect
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as StatusFilter)}
-            className="min-w-[160px]"
-          >
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="all">All</option>
-          </AdminSelect>
+          <div className="flex flex-wrap items-center gap-3">
+            <AdminSelect
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as StatusFilter)}
+              className="min-w-[160px]"
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="all">All</option>
+            </AdminSelect>
+            <AdminButton variant="secondary" onClick={downloadTemplate}>
+              Download CSV
+            </AdminButton>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleBulkUpload}
+              />
+              <span className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-[12px] tracking-[1.5px] uppercase font-medium transition-colors bg-white border border-black hover:bg-neutral-50 rounded-lg">
+                Upload CSV
+              </span>
+            </label>
+            <AdminButton onClick={openModal}>Add Review</AdminButton>
+          </div>
         }
       />
 
@@ -203,6 +331,68 @@ export default function AdminReviewsPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Marketing Review Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-lg font-medium">Add Marketing Review</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-black">
+                ✕
+              </button>
+            </div>
+            <form onSubmit={submitMarketingReview} className="p-5 space-y-4">
+              <AdminSelect
+                label="Product"
+                value={form.productId}
+                onChange={(e) => setForm({ ...form, productId: e.target.value })}
+                required
+              >
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </AdminSelect>
+              
+              <AdminInput
+                label="Customer Name"
+                placeholder="e.g. Priya Sharma"
+                value={form.userName}
+                onChange={(e) => setForm({ ...form, userName: e.target.value })}
+                required
+              />
+
+              <AdminSelect
+                label="Rating"
+                value={form.rating.toString()}
+                onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })}
+                required
+              >
+                <option value="5">5 Stars</option>
+                <option value="4">4 Stars</option>
+                <option value="3">3 Stars</option>
+                <option value="2">2 Stars</option>
+                <option value="1">1 Star</option>
+              </AdminSelect>
+
+              <AdminTextarea
+                label="Review Comment"
+                placeholder="Write the review here..."
+                value={form.comment}
+                onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                required
+              />
+
+              <div className="pt-2 flex justify-end gap-2">
+                <AdminButton variant="ghost" onClick={() => setIsModalOpen(false)}>
+                  Cancel
+                </AdminButton>
+                <AdminButton type="submit" disabled={submitting}>
+                  {submitting ? "Publishing..." : "Publish Review"}
+                </AdminButton>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

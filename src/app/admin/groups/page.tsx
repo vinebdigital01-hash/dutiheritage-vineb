@@ -94,6 +94,7 @@ export default function AdminGroupsPage() {
   const createGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
+    if (!window.confirm("Are you sure you want to create this group?")) return;
     setCreating(true);
     try {
       const preset = SMART_PRESETS[Number(form.preset)];
@@ -119,6 +120,7 @@ export default function AdminGroupsPage() {
   const sendCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!campaignForm.groupId) return;
+    if (!window.confirm("Are you sure you want to send this campaign? This action cannot be undone.")) return;
     setSending(true);
     try {
       const data = await adminFetch<{ sent: number; failed: number }>(
@@ -212,12 +214,30 @@ export default function AdminGroupsPage() {
                   {g.type}
                 </Badge>
               </div>
-              <Link
-                href={`/admin/groups/${g.id}`}
-                className="text-[12px] uppercase tracking-wider underline"
-              >
-                View members
-              </Link>
+              <div className="flex justify-between items-center mt-3">
+                <Link
+                  href={`/admin/groups/${g.id}`}
+                  className="text-[12px] uppercase tracking-wider underline"
+                >
+                  View members
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!confirm("Delete this group permanently?")) return;
+                    try {
+                      await adminFetch(`/api/groups/${g.id}`, { method: 'DELETE' });
+                      show("Group deleted");
+                      setGroups(prev => prev.filter(x => x.id !== g.id));
+                    } catch (e: any) {
+                      show(e.message || "Failed to delete group", "error");
+                    }
+                  }}
+                  className="text-[12px] uppercase tracking-wider text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>

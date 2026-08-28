@@ -44,6 +44,7 @@ export default function AdminCouponsPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to create this coupon?")) return;
     setSaving(true);
     try {
       await adminFetch("/api/coupons", {
@@ -73,6 +74,7 @@ export default function AdminCouponsPage() {
   };
 
   const toggleActive = async (c: CouponDTO) => {
+    if (!window.confirm(`Are you sure you want to ${c.active ? "disable" : "enable"} this coupon?`)) return;
     try {
       await adminFetch(`/api/coupons/${c.id}`, {
         method: "PUT",
@@ -183,9 +185,25 @@ export default function AdminCouponsPage() {
                     <button
                       type="button"
                       onClick={() => toggleActive(c)}
-                      className="text-[12px] tracking-[1px] uppercase hover:underline"
+                      className="text-[12px] tracking-[1px] uppercase hover:underline mr-4"
                     >
                       {c.active ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm("Delete this coupon permanently?")) return;
+                        try {
+                          await adminFetch(`/api/coupons/${c.id}`, { method: 'DELETE' });
+                          show("Coupon deleted");
+                          setCoupons(prev => prev.filter(x => x.id !== c.id));
+                        } catch (e: any) {
+                          show(e.message || "Failed to delete", "error");
+                        }
+                      }}
+                      className="text-[12px] tracking-[1px] uppercase text-red-600 hover:underline"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>

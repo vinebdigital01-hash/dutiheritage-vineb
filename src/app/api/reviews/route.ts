@@ -99,16 +99,15 @@ export async function POST(request: Request) {
     const isAdmin = isAdminEmail(authUser.email);
     const doc = await Review.create({
       productId,
-      userId: authUser.uid,
-      userName:
-        authUser.name ||
-        authUser.email?.split("@")[0] ||
-        "Customer",
+      userId: isAdmin && body.isMarketing ? "MARKETING_REVIEW" : authUser.uid,
+      userName: (isAdmin && body.userName) 
+        ? String(body.userName).trim() 
+        : (authUser.name || authUser.email?.split("@")[0] || "Customer"),
       rating,
       comment,
       images,
       status: isAdmin ? "approved" : "pending",
-      isVerifiedPurchase: !eligibility.isAdmin,
+      isVerifiedPurchase: (isAdmin && body.isMarketing) ? true : !eligibility.isAdmin,
       orderId: eligibility.orderId,
     });
 

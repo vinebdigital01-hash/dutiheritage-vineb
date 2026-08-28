@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { CldImage } from "next-cloudinary";
 import { authHeaders } from "@/lib/checkout-client";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/admin-constants";
 import type { OrderDTO } from "@/lib/mappers";
@@ -141,13 +142,11 @@ export function AccountOrders() {
                 <div key={idx} className="flex items-center gap-4">
                   <div className="relative w-16 h-16 bg-gray-100 rounded overflow-hidden shrink-0">
                     {item.image && (
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        fill
-                        className="object-cover"
-                        sizes="64px"
-                      />
+                      item.image.includes("res.cloudinary.com") ? (
+                        <CldImage src={item.image} alt={item.name} fill className="object-cover" sizes="64px" />
+                      ) : (
+                        <Image src={item.image} alt={item.name} fill className="object-cover" sizes="64px" />
+                      )
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -169,7 +168,9 @@ export function AccountOrders() {
 
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-[var(--color-border)] text-[13px]">
               <span className="text-[var(--color-text-muted)] capitalize">
-                {order.paymentMethod} · {order.paymentStatus}
+                {order.paymentMethod === "cod" && order.paymentStatus === "pending"
+                  ? "Cash on Delivery (Pending)"
+                  : `${order.paymentMethod} · ${order.paymentStatus}`}
               </span>
               <span className="font-medium">
                 Total ₹{order.total.toLocaleString("en-IN")}
@@ -184,7 +185,11 @@ export function AccountOrders() {
                   <>
                     {" · "}
                     <a
-                      href={order.trackingInfo.trackingUrl}
+                      href={
+                        order.trackingInfo.trackingUrl.startsWith("http")
+                          ? order.trackingInfo.trackingUrl
+                          : `https://${order.trackingInfo.trackingUrl}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline"

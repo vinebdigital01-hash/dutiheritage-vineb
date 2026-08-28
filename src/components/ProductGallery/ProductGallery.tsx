@@ -1,12 +1,20 @@
 "use client";
 import React, { useState, useRef } from "react";
 import Image from "next/image";
+import { CldImage } from "next-cloudinary";
 
 interface ProductGalleryProps {
   images: string[];
   productName: string;
   badge?: string;
 }
+
+const isCloudinary = (src: string) => {
+  if (!src) return false;
+  if (src.includes("res.cloudinary.com")) return true;
+  if (src.startsWith("/") || src.startsWith("http") || src.startsWith("blob:")) return false;
+  return true;
+};
 
 export const ProductGallery = ({ images, productName, badge }: ProductGalleryProps) => {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -42,17 +50,31 @@ export const ProductGallery = ({ images, productName, badge }: ProductGalleryPro
               setActiveIndex(idx);
               setIsZoomed(false);
             }}
-            className={`relative w-20 h-28 md:w-full md:h-[133px] shrink-0 transition-all border-2 ${
+            className={`relative w-20 h-28 md:w-full md:h-[133px] shrink-0 transition-all border-2 bg-neutral-100 ${
               activeIndex === idx ? "border-black" : "border-transparent"
             }`}
           >
-            <Image
-              src={img}
-              alt={`${productName} - View ${idx + 1}`}
-              fill
-              className="object-cover"
-              sizes="100px"
-            />
+            {img ? (
+              isCloudinary(img) ? (
+                <CldImage
+                  src={img}
+                  alt={`${productName} - View ${idx + 1}`}
+                  fill
+                  className="object-cover"
+                  sizes="100px"
+                />
+              ) : (
+                <Image
+                  src={img}
+                  alt={`${productName} - View ${idx + 1}`}
+                  fill
+                  className="object-cover"
+                  sizes="100px"
+                />
+              )
+            ) : (
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] text-neutral-400">N/A</span>
+            )}
           </button>
         ))}
       </div>
@@ -67,18 +89,39 @@ export const ProductGallery = ({ images, productName, badge }: ProductGalleryPro
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
-        <Image
-          src={images[activeIndex]}
-          alt={productName}
-          fill
-          className="object-cover transition-transform duration-200 ease-out"
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          priority
-          style={{
-            transform: isZoomed ? "scale(2.5)" : "scale(1)",
-            transformOrigin: `${mousePos.x}% ${mousePos.y}%`
-          }}
-        />
+        {images.length > 0 && images[activeIndex] ? (
+          isCloudinary(images[activeIndex]) ? (
+            <CldImage
+              src={images[activeIndex]}
+              alt={productName}
+              fill
+              className="object-cover transition-transform duration-200 ease-out"
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              priority
+              style={{
+                transform: isZoomed ? "scale(2.5)" : "scale(1)",
+                transformOrigin: `${mousePos.x}% ${mousePos.y}%`
+              }}
+            />
+          ) : (
+            <Image
+              src={images[activeIndex]}
+              alt={productName}
+              fill
+              className="object-cover transition-transform duration-200 ease-out"
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              priority
+              style={{
+                transform: isZoomed ? "scale(2.5)" : "scale(1)",
+                transformOrigin: `${mousePos.x}% ${mousePos.y}%`
+              }}
+            />
+          )
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 text-neutral-400 text-sm">
+            No image available
+          </div>
+        )}
         
         {badge && (
           <div className="absolute top-4 left-4 z-10 bg-[var(--color-accent)] text-white text-[12px] font-medium py-1.5 px-3 tracking-[1px] uppercase pointer-events-none">

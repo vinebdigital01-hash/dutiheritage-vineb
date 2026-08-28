@@ -94,6 +94,7 @@ export async function POST(request: Request) {
           to: member.email,
           subject,
           html: emailLayout(subject, htmlBody),
+          type: "marketing",
           text: htmlBody.replace(/<[^>]+>/g, " "),
         });
         if (r.ok && !r.skipped) sent++;

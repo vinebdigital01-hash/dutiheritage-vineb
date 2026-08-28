@@ -1,4 +1,4 @@
-import { requireAuth, isAdminEmail } from "@/lib/auth";
+import { requireAuth, getStaffRole } from "@/lib/auth";
 import {
   upsertCustomerFromAuth,
   serializeCustomer,
@@ -48,10 +48,13 @@ export async function POST(request: Request) {
       }).catch((e) => console.error("[welcome]", e));
     }
 
+    const role = await getStaffRole(authUser.email || customer.email);
+
     return jsonOk({
       customer: serializeCustomer(customer),
       profile: serializeCustomer(customer).profile,
-      isAdmin: isAdminEmail(authUser.email || customer.email),
+      isAdmin: !!role,
+      adminRole: role,
       isNew,
     });
   } catch (error) {

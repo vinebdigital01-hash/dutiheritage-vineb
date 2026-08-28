@@ -2,7 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { Order, ORDER_STATUSES, type OrderStatus } from "@/models";
 import { requireAuth, isAdminEmail, verifyIdToken, AuthError } from "@/lib/auth";
 import { toOrder } from "@/lib/mappers";
-import { sendOrderShipped, sendOrderDelivered } from "@/lib/automations";
+import { sendOrderShipped, sendOrderDelivered, sendOrderCancelled } from "@/lib/automations";
 import {
   handleApiError,
   jsonOk,
@@ -71,6 +71,11 @@ export async function PUT(request: Request, { params }: Params) {
         );
       }
       order.status = body.status as OrderStatus;
+      
+      // Auto-update COD payment status when delivered
+      if (order.status === "Delivered" && order.paymentStatus === "pending") {
+        order.paymentStatus = "paid";
+      }
     }
 
     if (body.paymentStatus !== undefined) {
@@ -128,6 +133,13 @@ export async function PUT(request: Request, { params }: Params) {
       void sendOrderDelivered(notifyBase).catch((e) =>
         console.error("[order_delivered]", e)
       );
+    }
+
+    if (order.status === "Cancelled" && prevStatus !== "Cancelled") {
+      void sendOrderCancelled({
+        ...notifyBase,
+        total: order.total,
+      }).catch((e) => console.error("[order_cancelled]", e));
     }
 
     return jsonOk({ order: toOrder(order.toObject()) });

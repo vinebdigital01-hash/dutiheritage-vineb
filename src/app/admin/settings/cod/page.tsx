@@ -61,6 +61,7 @@ export default function AdminCodSettingsPage() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to save COD settings?")) return;
     setSaving(true);
     try {
       const split = (s: string) =>

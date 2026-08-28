@@ -1,4 +1,4 @@
-import { requireAuth, isAdminEmail } from "@/lib/auth";
+import { requireAuth, getStaffRole } from "@/lib/auth";
 import { handleApiError, jsonOk } from "@/lib/api";
 
 /**
@@ -8,10 +8,11 @@ import { handleApiError, jsonOk } from "@/lib/api";
 export async function GET(request: Request) {
   try {
     const authUser = await requireAuth(request);
-    const isAdmin = isAdminEmail(authUser.email);
+    const role = await getStaffRole(authUser.email);
 
     return jsonOk({
-      isAdmin,
+      isAdmin: !!role,
+      adminRole: role,
       email: authUser.email,
       uid: authUser.uid,
     });

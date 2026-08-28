@@ -1,5 +1,5 @@
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return Boolean((process.env.RESEND_API_KEY || process.env.RESEND_AUTH_KEY || process.env.RESEND_ORDERS_KEY || true) && process.env.EMAIL_FROM);
 }
 
 export type SendEmailResult = {
@@ -18,9 +18,19 @@ export async function sendEmail(input: {
   subject: string;
   html: string;
   text?: string;
+  type?: "auth" | "orders" | "marketing";
 }): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
+  console.log("[email] Attempting to send email:", { to: input.to, subject: input.subject, type: input.type });
+  
+  let apiKey = process.env.RESEND_API_KEY;
+  if (input.type === "auth") apiKey = process.env.RESEND_AUTH_KEY || apiKey;
+  if (input.type === "orders") apiKey = process.env.RESEND_ORDERS_KEY || apiKey;
+  if (input.type === "marketing") apiKey = process.env.RESEND_MARKETING_KEY || apiKey;
+  
+  let from = process.env.EMAIL_FROM;
+  if (input.type === "marketing") from = "Duti Heritage <marketing@dutiheritage.co.in>";
+  
+  console.log("[email] API Key present:", !!apiKey, "From address:", from);
 
   if (!apiKey || !from) {
     console.info("[email] skipped — RESEND_API_KEY / EMAIL_FROM not set");
@@ -28,6 +38,7 @@ export async function sendEmail(input: {
   }
 
   if (!input.to || !input.to.includes("@")) {
+    console.error("[email] Invalid recipient email:", input.to);
     return { ok: false, error: "Invalid recipient email" };
   }
 
@@ -53,23 +64,26 @@ export async function sendEmail(input: {
       error?: { message?: string };
     };
 
+    console.log("[email] Resend response status:", res.status, "data:", data);
+
     if (!res.ok) {
       const msg =
         data.error?.message || data.message || `Resend HTTP ${res.status}`;
-      console.error("[email]", msg);
+      console.error("[email] Error from Resend:", msg);
       return { ok: false, error: msg };
     }
 
+    console.log("[email] Successfully sent! ID:", data.id);
     return { ok: true, id: data.id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Email send failed";
-    console.error("[email]", msg);
+    console.error("[email] Exception caught:", msg);
     return { ok: false, error: msg };
   }
 }
 
 export function emailLayout(title: string, bodyHtml: string): string {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://dutiheritage.com";
+  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://dutiheritage.co.in";
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${title}</title></head>

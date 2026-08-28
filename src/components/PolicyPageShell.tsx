@@ -16,12 +16,22 @@ export function PolicyPageShell({ title, content, children }: Props) {
         {title}
       </h1>
       {live ? (
-        <div className="text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap">
-          {live}
-        </div>
+        <div 
+          className="text-[var(--color-text-muted)] leading-relaxed policy-content"
+          dangerouslySetInnerHTML={{ __html: live }}
+        />
       ) : (
         children
       )}
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        .policy-content h1 { font-size: 1.5rem; font-weight: 500; color: var(--color-text); margin-top: 2rem; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+        .policy-content h2 { font-size: 1.25rem; font-weight: 500; color: var(--color-text); margin-top: 1.5rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+        .policy-content p { margin-bottom: 1rem; }
+        .policy-content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
+        .policy-content strong { font-weight: 600; color: var(--color-text); }
+        .policy-content a { text-decoration: underline; }
+      `}} />
     </div>
   );
 }

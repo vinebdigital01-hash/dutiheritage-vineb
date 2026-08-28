@@ -10,6 +10,7 @@ import {
   jsonOk,
   requireMongo,
 } from "@/lib/api";
+import { isEmailConfigured } from "@/lib/email";
 
 /**
  * GET /api/settings/automations — admin: toggles + recent logs
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
         createdAt: (l as { createdAt?: Date }).createdAt,
       })),
       providers: {
-        email: Boolean(process.env.RESEND_API_KEY),
+        email: isEmailConfigured(),
         whatsapp: Boolean(
           process.env.WHATSAPP_PROVIDER &&
             process.env.WHATSAPP_PROVIDER !== "none"

@@ -95,6 +95,8 @@ export function ProductForm({ productId }: { productId?: string }) {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(Boolean(productId));
+  const [newSize, setNewSize] = useState("");
+  const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
   const isEdit = Boolean(productId);
 
@@ -150,6 +152,7 @@ export function ProductForm({ productId }: { productId?: string }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to save this product?")) return;
     setSaving(true);
     try {
       const payload = {
@@ -274,9 +277,33 @@ export function ProductForm({ productId }: { productId?: string }) {
             label="Collection *"
             required
             value={form.collectionId}
-            onChange={(e) => set("collectionId", e.target.value)}
+            onChange={async (e) => {
+              if (e.target.value === "CREATE_NEW") {
+                const name = window.prompt("Enter new collection name:");
+                if (!name?.trim()) {
+                  set("collectionId", "");
+                  return;
+                }
+                try {
+                  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                  const res = await adminFetch<{ collection: Collection }>("/api/collections", {
+                    method: "POST",
+                    body: JSON.stringify({ name: name.trim(), slug, isActive: true })
+                  });
+                  setCollections(prev => [...prev, res.collection]);
+                  set("collectionId", res.collection.id);
+                  show("Collection created!", "success");
+                } catch (err: any) {
+                  show(err.message || "Failed to create collection", "error");
+                  set("collectionId", "");
+                }
+              } else {
+                set("collectionId", e.target.value);
+              }
+            }}
           >
             <option value="">Select collection</option>
+            <option value="CREATE_NEW">+ Create new collection...</option>
             {collections.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -394,8 +421,8 @@ export function ProductForm({ productId }: { productId?: string }) {
           <p className="text-[12px] tracking-[1px] uppercase text-neutral-500 mb-3">
             Sizes
           </p>
-          <div className="flex flex-wrap gap-2">
-            {PRODUCT_SIZES.map((size) => (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {Array.from(new Set([...PRODUCT_SIZES, ...form.sizes])).map((size) => (
               <button
                 key={size}
                 type="button"
@@ -403,12 +430,41 @@ export function ProductForm({ productId }: { productId?: string }) {
                 className={`px-3 py-1.5 text-[12px] rounded-lg border transition-colors ${
                   form.sizes.includes(size)
                     ? "bg-black text-white border-black"
-                    : "bg-white border-[var(--color-border)] hover:border-black"
+                    : "bg-white border-[var(--color-border)] hover:border-black text-gray-500"
                 }`}
               >
                 {size}
               </button>
             ))}
+          </div>
+          <div className="flex gap-2 max-w-[300px]">
+            <AdminInput 
+              label="" 
+              placeholder="Add custom size..." 
+              value={newSize} 
+              onChange={e => setNewSize(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (newSize.trim() && !form.sizes.includes(newSize.trim())) {
+                    toggleSize(newSize.trim());
+                  }
+                  setNewSize("");
+                }
+              }}
+            />
+            <button 
+              type="button" 
+              onClick={() => {
+                if (newSize.trim() && !form.sizes.includes(newSize.trim())) {
+                  toggleSize(newSize.trim());
+                }
+                setNewSize("");
+              }}
+              className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200 h-[42px] mt-[6px]"
+            >
+              Add
+            </button>
           </div>
         </div>
 
@@ -416,8 +472,8 @@ export function ProductForm({ productId }: { productId?: string }) {
           <p className="text-[12px] tracking-[1px] uppercase text-neutral-500 mb-3">
             Tags
           </p>
-          <div className="flex flex-wrap gap-2">
-            {PRODUCT_TAG_OPTIONS.map((tag) => (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {Array.from(new Set([...PRODUCT_TAG_OPTIONS, ...form.tags])).map((tag) => (
               <button
                 key={tag}
                 type="button"
@@ -425,12 +481,41 @@ export function ProductForm({ productId }: { productId?: string }) {
                 className={`px-3 py-1.5 text-[12px] rounded-lg border transition-colors ${
                   form.tags.includes(tag)
                     ? "bg-black text-white border-black"
-                    : "bg-white border-[var(--color-border)] hover:border-black"
+                    : "bg-white border-[var(--color-border)] hover:border-black text-gray-500"
                 }`}
               >
                 {tag}
               </button>
             ))}
+          </div>
+          <div className="flex gap-2 max-w-[300px]">
+            <AdminInput 
+              label="" 
+              placeholder="Add custom tag..." 
+              value={newTag} 
+              onChange={e => setNewTag(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (newTag.trim() && !form.tags.includes(newTag.trim())) {
+                    toggleTag(newTag.trim());
+                  }
+                  setNewTag("");
+                }
+              }}
+            />
+            <button 
+              type="button" 
+              onClick={() => {
+                if (newTag.trim() && !form.tags.includes(newTag.trim())) {
+                  toggleTag(newTag.trim());
+                }
+                setNewTag("");
+              }}
+              className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200 h-[42px] mt-[6px]"
+            >
+              Add
+            </button>
           </div>
         </div>
 

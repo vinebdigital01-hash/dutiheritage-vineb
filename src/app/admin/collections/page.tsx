@@ -45,6 +45,7 @@ export default function AdminCollectionsPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to create this collection?")) return;
     setSaving(true);
     try {
       await adminFetch("/api/collections", {
@@ -63,6 +64,7 @@ export default function AdminCollectionsPage() {
   };
 
   const saveEdit = async (id: string) => {
+    if (!window.confirm("Are you sure you want to save these changes?")) return;
     try {
       await adminFetch(`/api/collections/${id}`, {
         method: "PUT",

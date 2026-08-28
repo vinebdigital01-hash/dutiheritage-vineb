@@ -55,6 +55,7 @@ export default function AdminOrderDetailPage({
   }, [id]);
 
   const save = async () => {
+    if (!window.confirm("Are you sure you want to update this order?")) return;
     setSaving(true);
     try {
       const data = await adminFetch<{ order: OrderDTO }>(`/api/orders/${id}`, {

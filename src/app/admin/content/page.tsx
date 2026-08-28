@@ -84,6 +84,7 @@ export default function AdminContentPage() {
 
   const saveContent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to update the site content?")) return;
     setSaving(true);
     try {
       const headerNavLinks = navText
@@ -118,6 +119,7 @@ export default function AdminContentPage() {
   };
 
   const savePolicy = async () => {
+    if (!window.confirm("Are you sure you want to save this policy page?")) return;
     setSavingPolicy(true);
     try {
       await adminFetch(`/api/pages/${policySlug}`, {

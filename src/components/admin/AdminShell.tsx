@@ -21,27 +21,29 @@ import {
   FiUsers,
   FiBarChart2,
   FiLayers,
+  FiShield,
 } from "react-icons/fi";
 
 const NAV = [
-  { href: "/admin", label: "Dashboard", icon: FiHome, exact: true },
-  { href: "/admin/products", label: "Products", icon: FiBox },
-  { href: "/admin/collections", label: "Collections", icon: FiGrid },
-  { href: "/admin/orders", label: "Orders", icon: FiPackage },
-  { href: "/admin/customers", label: "Customers", icon: FiUsers },
-  { href: "/admin/analytics", label: "Insights", icon: FiBarChart2 },
-  { href: "/admin/reviews", label: "Reviews", icon: FiMessageSquare },
-  { href: "/admin/groups", label: "Groups", icon: FiLayers },
-  { href: "/admin/coupons", label: "Coupons", icon: FiTag },
-  { href: "/admin/automations", label: "Automations", icon: FiZap },
-  { href: "/admin/content", label: "Site content", icon: FiEdit3 },
-  { href: "/admin/settings/cod", label: "COD & Shipping", icon: FiSettings },
+  { href: "/admin", label: "Dashboard", icon: FiHome, exact: true, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/products", label: "Products", icon: FiBox, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/collections", label: "Collections", icon: FiGrid, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/orders", label: "Orders", icon: FiPackage, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/customers", label: "Customers", icon: FiUsers, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/analytics", label: "Insights", icon: FiBarChart2, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/reviews", label: "Reviews", icon: FiMessageSquare, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/groups", label: "Groups", icon: FiLayers, roles: ["SUPERADMIN", "ADMIN"] },
+  { href: "/admin/coupons", label: "Coupons", icon: FiTag, roles: ["SUPERADMIN", "ADMIN"] },
+  { href: "/admin/automations", label: "Automations", icon: FiZap, roles: ["SUPERADMIN", "ADMIN"] },
+  { href: "/admin/content", label: "Site content", icon: FiEdit3, roles: ["SUPERADMIN", "ADMIN"] },
+  { href: "/admin/settings/cod", label: "COD & Shipping", icon: FiSettings, roles: ["SUPERADMIN", "ADMIN"] },
+  { href: "/admin/staff", label: "Staff", icon: FiShield, roles: ["SUPERADMIN"] },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAdmin, authLoading, logout } = useAppContext();
+  const { user, isAdmin, adminRole, authLoading, logout } = useAppContext();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [denied, setDenied] = useState(false);
 
@@ -87,7 +89,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </h1>
         <p className="text-[14px] text-[var(--color-text-muted)] mb-8 max-w-md">
           Signed in as <span className="text-black font-medium">{user.email}</span>.
-          This account is not listed in <code className="text-[12px]">ADMIN_EMAILS</code>.
+          This account is not authorized for the admin dashboard.
         </p>
         <div className="flex gap-3">
           <Link
@@ -108,31 +110,39 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <nav className="flex flex-col gap-1 px-3">
-      {NAV.map((item) => {
-        const active = item.exact
-          ? pathname === item.href
-          : pathname === item.href || pathname?.startsWith(item.href + "/");
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={`flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-[0.5px] transition-colors rounded-lg ${
-              active
-                ? "bg-black text-white"
-                : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
-            }`}
-          >
-            <Icon className="text-[16px] shrink-0" />
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => {
+    // Filter nav items by the user's role
+    const allowedNav = NAV.filter((item) => {
+      if (!adminRole) return false;
+      return item.roles.includes(adminRole);
+    });
+
+    return (
+      <nav className="flex flex-col gap-1 px-3">
+        {allowedNav.map((item) => {
+          const active = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname?.startsWith(item.href + "/");
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-[0.5px] transition-colors rounded-lg ${
+                active
+                  ? "bg-black text-white"
+                  : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+              }`}
+            >
+              <Icon className="text-[16px] shrink-0" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-black flex">
@@ -161,7 +171,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           >
             <FiLogOut /> Sign out
           </button>
-          <p className="px-3 text-[11px] text-neutral-400 truncate">{user.email}</p>
+          <div className="px-3 flex flex-col gap-0.5">
+            <span className="text-[11px] text-neutral-400 truncate">{user.email}</span>
+            {adminRole && (
+              <span className="text-[9px] font-bold tracking-[1px] uppercase text-black bg-neutral-200 w-fit px-1.5 py-0.5 rounded">
+                {adminRole}
+              </span>
+            )}
+          </div>
         </div>
       </aside>
 

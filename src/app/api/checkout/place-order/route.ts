@@ -3,7 +3,7 @@ import { Order, Coupon, Customer, Cart } from "@/models";
 import { verifyIdToken } from "@/lib/auth";
 import { upsertCustomerFromAuth } from "@/lib/customers";
 import { toOrder } from "@/lib/mappers";
-import { sendOrderPlaced } from "@/lib/automations";
+import { sendOrderPlaced, sendWelcome, sendAdminNewOrderAlert } from "@/lib/automations";
 import {
   isRazorpayConfigured,
   verifyRazorpaySignature,
@@ -158,6 +158,7 @@ export async function POST(request: Request) {
 
     let customerId: string | undefined;
 
+    let isNewGuest = false;
     if (authUser && body.saveToProfile) {
       const { customer } = await upsertCustomerFromAuth(authUser, {
         name,
@@ -227,6 +228,7 @@ export async function POST(request: Request) {
           lastVisit: new Date(),
         });
         customerId = created._id.toString();
+        isNewGuest = true;
       }
     }
 
@@ -306,6 +308,17 @@ export async function POST(request: Request) {
       total: totals.total,
       customerId,
     }).catch((e) => console.error("[order_placed]", e));
+
+    if (isNewGuest) {
+      void sendWelcome({
+        email: c.email || orderDto.customer.email,
+        phone: c.phone || orderDto.customer.phone,
+        name,
+        customerId,
+      }).catch((e) => console.error("[welcome]", e));
+    }
+
+    void sendAdminNewOrderAlert(orderId).catch((e) => console.error("[admin_alert]", e));
 
     return jsonCreated({
       order: orderDto,

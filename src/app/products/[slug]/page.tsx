@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/services/db";
 import { ProductClient } from "./ProductClient";
 
+export const dynamic = 'force-dynamic';
+
 type Props = {
   params: Promise<{ slug: string }>;
 };

@@ -97,6 +97,7 @@ export default function AdminAutomationsPage() {
   const toggle = async (key: FlowKey) => {
     if (!settings) return;
     const next = !settings[key]?.enabled;
+    if (!window.confirm(`Are you sure you want to ${next ? "enable" : "disable"} this automation?`)) return;
     setSaving(key);
     try {
       await adminFetch("/api/settings/automations", {

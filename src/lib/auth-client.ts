@@ -6,6 +6,7 @@ import type { UserProfile } from "@/types";
 export type SyncResult = {
   profile: UserProfile | null;
   isAdmin: boolean;
+  adminRole?: string | null;
   customerId?: string;
 };
 
@@ -33,23 +34,25 @@ export async function syncAuthToBackend(
 
     if (!res.ok) {
       console.warn("[auth-sync] failed:", res.status, await res.text());
-      return { profile: null, isAdmin: false };
+      return { profile: null, isAdmin: false, adminRole: null };
     }
 
     const data = (await res.json()) as {
       profile?: UserProfile;
       isAdmin?: boolean;
+      adminRole?: string | null;
       customer?: { id?: string };
     };
 
     return {
       profile: data.profile ?? null,
       isAdmin: Boolean(data.isAdmin),
+      adminRole: data.adminRole || null,
       customerId: data.customer?.id,
     };
   } catch (error) {
     console.warn("[auth-sync] error:", error);
-    return { profile: null, isAdmin: false };
+    return { profile: null, isAdmin: false, adminRole: null };
   }
 }
 

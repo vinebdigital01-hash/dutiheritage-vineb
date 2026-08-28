@@ -6,6 +6,8 @@ import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
 import { FacebookPixel } from "@/components/FacebookPixel/FacebookPixel";
 import { StoreShell } from "@/components/StoreShell";
+import { SiteContentProvider } from "@/context/SiteContentContext";
+import { getSiteContent } from "@/lib/site-content-server";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -57,6 +59,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const siteContent = await getSiteContent();
   const baseUrl = getBaseUrl();
 
   // Organization JSON-LD (shows brand info in Google Knowledge Panel)
@@ -104,7 +107,9 @@ export default async function RootLayout({
           <FacebookPixel />
         </Suspense>
         <AppProvider>
-          <StoreShell>{children}</StoreShell>
+          <SiteContentProvider content={siteContent}>
+            <StoreShell>{children}</StoreShell>
+          </SiteContentProvider>
         </AppProvider>
       </body>
     </html>

@@ -238,8 +238,7 @@ export async function resolveGroupMembers(
   await connectDB();
 
   if (group.type === "manual" && group.memberIds?.length) {
-    const ids = group.memberIds.map((id) => id.toString());
-    return Customer.find({ _id: { $in: ids } } as Record<string, unknown>)
+    return Customer.find({ _id: { $in: group.memberIds } } as Record<string, unknown>)
       .limit(limit)
       .lean();
   }
@@ -348,6 +347,8 @@ export async function getAnalyticsSummary(days = 30) {
     topProducts,
     funnel,
     abandonedCarts,
+    specificUserViews,
+    recentJourneys,
   ] = await Promise.all([
     Customer.countDocuments(),
     Customer.countDocuments({ createdAt: { $gte: since } }),
@@ -414,6 +415,101 @@ export async function getAnalyticsSummary(days = 30) {
       status: { $in: ["abandoned", "emailed"] },
       lastUpdated: { $gte: since },
     }),
+    // User Product Views & Frequency
+    Event.aggregate([
+      {
+        $match: {
+          event: "product_view",
+          createdAt: { $gte: since },
+          productId: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            customerId: "$customerId",
+            email: "$email",
+            sessionId: "$sessionId",
+            productId: "$productId",
+          },
+          productName: { $first: "$productName" },
+          count: { $sum: 1 },
+          lastViewed: { $max: "$createdAt" },
+        },
+      },
+      {
+        $lookup: {
+          from: "customers",
+          let: { custId: { $toObjectId: "$_id.customerId" } },
+          pipeline: [{ $match: { $expr: { $eq: ["$_id", "$$custId"] } } }],
+          as: "customerDoc",
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          user: {
+            $cond: [
+              { $gt: [{ $size: "$customerDoc" }, 0] },
+              { $arrayElemAt: ["$customerDoc.name", 0] },
+              { $ifNull: ["$_id.email", "$_id.sessionId"] }
+            ]
+          },
+          customerId: { $arrayElemAt: ["$customerDoc._id", 0] },
+          productId: "$_id.productId",
+          productName: 1,
+          count: 1,
+          lastViewed: 1,
+        }
+      },
+      { $match: { count: { $gt: 1 } } }, // Only show multiple views for insight
+      { $sort: { lastViewed: -1 } },
+      { $limit: 10 },
+    ]),
+    // Recent User Journeys
+    Event.aggregate([
+      { $match: { createdAt: { $gte: since } } },
+      { $sort: { createdAt: 1 } },
+      {
+        $group: {
+          _id: "$sessionId",
+          email: { $last: "$email" },
+          customerId: { $last: "$customerId" },
+          lastEventAt: { $last: "$createdAt" },
+          events: {
+            $push: {
+              event: "$event",
+              productName: "$productName",
+              path: "$path"
+            }
+          }
+        }
+      },
+      { $sort: { lastEventAt: -1 } },
+      { $limit: 5 },
+      {
+        $lookup: {
+          from: "customers",
+          let: { custId: { $toObjectId: "$customerId" } },
+          pipeline: [{ $match: { $expr: { $eq: ["$_id", "$$custId"] } } }],
+          as: "customerDoc",
+        },
+      },
+      {
+        $project: {
+          sessionId: "$_id",
+          user: {
+            $cond: [
+              { $gt: [{ $size: "$customerDoc" }, 0] },
+              { $arrayElemAt: ["$customerDoc.name", 0] },
+              { $ifNull: ["$email", "$_id"] }
+            ]
+          },
+          events: 1,
+          lastEventAt: 1
+        }
+      }
+    ])
   ]);
 
   const revenue = orderStats[0]?.revenue ?? 0;
@@ -441,6 +537,8 @@ export async function getAnalyticsSummary(days = 30) {
       withPurchase: 0,
     },
     abandonedCarts,
+    userProductViews: specificUserViews || [],
+    recentJourneys: recentJourneys || [],
   };
 }
 

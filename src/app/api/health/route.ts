@@ -21,6 +21,7 @@ export async function GET() {
       ok: true,
       mongodb: "connected",
       adminEmailsConfigured: Boolean(process.env.ADMIN_EMAILS?.trim()),
+      debugAdminEmails: process.env.ADMIN_EMAILS,
       firebaseAdminConfigured: Boolean(
         process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
           (process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
