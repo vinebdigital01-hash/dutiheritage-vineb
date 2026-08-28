@@ -19,7 +19,7 @@ const getVideoInfo = (url: string) => {
     const rawId = (url.split('/reel/')[1] || url.split('/reels/')[1] || url.split('/p/')[1])?.split('/')[0] || url.split('?')[0].split('/').pop();
     const id = rawId ? rawId.split('?')[0] : '';
     if (id) {
-      return { type: 'instagram', id, embedUrl: `https://www.instagram.com/p/${id}/embed/?cr=1&v=14&wp=540` };
+      return { type: 'instagram', id, embedUrl: `https://www.instagram.com/p/${id}/embed/captioned/` };
     }
   }
   return { type: "raw", id: url, embedUrl: url };
@@ -735,7 +735,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
       {/* Full Screen Video Overlay */}
       {activeVideoUrl && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+        <div className="fixed top-0 left-0 w-full h-[100dvh] z-[100] bg-black flex flex-col">
           {/* Header */}
           <div className="w-full p-4 flex justify-end absolute top-0 z-[110]">
             <button 
