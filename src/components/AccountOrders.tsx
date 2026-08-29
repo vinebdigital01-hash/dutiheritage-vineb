@@ -67,7 +67,13 @@ export function AccountOrders({ limit }: { limit?: number }) {
       try {
         const headers = await authHeaders();
         const res = await fetch(`/api/orders?limit=${limit || 50}`, { headers });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Server error: " + (text.substring(0, 50) + "..."));
+        }
         if (!res.ok) throw new Error(data.error || "Could not load orders");
         if (!cancelled) setOrders(data.orders || []);
       } catch (e) {
