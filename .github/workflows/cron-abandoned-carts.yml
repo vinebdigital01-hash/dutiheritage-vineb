@@ -1,0 +1,16 @@
+﻿name: Hourly Abandoned Carts Cron
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Every hour
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  run-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Abandoned Carts API
+        run: |
+          curl -X GET "${{ secrets.SITE_URL }}/api/cron/abandoned-carts" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --fail

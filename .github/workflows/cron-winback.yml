@@ -1,0 +1,16 @@
+﻿name: Daily Winback Cron
+
+on:
+  schedule:
+    - cron: '0 10 * * *' # Every day at 10 AM UTC
+  workflow_dispatch:
+
+jobs:
+  run-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Winback API
+        run: |
+          curl -X GET "${{ secrets.SITE_URL }}/api/cron/winback" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --fail

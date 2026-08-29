@@ -1,0 +1,16 @@
+﻿name: Daily Post-Purchase Cron
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # Every day at 9 AM UTC
+  workflow_dispatch:
+
+jobs:
+  run-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Post Purchase API
+        run: |
+          curl -X GET "${{ secrets.SITE_URL }}/api/cron/post-purchase" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --fail
