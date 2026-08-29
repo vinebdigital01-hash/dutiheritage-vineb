@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
-    "seed:wipe": "tsx scripts/seed.ts --wipe"
+    "seed:wipe": "tsx scripts/seed.ts --wipe",
+    "test:smoke": "tsx scripts/test/run-smoke.ts",
+    "test:api": "tsx scripts/test/run-api.ts",
+    "test:e2e": "playwright test",
+    "test:all": "npm run test:smoke && npm run test:api && npm run test:e2e"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -34,6 +38,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
