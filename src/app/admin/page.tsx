@@ -1,3 +1,4 @@
+import { SkeletonAdminDashboard } from "@/components/ui/Skeleton";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -86,11 +87,9 @@ export default function AdminDashboardPage() {
         }
       />
 
-      {loading ? (
-        <p className="text-[13px] text-[var(--color-text-muted)] animate-pulse">
-          Loading metrics…
-        </p>
-      ) : (
+      {loading ? (
+          <SkeletonAdminDashboard />
+        ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard
