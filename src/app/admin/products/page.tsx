@@ -36,7 +36,7 @@ export default function AdminProductsPage() {
       "codAvailable", "isActive"
     ];
     const rows = products.map(p => {
-      const escapeStr = (str) => {
+      const escapeStr = (str: any) => {
         if (!str) return "";
         return '"' + String(str).replace(/"/g, '""') + '"';
       };
