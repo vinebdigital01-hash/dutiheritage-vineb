@@ -1,3 +1,4 @@
+﻿import { SkeletonTable } from '@/components/ui/Skeleton';
 "use client";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
@@ -36,9 +37,9 @@ function OrderTimeline({ status }: { status: OrderStatus | string }) {
         const current = i === currentIdx;
         return (
           <span key={step} className="flex items-center gap-2">
-            {i > 0 && <span className="text-gray-300">→</span>}
+            {i > 0 && <span className="text-gray-300">â†’</span>}
             <span className={current ? "text-blue-600 font-bold" : done ? "text-black font-medium" : ""}>
-              {done ? "✓ " : ""}{step}
+              {done ? "âœ“ " : ""}{step}
             </span>
           </span>
         );
@@ -170,12 +171,12 @@ export default function MyOrdersPage() {
                   <div>
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Order Placed</p>
                     <p className="text-[13px] font-medium">
-                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "â€”"}
                     </p>
                   </div>
                   <div>
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Total</p>
-                    <p className="text-[13px] font-medium">₹{order.total.toLocaleString("en-IN")}</p>
+                    <p className="text-[13px] font-medium">â‚¹{order.total.toLocaleString("en-IN")}</p>
                   </div>
                   <div className="hidden sm:block">
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Order #</p>
@@ -202,10 +203,10 @@ export default function MyOrdersPage() {
                       <div className="flex-1 min-w-0 py-1">
                       <Link href={`/products/${item.slug || item.productId}`} className="text-[14px] font-medium hover:underline line-clamp-1">{item.name}</Link>
                       <p className="text-[12px] text-gray-500 mt-1">
-                        Size: {item.size || 'Default'} <span className="mx-2">•</span> Qty: {item.quantity}
+                        Size: {item.size || 'Default'} <span className="mx-2">â€¢</span> Qty: {item.quantity}
                       </p>
                       <p className="text-[13px] font-semibold mt-2">
-                        ₹{((item.salePrice ?? item.price)).toLocaleString("en-IN")}
+                        â‚¹{((item.salePrice ?? item.price)).toLocaleString("en-IN")}
                       </p>
                     </div>
                   </div>

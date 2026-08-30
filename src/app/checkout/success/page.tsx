@@ -1,3 +1,4 @@
+﻿import { SkeletonPage } from '@/components/ui/Skeleton';
 "use client";
 
 import React, { Suspense } from "react";
@@ -56,7 +57,7 @@ export default function CheckoutSuccessPage() {
     <Suspense
       fallback={
         <main className="w-full min-h-[80vh] flex items-center justify-center">
-          <p className="text-[var(--color-text-muted)] animate-pulse">Loading...</p>
+          <SkeletonPage />
         </main>
       }
     >
@@ -64,3 +65,4 @@ export default function CheckoutSuccessPage() {
     </Suspense>
   );
 }
+

@@ -1,6 +1,7 @@
+﻿import { SkeletonTable } from '@/components/ui/Skeleton';
 "use client";
 
-﻿import { useEffect, useState } from "react";
+ï»¿import { useEffect, useState } from "react";
 import { adminFetch, AdminApiError } from "@/lib/admin-api";
 import {
   PageHeader,
@@ -121,10 +122,10 @@ export default function AdminCouponsPage() {
           <AdminInput label="Code *" required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="DIWALI50" />
           <AdminSelect label="Type" value={form.discountType} onChange={(e) => setForm((f) => ({ ...f, discountType: e.target.value as "PERCENT" | "FLAT" }))}>
             <option value="PERCENT">Percent %</option>
-            <option value="FLAT">Flat ₹</option>
+            <option value="FLAT">Flat â‚¹</option>
           </AdminSelect>
           <AdminInput label="Value *" type="number" min={0} required value={form.discountValue} onChange={(e) => setForm((f) => ({ ...f, discountValue: e.target.value }))} />
-          <AdminInput label="Min order ₹" type="number" min={0} value={form.minOrderAmount} onChange={(e) => setForm((f) => ({ ...f, minOrderAmount: e.target.value }))} />
+          <AdminInput label="Min order â‚¹" type="number" min={0} value={form.minOrderAmount} onChange={(e) => setForm((f) => ({ ...f, minOrderAmount: e.target.value }))} />
         </div>
         
         <div className="grid md:grid-cols-2 gap-4 items-start pt-4 border-t border-gray-100">
@@ -165,7 +166,7 @@ export default function AdminCouponsPage() {
       </form>
 
       {loading ? (
-        <p className="text-[13px] text-neutral-500 animate-pulse">Loading...</p>
+        <SkeletonTable />
       ) : coupons.length === 0 ? (
         <EmptyState title="No coupons yet" description="Create a discount code above to get started." />
       ) : (
@@ -190,7 +191,7 @@ export default function AdminCouponsPage() {
                       {c.code}
                     </td>
                     <td className="p-4">
-                      {c.discountType === "PERCENT" ? `${c.discountValue}%` : `₹${c.discountValue}`}
+                      {c.discountType === "PERCENT" ? `${c.discountValue}%` : `â‚¹${c.discountValue}`}
                     </td>
                     <td className="p-4">
                       {c.scope === "ALL_PRODUCTS" && <Badge tone="info">All Products</Badge>}
@@ -198,7 +199,7 @@ export default function AdminCouponsPage() {
                       {c.scope === "SPECIFIC_PRODUCTS" && <Badge tone="neutral">{c.targetIds.length} Products</Badge>}
                     </td>
                     <td className="p-4">
-                      {c.minOrderAmount > 0 ? `₹${c.minOrderAmount}` : "-"}
+                      {c.minOrderAmount > 0 ? `â‚¹${c.minOrderAmount}` : "-"}
                     </td>
                     <td className="p-4 text-neutral-500">{c.usedCount}</td>
                     <td className="p-4">
@@ -230,3 +231,4 @@ export default function AdminCouponsPage() {
     </div>
   );
 }
+

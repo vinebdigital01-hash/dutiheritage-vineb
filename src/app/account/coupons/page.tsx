@@ -1,3 +1,4 @@
+﻿import { SkeletonCardGrid } from '@/components/ui/Skeleton';
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -61,16 +62,16 @@ export default function MyCouponsPage() {
             <div key={coupon.code} className="border-2 border-dashed border-[var(--color-border)] rounded-xl flex overflow-hidden bg-white hover:border-black transition-colors group">
               <div className="bg-green-50 px-6 py-8 flex flex-col items-center justify-center border-r border-dashed border-[var(--color-border)] w-[120px] shrink-0">
                 <span className="text-green-700 text-3xl font-bold">
-                  {coupon.discountType === "PERCENT" ? `${coupon.discountValue}%` : `₹${coupon.discountValue}`}
+                  {coupon.discountType === "PERCENT" ? `${coupon.discountValue}%` : `â‚¹${coupon.discountValue}`}
                 </span>
                 <span className="text-[10px] text-green-800 font-bold tracking-widest uppercase mt-1">OFF</span>
               </div>
               <div className="p-5 flex flex-col justify-center flex-1">
                 <p className="text-[14px] font-bold tracking-wide mb-1 text-gray-800">
-                  {(coupon.discountType === "PERCENT" ? `${coupon.discountValue}% Off your order` : `Flat ₹${coupon.discountValue} Off`)}
+                  {(coupon.discountType === "PERCENT" ? `${coupon.discountValue}% Off your order` : `Flat â‚¹${coupon.discountValue} Off`)}
                 </p>
                 {coupon.minOrderAmount > 0 && (
-                  <p className="text-[12px] text-gray-500 mb-3">On orders above ₹{coupon.minOrderAmount}</p>
+                  <p className="text-[12px] text-gray-500 mb-3">On orders above â‚¹{coupon.minOrderAmount}</p>
                 )}
                 <div className="mt-auto flex items-center justify-between bg-gray-50 border border-gray-200 rounded p-2">
                   <span className="text-[13px] font-mono font-bold tracking-widest text-black pl-2">{coupon.code}</span>

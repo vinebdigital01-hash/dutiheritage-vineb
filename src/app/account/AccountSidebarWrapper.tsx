@@ -1,4 +1,5 @@
-﻿"use client";
+﻿import { SkeletonTable } from '@/components/ui/Skeleton';
+"use client";
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -87,3 +88,4 @@ export function AccountSidebarWrapper({ children }: { children: React.ReactNode 
     </div>
   );
 }
+

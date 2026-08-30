@@ -1,3 +1,4 @@
+import { SkeletonTable } from "@/components/ui/Skeleton";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -224,7 +225,7 @@ export function ProductForm({ productId }: { productId?: string }) {
 
   if (loading) {
     return (
-      <p className="text-[13px] text-neutral-500 animate-pulse">Loading form…</p>
+      <SkeletonTable />
     );
   }
 

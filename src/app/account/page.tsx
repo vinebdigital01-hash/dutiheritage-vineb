@@ -1,3 +1,4 @@
+﻿import { SkeletonPage } from '@/components/ui/Skeleton';
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -267,7 +268,7 @@ export default function AccountPage() {
   if (authLoading) {
     return (
       <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
-        <p className="text-[14px] text-[var(--color-text-muted)] animate-pulse">Loading...</p>
+        <SkeletonPage />
       </main>
     );
   }
@@ -580,3 +581,4 @@ export default function AccountPage() {
     </main>
   );
 }
+

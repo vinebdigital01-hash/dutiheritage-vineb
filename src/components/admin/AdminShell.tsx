@@ -1,3 +1,4 @@
+import { SkeletonTable } from "@/components/ui/Skeleton";
 "use client";
 
 import Link from "next/link";
@@ -62,11 +63,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
-        <p className="text-[13px] tracking-[2px] uppercase text-[var(--color-text-muted)] animate-pulse">
-          Verifying access…
-        </p>
-      </div>
+      <div className="min-h-screen p-8 bg-[var(--color-bg)]"><SkeletonTable /></div>
     );
   }
 

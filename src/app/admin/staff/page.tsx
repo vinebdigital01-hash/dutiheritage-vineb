@@ -1,3 +1,4 @@
+﻿import { SkeletonTable } from '@/components/ui/Skeleton';
 "use client";
 
 import { useEffect, useState } from "react";
@@ -93,7 +94,7 @@ export default function StaffPage() {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <SkeletonTable />;
 
   return (
     <div className="space-y-6">
