@@ -132,6 +132,8 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.isActive !== undefined) existing.isActive = Boolean(body.isActive);
 
     await existing.save();
+    revalidatePath(`/products/${existing.slug}`);
+    revalidatePath(`/`);
 
     await refreshCollectionProductCount(String(existing.collectionId));
     if (prevCollectionId !== existing.collectionId) {
