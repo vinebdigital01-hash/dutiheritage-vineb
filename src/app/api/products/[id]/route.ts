@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/mongodb";
 import { Product, Coupon } from "@/models";
 import { requireAuth } from "@/lib/auth";
