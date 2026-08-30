@@ -1,5 +1,5 @@
 "use client";
-import { SkeletonTable } from '@/components/ui/Skeleton';
+import { SkeletonOrderList } from '@/components/ui/Skeleton';
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";

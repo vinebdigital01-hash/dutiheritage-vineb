@@ -1,5 +1,5 @@
 "use client";
-import { SkeletonCardGrid } from '@/components/ui/Skeleton';
+import { SkeletonCouponGrid } from '@/components/ui/Skeleton';
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiTag, FiCopy, FiCheck, FiChevronLeft } from "react-icons/fi";
