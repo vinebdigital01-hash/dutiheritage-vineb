@@ -1,6 +1,5 @@
-﻿import { SkeletonTable } from '@/components/ui/Skeleton';
 "use client";
-
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { useEffect, useState } from "react";
 import { FiPlus, FiTrash2, FiShield, FiUserCheck } from "react-icons/fi";
 import { useAppContext } from "@/context/AppContext";

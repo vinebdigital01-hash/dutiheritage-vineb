@@ -1,5 +1,5 @@
-﻿import { SkeletonProductGrid } from '@/components/ui/Skeleton';
 "use client";
+import { SkeletonProductGrid } from '@/components/ui/Skeleton';
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiHeart, FiChevronLeft } from "react-icons/fi";

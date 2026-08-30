@@ -1,6 +1,5 @@
-﻿import { SkeletonPage } from '@/components/ui/Skeleton';
 "use client";
-
+import { SkeletonPage } from '@/components/ui/Skeleton';
 import React, { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";

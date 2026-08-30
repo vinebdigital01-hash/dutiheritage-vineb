@@ -1,6 +1,5 @@
-import { SkeletonTable } from "@/components/ui/Skeleton";
 "use client";
-
+import { SkeletonTable } from "@/components/ui/Skeleton";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

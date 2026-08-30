@@ -1,5 +1,5 @@
-﻿import { SkeletonPage } from '@/components/ui/Skeleton';
 "use client";
+import { SkeletonPage } from '@/components/ui/Skeleton';
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
