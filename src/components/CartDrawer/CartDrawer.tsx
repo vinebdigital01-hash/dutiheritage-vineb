@@ -106,7 +106,7 @@ export const CartDrawer = () => {
       />
       
       {/* Drawer */}
-      <div id="cart-drawer" className="fixed top-0 right-0 h-full w-full max-w-[420px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div id="cart-drawer" className="fixed top-0 right-0 h-[100dvh] w-full max-w-[420px] bg-white z-[100] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 px-6 border-b border-[var(--color-border)] bg-gray-50">

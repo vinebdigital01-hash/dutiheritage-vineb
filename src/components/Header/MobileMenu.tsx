@@ -37,7 +37,7 @@ export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
 
   return (
     <div
-      className="fixed top-0 left-0 w-screen h-screen bg-[var(--color-overlay)] z-[200] flex"
+      className="fixed top-0 left-0 w-screen h-[100dvh] bg-[var(--color-overlay)] z-[200] flex"
       onClick={onClose}
     >
       <div
