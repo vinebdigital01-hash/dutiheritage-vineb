@@ -42,9 +42,7 @@ export default function MyCouponsPage() {
       </div>
 
       {loading ? (
-        <div className="w-full py-12 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
-        </div>
+        <div className="py-8"><SkeletonCouponGrid /></div>
       ) : coupons.length === 0 ? (
         <div className="py-16 flex flex-col items-center text-center bg-gray-50 rounded-2xl border border-dashed border-gray-300">
           <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">

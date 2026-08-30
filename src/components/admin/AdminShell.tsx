@@ -1,5 +1,5 @@
 "use client";
-import { SkeletonTable } from "@/components/ui/Skeleton";
+import { SkeletonPage } from "@/components/ui/Skeleton";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -62,7 +62,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen p-8 bg-[var(--color-bg)]"><SkeletonTable /></div>
+      <div className="min-h-screen p-8"><SkeletonPage /></div>
     );
   }
 

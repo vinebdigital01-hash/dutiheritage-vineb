@@ -139,10 +139,7 @@ export default function MyOrdersPage() {
       </div>
 
       {loading ? (
-        <div className="w-full py-12 flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-[13px] text-gray-500 uppercase tracking-widest">Loading Orders...</p>
-        </div>
+        <div className="py-8"><SkeletonOrderList /></div>
       ) : error ? (
         <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[13px]">
           {error}

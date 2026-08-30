@@ -1,5 +1,5 @@
 "use client";
-import { SkeletonTable } from "@/components/ui/Skeleton";
+import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -224,7 +224,7 @@ export function ProductForm({ productId }: { productId?: string }) {
 
   if (loading) {
     return (
-      <SkeletonTable />
+      <SkeletonPage />
     );
   }
 
