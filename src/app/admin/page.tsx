@@ -1,6 +1,5 @@
+"use client";
 import { SkeletonAdminDashboard } from "@/components/ui/Skeleton";
-"use client";
-
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { adminFetch } from "@/lib/admin-api";
