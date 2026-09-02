@@ -130,6 +130,8 @@ export async function PUT(request: Request, { params }: Params) {
       }
 
     if (body.codAvailable !== undefined) existing.codAvailable = Boolean(body.codAvailable);
+    if (body.isPartialCOD !== undefined) existing.isPartialCOD = Boolean(body.isPartialCOD);
+    if (body.partialCODAdvance !== undefined) existing.partialCODAdvance = Number(body.partialCODAdvance);
     if (body.isActive !== undefined) existing.isActive = Boolean(body.isActive);
 
     await existing.save();

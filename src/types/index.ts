@@ -29,6 +29,8 @@ export type Product = {
     code?: string; // If undefined, show "NO CODE REQUIRED"
   }[];
   codAvailable?: boolean;
+  isPartialCOD?: boolean;
+  partialCODAdvance?: number;
 };
 
 export type UserProfile = {

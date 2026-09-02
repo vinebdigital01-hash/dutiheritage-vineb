@@ -29,6 +29,8 @@ const ProductSchema = new Schema(
     videoUrls: { type: [String], default: [] },
     offers: { type: [OfferSchema], default: [] },
     codAvailable: { type: Boolean, default: true },
+    isPartialCOD: { type: Boolean, default: false },
+    partialCODAdvance: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

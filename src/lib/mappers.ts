@@ -27,6 +27,8 @@ export function toProduct(doc: LeanDoc): Product & { isActive?: boolean } {
     videoUrls: (doc.videoUrls as string[] | undefined) ?? [],
     offers: (doc.offers as Product["offers"]) ?? [],
     codAvailable: (doc.codAvailable as boolean | undefined) ?? true,
+    isPartialCOD: (doc.isPartialCOD as boolean | undefined) ?? false,
+    partialCODAdvance: (doc.partialCODAdvance as number | undefined) ?? 0,
     isActive: doc.isActive !== false,
   };
 }

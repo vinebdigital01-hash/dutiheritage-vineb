@@ -224,6 +224,21 @@ export default function CheckoutPage() {
       : discountApplied.value
     : 0;
 
+  
+  const productsAllowCod = cart.every(item => item.codAvailable !== false);
+  const isFinalCodAvailable = codAvailable !== false && productsAllowCod;
+  
+  const productAdvanceAmount = cart.reduce((sum, item) => sum + (item.isPartialCOD ? (item.partialCODAdvance || 0) * item.quantity : 0), 0);
+  const isPartialCodRequired = productAdvanceAmount > 0;
+  
+  React.useEffect(() => {
+    if (isFinalCodAvailable === false && (paymentMethod === "cod" || paymentMethod === "partial")) {
+      setPaymentMethod("prepaid");
+    } else if (isPartialCodRequired && paymentMethod === "cod") {
+      setPaymentMethod("partial");
+    }
+  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod]);
+
   const codCharge = paymentMethod === "cod" ? settings.codExtraCharge : 0;
   const prepaidDiscount =
     paymentMethod === "prepaid"
@@ -239,7 +254,8 @@ export default function CheckoutPage() {
   const totalSavings = discountAmount + prepaidDiscount + (isFreeShipping ? settings.flatShippingFee : 0);
 
   // Partial COD logic
-  const advanceAmount = Math.min(settings.partialCodAdvance, total);
+  const dynamicAdvance = isPartialCodRequired ? productAdvanceAmount : settings.partialCodAdvance;
+  const advanceAmount = Math.min(dynamicAdvance, total);
   const payOnDeliveryAmount = paymentMethod === "partial" ? total - advanceAmount : 0;
   const amountToPayNow = paymentMethod === "partial" ? advanceAmount : (paymentMethod === "cod" ? 0 : total);
 
@@ -848,29 +864,31 @@ export default function CheckoutPage() {
                 </label>
 
                 {/* Partial Advance Payment */}
-                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${codAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"} ${paymentMethod === "partial" ? "border-black bg-blue-50/30" : "border-gray-200 hover:border-gray-300"}`}>
-                  <input type="radio" name="paymentMethod" value="partial" checked={paymentMethod === "partial"} onChange={() => { if (codAvailable !== false) setPaymentMethod("partial"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
+                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${isFinalCodAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"}
+${paymentMethod === "partial" ? "border-black bg-blue-50/30" : "border-gray-200 hover:border-gray-300"}`}>
+                  <input type="radio" name="paymentMethod" value="partial" checked={paymentMethod === "partial"} onChange={() => { if (isFinalCodAvailable !== false) setPaymentMethod("partial"); }} disabled={isFinalCodAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
                   <div className="flex-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-[15px] font-bold">Pay ₹{settings.partialCodAdvance} Advance (Rest on Delivery)</span>
+                      <span className="text-[15px] font-bold">Pay ₹{dynamicAdvance} Advance (Rest on Delivery)</span>
                       <span className="text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-1 rounded shadow-sm">No COD Charge</span>
                     </div>
                     <p className="text-[13px] text-gray-600 mt-1">
-                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${settings.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
+                      {isFinalCodAvailable === false ? (!productsAllowCod ? "COD is not available for one or more items in your cart" : "COD is not available for your pincode") : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${settings.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
                     </p>
                   </div>
                 </label>
 
                 {/* COD */}
-                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${codAvailable === false || codChecking ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"} ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-300"}`}>
-                  <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === "cod"} onChange={() => { if (codAvailable !== false) setPaymentMethod("cod"); }} disabled={codAvailable === false || codChecking} className="mt-1 accent-black w-5 h-5" />
+                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${isFinalCodAvailable === false || codChecking || isPartialCodRequired ? "opacity-50 cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white"}
+${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-300"}`}>
+                  <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === "cod"} onChange={() => { if (isFinalCodAvailable !== false && !isPartialCodRequired) setPaymentMethod("cod"); }} disabled={isFinalCodAvailable === false || codChecking || isPartialCodRequired} className="mt-1 accent-black w-5 h-5" />
                   <div className="flex-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[15px] font-bold">Cash on Delivery (COD)</span>
                       <span className="text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-1 rounded shadow-sm">+₹{settings.codExtraCharge} charge</span>
                     </div>
                     <p className="text-[13px] text-gray-600 mt-1">
-                      {codAvailable === false ? "COD is not available for your pincode" : codAvailable === null ? "Enter your pincode to check COD availability" : `A non-refundable ₹${settings.codExtraCharge} handling charge will be added.`}
+                      {isFinalCodAvailable === false ? (!productsAllowCod ? "COD is not available for one or more items in your cart" : "COD is not available for your pincode") : isPartialCodRequired ? "Full COD is disabled because one or more items require an advance payment" : codAvailable === null ? "Enter your pincode to check COD availability" : `A non-refundable ₹${settings.codExtraCharge} handling charge will be added.`}
                     </p>
                   </div>
                 </label>

@@ -105,6 +105,8 @@ export async function POST(request: Request) {
       videoUrls: body.videoUrls ?? [],
       offers: body.offers ?? [],
       codAvailable: body.codAvailable !== false,
+        isPartialCOD: Boolean(body.isPartialCOD),
+        partialCODAdvance: Number(body.partialCODAdvance) || 0,
       isActive: body.isActive !== false,
     });
 

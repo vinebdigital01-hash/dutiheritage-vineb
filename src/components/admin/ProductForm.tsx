@@ -37,6 +37,8 @@ type FormState = {
   boughtLast7Days: string;
   videoUrls: string;
   codAvailable: boolean;
+  isPartialCOD: boolean;
+  partialCODAdvance: string;
   isActive: boolean;
   offers: OfferForm[];
 };
@@ -58,7 +60,9 @@ const emptyForm = (): FormState => ({
   boughtLast7Days: "0",
   videoUrls: "",
   codAvailable: true,
-  isActive: true,
+    isPartialCOD: false,
+    partialCODAdvance: "0",
+    isActive: true,
   offers: [],
 });
 
@@ -71,7 +75,7 @@ function slugify(s: string) {
     .slice(0, 80);
 }
 
-function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean }): FormState {
+function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean; isPartialCOD?: boolean; partialCODAdvance?: number }): FormState {
   return {
     name: p.name,
     slug: p.slug,
@@ -89,6 +93,8 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     boughtLast7Days: String(p.boughtLast7Days ?? 0),
     videoUrls: (p.videoUrls || []).join("\n"),
     codAvailable: p.codAvailable !== false,
+    isPartialCOD: p.isPartialCOD || false,
+    partialCODAdvance: String(p.partialCODAdvance || 0),
     isActive: p.isActive !== false,
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
   };
@@ -187,6 +193,8 @@ export function ProductForm({ productId }: { productId?: string }) {
           .map((s) => s.trim())
           .filter(Boolean),
         codAvailable: form.codAvailable,
+          isPartialCOD: form.isPartialCOD,
+          partialCODAdvance: Number(form.partialCODAdvance) || 0,
           isActive: form.isActive,
           offers: (form.offers || []).filter(o => o.title.trim() && o.description.trim()),
         };
