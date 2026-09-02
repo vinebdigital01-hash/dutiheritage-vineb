@@ -103,6 +103,7 @@ export function ProductForm({ productId }: { productId?: string }) {
   const [newSize, setNewSize] = useState("");
   const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const isEdit = Boolean(productId);
 
   useEffect(() => {

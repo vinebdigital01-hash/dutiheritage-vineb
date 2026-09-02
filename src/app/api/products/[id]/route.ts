@@ -169,6 +169,7 @@ export async function DELETE(request: Request, { params }: Params) {
     }
 
     await refreshCollectionProductCount(collectionId);
+    revalidatePath("/", "layout");
 
     return jsonOk({
       deleted: true,
