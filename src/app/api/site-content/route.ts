@@ -69,6 +69,7 @@ export async function PUT(request: Request) {
       { $set: update },
       { upsert: true, new: true }
     );
+    revalidatePath("/", "layout");
 
     return jsonOk({
       content: {
