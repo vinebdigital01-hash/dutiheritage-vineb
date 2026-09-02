@@ -462,6 +462,29 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 </div>
               </div>
 
+                {/* Color Selector */}
+                {colors.length > 0 && (
+                  <div className="flex flex-col gap-2 mt-4">
+                    <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Color</span>
+                    <div className="flex flex-wrap gap-3">
+                      {colors.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setSelectedColor(color)}
+                          className={`
+                            py-3 px-4 rounded-xl text-[14px] font-semibold transition-all
+                            ${selectedColor === color 
+                              ? 'bg-[#EAF5EC] border-2 border-[#2E7D32] text-[#2E7D32]' 
+                              : 'bg-gray-50 border-2 border-transparent text-gray-700 hover:bg-gray-100'}
+                          `}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               {/* Actions */}
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">
                 <button 
