@@ -126,14 +126,16 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
   const [selectedSize, setSelectedSize] = useState(sizes[0]);
+  const colors = product.colors || [];
+  const [selectedColor, setSelectedColor] = useState(colors.length > 0 ? colors[0] : undefined);
 
   const [isNavigating, setIsNavigating] = useState(false);
-  const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize);
-  const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize); };
+  const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor);
+  const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize, selectedColor); };
 
   const handleBuyNow = () => {
     setIsNavigating(true);
-    addToCart(product, selectedSize);
+    addToCart(product, selectedSize, selectedColor);
     router.push("/checkout");
     setTimeout(() => setIsNavigating(false), 1000);
   };
@@ -417,21 +419,21 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
               </div>
 
               {/* Price Block */}
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-[32px] md:text-[36px] font-bold text-gray-900 tracking-tight">
-                  ₹{product.price}
-                </span>
-                {product.salePrice && (
-                  <>
-                    <span className="text-[16px] text-gray-400 line-through font-medium mt-2">
-                      ₹{product.salePrice}
-                    </span>
-                    <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-[11px] font-bold uppercase mt-2">
-                      Save Rs. {product.salePrice - product.price}
-                    </span>
-                  </>
-                )}
-              </div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-[32px] md:text-[36px] font-bold text-gray-900 tracking-tight">
+                    ₹{product.salePrice || product.price}
+                  </span>
+                  {(product.salePrice && product.salePrice < product.price) ? (
+                    <>
+                      <span className="text-[18px] md:text-[20px] text-gray-400 line-through mt-2 font-medium">
+                        ₹{product.price}
+                      </span>
+                      <span className="bg-[#EAF5EC] text-[#2E7D32] px-2 py-1 rounded-md text-[11px] font-bold uppercase mt-2">
+                        Save Rs. {product.price - product.salePrice}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
               <span className="text-[12px] text-gray-500 -mt-3">
                 Tax included. <Link href="/shipping" className="underline underline-offset-2">Shipping</Link> calculated at checkout.
               </span>

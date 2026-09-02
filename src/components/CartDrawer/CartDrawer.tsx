@@ -144,7 +144,7 @@ export const CartDrawer = () => {
                     </div>
                     <div className="flex flex-col flex-1">
                       <h3 className="text-[13px] font-medium leading-tight">{item.name}</h3>
-                      <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Size: {item.selectedSize}</p>
+                      <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Size: {item.selectedSize}{item.selectedColor ? ` | Color: ${item.selectedColor}` : ""}</p>
                       <div className="flex items-center justify-between mt-auto pt-2">
                         <p className="text-[14px] font-bold">₹{((item.salePrice || item.price) * item.quantity).toLocaleString("en-IN")}</p>
                         <div className="flex items-center gap-4">

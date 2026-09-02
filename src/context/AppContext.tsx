@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { Product, UserProfile } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";
@@ -11,6 +11,7 @@ import { syncCartToServer } from "@/lib/cart-client";
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
   selectedSize: string;
+  selectedColor?: string;
   quantity: number;
 }
 
@@ -138,9 +139,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {}
   }, [recentlyViewed, isInitialized]);
 
-  const addToCart = React.useCallback((product: Product, size: string) => {
+  const addToCart = React.useCallback((product: Product, size: string, color?: string) => {
     setCart((prev) => {
-      const cartItemId = `${product.id}-${size}`;
+      const cartItemId = color ? `${product.id}-${size}-${color}` : `${product.id}-${size}`;
       const existing = prev.find((item) => item.cartItemId === cartItemId);
       if (existing) {
         return prev.map((item) =>
@@ -149,7 +150,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             : item
         );
       }
-      return [...prev, { ...product, cartItemId, selectedSize: size, quantity: 1 }];
+      return [...prev, { ...product, cartItemId, selectedSize: size, selectedColor: color, quantity: 1 }];
     });
     setIsCartOpen(true);
     trackMetaEvent("AddToCart", {
@@ -279,3 +280,4 @@ export const useAppContext = () => {
   }
   return context;
 };
+

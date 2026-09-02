@@ -22,7 +22,8 @@ import {
   FiBarChart2,
   FiLayers,
   FiShield,
-  FiActivity
+  FiActivity,
+  FiMessageCircle
 } from "react-icons/fi";
 
 const NAV = [
@@ -39,7 +40,8 @@ const NAV = [
   { href: "/admin/content", label: "Site content", icon: FiEdit3, roles: ["SUPERADMIN", "ADMIN"] },
   { href: "/admin/settings/cod", label: "COD & Shipping", icon: FiSettings, roles: ["SUPERADMIN", "ADMIN"] },
   { href: "/admin/staff", label: "Staff", icon: FiShield, roles: ["SUPERADMIN"] },
-    { href: "/admin/logs", label: "System Logs", icon: FiActivity, roles: ["SUPERADMIN"] },
+  { href: "/admin/whatsapp", label: "WhatsApp", icon: FiMessageCircle, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
+  { href: "/admin/logs", label: "System Logs", icon: FiActivity, roles: ["SUPERADMIN"] },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

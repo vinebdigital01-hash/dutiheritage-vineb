@@ -23,3 +23,5 @@ export { Campaign, type CampaignDocument } from "./Campaign";
 export { Staff, STAFF_ROLES, type StaffDocument, type StaffRole } from "./Staff";
 export { Wishlist, type WishlistDocument } from "./Wishlist";
 export * from './SystemLog';
+export { ChatMessage, type ChatMessageDocument } from "./ChatMessage";
+export { ChatSession, type ChatSessionDocument } from "./ChatSession";
