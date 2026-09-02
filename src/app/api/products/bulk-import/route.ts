@@ -59,13 +59,15 @@ export async function POST(req: Request) {
           image: p.image || (imagesArray.length > 0 ? imagesArray[0] : ""),
           images: imagesArray,
           sizes,
-          colors: p.colors ? [p.colors] : [],
+          colors: typeof p.colors === 'string' ? p.colors.split(',').map((s: string) => s.trim()).filter(Boolean) : (p.colors ? [p.colors] : []),
           tags,
           seoTitle: p.seoTitle || p.name,
           seoDescription: p.seoDescription || "",
           boughtLast7Days: Number(p.boughtLast7Days) || 0,
           videoUrls: typeof p.videoUrls === 'string' ? p.videoUrls.split(',').map((s: string) => s.trim()).filter(Boolean) : (p.videoUrls || []),
           codAvailable: typeof p.codAvailable === 'boolean' ? p.codAvailable : (p.codAvailable === 'true' || p.codAvailable === 'yes'),
+          isPartialCOD: typeof p.isPartialCOD === 'boolean' ? p.isPartialCOD : (p.isPartialCOD === 'true' || p.isPartialCOD === 'yes'),
+          partialCODAdvance: Number(p.partialCODAdvance) || 0,
           isActive: typeof p.isActive === 'boolean' ? p.isActive : (p.isActive !== 'false' && p.isActive !== 'no'),
         });
         
