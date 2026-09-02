@@ -254,7 +254,7 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
             <table className="w-full text-left text-[13px]">
               <thead className="bg-neutral-50 text-[11px] tracking-[1px] uppercase text-neutral-500">
                 <tr>
-                  <th className="px-4 py-3 w-10"><input type="checkbox" className="accent-black" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} /></th><th className="px-4 py-3 font-medium">Product</th>
+                  <th className="px-4 py-3 w-10"><input type="checkbox" className="accent-black w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} /></th><th className="px-4 py-3 font-medium">Product</th>
                   <th className="px-4 py-3 font-medium">Price</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -266,8 +266,11 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
                     key={p.id}
                     className="border-t border-[var(--color-border)] hover:bg-neutral-50/80"
                   >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-[220px]">
+                    <td className="px-4 py-3 w-10">
+                        <input type="checkbox" className="accent-black w-4 h-4 cursor-pointer" checked={selectedIds.has(p.id)} onChange={() => toggleOne(p.id)} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-[220px]">
                         <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-neutral-100 border border-[var(--color-border)] shrink-0">
                           {p.image && (
                             <Image
