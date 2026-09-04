@@ -697,7 +697,7 @@ export default function CheckoutPage() {
         </div>
         <div className="flex items-center gap-3">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-          <span className="font-medium">7-day easy return &amp; exchange policy</span>
+          <span className="font-medium">Exchange on size &amp; defect issues (within 24 hrs)</span>
         </div>
       </div>
     </div>
@@ -942,7 +942,7 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
               </span>
               <span className="flex items-center gap-1.5 bg-gray-100 px-3 py-1.5 rounded-full">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line></svg>
-                Easy Returns
+                Easy Exchange
               </span>
             </div>
           </form>
