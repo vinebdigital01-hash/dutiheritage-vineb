@@ -1,0 +1,15 @@
+name: Monthly Store Report Cron
+
+on:
+  schedule:
+    # Runs at 09:00 UTC on the 1st of every month
+    - cron: '0 9 1 * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  trigger-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Monthly Report API
+        run: |
+          curl -X GET "https://www.dutiheritage.co.in/api/reports/monthly"           -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

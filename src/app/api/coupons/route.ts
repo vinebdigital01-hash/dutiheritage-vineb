@@ -58,15 +58,14 @@ export async function POST(request: Request) {
       .toUpperCase();
     if (!code) throw new ApiError("code is required");
 
-    const discountType = body.discountType as "PERCENT" | "FLAT";
-    if (!["PERCENT", "FLAT"].includes(discountType)) {
-      throw new ApiError("discountType must be PERCENT or FLAT");
+    const discountType = body.discountType;
+    if (!["PERCENT", "FLAT", "BUY_X_PERCENT", "BUY_X_GET_Y_FREE"].includes(discountType)) {
+      throw new ApiError("Invalid discountType");
     }
 
-    const discountValue = Number(body.discountValue);
-    if (Number.isNaN(discountValue) || discountValue < 0) {
-      throw new ApiError("Valid discountValue is required");
-    }
+    const discountValue = Number(body.discountValue) || 0;
+    const minQuantity = Number(body.minQuantity) || 0;
+    const freeQuantity = Number(body.freeQuantity) || 0;
 
     const existing = await Coupon.findOne({ code });
     if (existing) throw new ApiError("Coupon code already exists", 409);
@@ -75,6 +74,8 @@ export async function POST(request: Request) {
       code,
       discountType,
       discountValue,
+      minQuantity,
+      freeQuantity,
       scope: body.scope || "ALL_PRODUCTS",
       targetIds: body.targetIds ?? [],
       usageLimit: body.usageLimit,

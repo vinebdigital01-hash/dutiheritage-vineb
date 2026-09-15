@@ -34,8 +34,8 @@ export async function PUT(request: Request, { params }: Params) {
       coupon.code = String(body.code).trim().toUpperCase();
     }
     if (body.discountType !== undefined) {
-      if (!["PERCENT", "FLAT"].includes(body.discountType)) {
-        throw new ApiError("discountType must be PERCENT or FLAT");
+      if (!["PERCENT", "FLAT", "BUY_X_PERCENT", "BUY_X_GET_Y_FREE"].includes(body.discountType)) {
+        throw new ApiError("Invalid discountType");
       }
       coupon.discountType = body.discountType;
     }
@@ -44,6 +44,8 @@ export async function PUT(request: Request, { params }: Params) {
     }
     if (body.scope !== undefined) coupon.scope = body.scope;
     if (body.targetIds !== undefined) coupon.targetIds = body.targetIds;
+    if (body.minQuantity !== undefined) coupon.minQuantity = Number(body.minQuantity) || 0;
+    if (body.freeQuantity !== undefined) coupon.freeQuantity = Number(body.freeQuantity) || 0;
     if (body.usageLimit !== undefined) coupon.usageLimit = body.usageLimit;
     if (body.perUserLimit !== undefined) coupon.perUserLimit = body.perUserLimit;
     if (body.minOrderAmount !== undefined) {

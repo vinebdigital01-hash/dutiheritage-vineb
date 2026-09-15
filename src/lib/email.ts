@@ -19,6 +19,7 @@ export async function sendEmail(input: {
   html: string;
   text?: string;
   type?: "auth" | "orders" | "marketing";
+  attachments?: { filename: string; content: string }[];
 }): Promise<SendEmailResult> {
   
   let apiKey = process.env.RESEND_API_KEY;

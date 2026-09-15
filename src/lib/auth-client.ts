@@ -8,6 +8,7 @@ export type SyncResult = {
   isAdmin: boolean;
   adminRole?: string | null;
   customerId?: string;
+  isFrozen?: boolean;
 };
 
 /**
@@ -34,13 +35,14 @@ export async function syncAuthToBackend(
 
     if (!res.ok) {
       console.warn("[auth-sync] failed:", res.status, await res.text());
-      return { profile: null, isAdmin: false, adminRole: null };
+      return { profile: null, isAdmin: false, adminRole: null, isFrozen: false };
     }
 
     const data = (await res.json()) as {
       profile?: UserProfile;
       isAdmin?: boolean;
       adminRole?: string | null;
+      isFrozen?: boolean;
       customer?: { id?: string };
     };
 
@@ -48,11 +50,12 @@ export async function syncAuthToBackend(
       profile: data.profile ?? null,
       isAdmin: Boolean(data.isAdmin),
       adminRole: data.adminRole || null,
+      isFrozen: Boolean(data.isFrozen),
       customerId: data.customer?.id,
     };
   } catch (error) {
     console.warn("[auth-sync] error:", error);
-    return { profile: null, isAdmin: false, adminRole: null };
+    return { profile: null, isAdmin: false, adminRole: null, isFrozen: false };
   }
 }
 

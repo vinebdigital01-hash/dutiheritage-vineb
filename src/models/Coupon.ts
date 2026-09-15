@@ -11,7 +11,7 @@ const CouponSchema = new Schema(
     },
     discountType: {
       type: String,
-      enum: ["PERCENT", "FLAT"],
+      enum: ["PERCENT", "FLAT", "BUY_X_PERCENT", "BUY_X_GET_Y_FREE"],
       required: true,
     },
     discountValue: { type: Number, required: true, min: 0 },
@@ -21,6 +21,8 @@ const CouponSchema = new Schema(
       default: "ALL_PRODUCTS",
     },
     targetIds: { type: [String], default: [] },
+    minQuantity: { type: Number, default: 0 },
+    freeQuantity: { type: Number, default: 0 },
     usageLimit: { type: Number },
     perUserLimit: { type: Number },
     minOrderAmount: { type: Number, default: 0 },

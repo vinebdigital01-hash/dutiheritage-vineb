@@ -7,6 +7,8 @@ import { MdLocalOffer } from "react-icons/md";
 import { ProductGallery } from "@/components/ProductGallery/ProductGallery";
 import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
 import Link from "next/link";
+import { TrustBadges } from "@/components/TrustBadges";
+
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
@@ -125,7 +127,16 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const images = [product.image, ...(product.images || [])].filter(Boolean); 
   const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
-  const [selectedSize, setSelectedSize] = useState(sizes[0]);
+  const isInventoryTracked = product.trackInventory;
+  const isTotallySoldOut = isInventoryTracked && (!product.inventory || product.inventory.every(i => i.stock === 0));
+  
+  const firstAvailableSize = sizes.find(s => {
+    if (!isInventoryTracked) return true;
+    const inv = product.inventory?.find(i => i.size === s);
+    return inv ? inv.stock > 0 : false;
+  }) || sizes[0];
+
+  const [selectedSize, setSelectedSize] = useState(firstAvailableSize);
   const colors = product.colors || [];
   const [selectedColor, setSelectedColor] = useState(colors.length > 0 ? colors[0] : undefined);
 
@@ -445,20 +456,49 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
               <div className="flex flex-col gap-2 mt-2">
                 <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Size</span>
                 <div className="grid grid-cols-3 gap-3">
-                  {sizes.map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={`
-                        py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all
-                        ${selectedSize === size 
-                          ? 'bg-[#EAF5EC] border-2 border-[#2E7D32] text-[#2E7D32]' 
-                          : 'bg-gray-50 border-2 border-transparent text-gray-700 hover:bg-gray-100'}
-                      `}
-                    >
-                      {size}
-                    </button>
-                  ))}
+                  {sizes.map((size) => {
+                    let outOfStock = false;
+                    let lowStock = false;
+                    let stockLeft = 0;
+                    
+                    if (isInventoryTracked && product.inventory) {
+                      const inv = product.inventory.find(i => i.size === size);
+                      if (inv) {
+                        stockLeft = inv.stock;
+                        outOfStock = inv.stock === 0;
+                        lowStock = inv.stock > 0 && inv.stock <= (product.lowStockThreshold || 3);
+                      } else {
+                        outOfStock = true; // explicitly tracked but size missing = out of stock
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={size}
+                        disabled={outOfStock}
+                        onClick={() => setSelectedSize(size)}
+                        className={`
+                          py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all relative overflow-hidden group
+                          ${outOfStock ? 'opacity-40 cursor-not-allowed bg-gray-50 text-gray-400 border-2 border-transparent line-through' :
+                            selectedSize === size 
+                            ? 'bg-[#EAF5EC] border-2 border-[#2E7D32] text-[#2E7D32]' 
+                            : 'bg-gray-50 border-2 border-transparent text-gray-700 hover:bg-gray-100'}
+                        `}
+                      >
+                        {size}
+                        {lowStock && selectedSize === size && (
+                           <span className="text-[10px] text-amber-600 mt-0.5 leading-none font-bold">
+                             Only {stockLeft} left
+                           </span>
+                        )}
+                        {outOfStock && (
+                          <div className="absolute inset-0 bg-white/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-[10px] bg-red-100 text-red-600 px-1 py-0.5 rounded font-bold uppercase">Sold Out</span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -487,27 +527,38 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
               {/* Actions */}
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">
-                <button 
-                  onClick={handleAddToCart}
-                  className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  Add to cart
-                </button>
-                <button 
-                  onClick={handleBuyNow}
-                  disabled={isNavigating}
-                  className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'}`}
-                >
-                  {isNavigating ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Loading...
-                    </>
-                  ) : "Buy it now"}
-                </button>
+                {isTotallySoldOut ? (
+                  <button 
+                    disabled
+                    className="w-full py-4 rounded-xl bg-gray-200 text-gray-500 text-[14px] font-bold tracking-wide uppercase cursor-not-allowed"
+                  >
+                    Out of Stock
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      onClick={handleAddToCart}
+                      className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      Add to cart
+                    </button>
+                    <button 
+                      onClick={handleBuyNow}
+                      disabled={isNavigating}
+                      className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'}`}
+                    >
+                      {isNavigating ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Loading...
+                        </>
+                      ) : "Buy it now"}
+                    </button>
+                  </>
+                )}
               </div>
 
             </div>
@@ -627,6 +678,8 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                               day: "numeric",
                               month: "short",
                               year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit"
                             })}`
                           : ""}
                       </p>
@@ -819,17 +872,18 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           <div className="absolute bottom-0 left-0 w-full px-4 py-4 md:bottom-8 md:w-auto md:min-w-[400px] flex gap-3 z-[120]">
             <div className="w-full max-w-[450px] mx-auto flex gap-3 bg-white/10 backdrop-blur-xl p-2 rounded-2xl border border-white/20 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
               <button 
+                disabled={isTotallySoldOut}
                 onClick={() => { setActiveVideoUrl(null); handleAddToCart(); }}
-                className={`flex-1 py-3.5 md:py-4 rounded-xl border text-[12px] font-bold tracking-[1.5px] uppercase transition-colors ${isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-[var(--color-text)] bg-white text-[var(--color-text)] hover:bg-gray-50'}`}
+                className={`flex-1 py-3.5 md:py-4 rounded-xl border text-[12px] font-bold tracking-[1.5px] uppercase transition-colors ${isTotallySoldOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : isAdded ? 'border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]' : 'border-[var(--color-text)] bg-white text-[var(--color-text)] hover:bg-gray-50'}`}
               >
-                {isAdded ? "Added to Cart" : "Add to Cart"}
+                {isTotallySoldOut ? "Sold Out" : isAdded ? "Added to Cart" : "Add to Cart"}
               </button>
               <button 
+                disabled={isTotallySoldOut || isNavigating}
                 onClick={() => { setActiveVideoUrl(null); handleBuyNow(); }}
-                disabled={isNavigating}
-                className="flex-1 py-3.5 md:py-4 rounded-xl bg-[var(--color-text)] text-[var(--color-surface)] font-bold text-[12px] tracking-[1.5px] uppercase hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+                className={`flex-1 py-3.5 md:py-4 rounded-xl font-bold text-[12px] tracking-[1.5px] uppercase transition-opacity flex items-center justify-center gap-2 ${isTotallySoldOut ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-[var(--color-text)] text-[var(--color-surface)] hover:opacity-90 disabled:opacity-50'}`}
               >
-                {isNavigating ? "Wait..." : "Buy Now"}
+                {isTotallySoldOut ? "Sold Out" : isNavigating ? "Wait..." : "Buy Now"}
               </button>
             </div>
           </div>

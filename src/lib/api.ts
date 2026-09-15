@@ -62,7 +62,7 @@ export function handleApiError(error: unknown, reqPath?: string) {
     (error as { code?: number }).code === 11000
   ) {
     return NextResponse.json(
-      { error: "Duplicate key — slug or code already exists" },
+      { error: "Duplicate key: record already exists" },
       { status: 409 }
     );
   }

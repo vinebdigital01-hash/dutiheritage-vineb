@@ -3,8 +3,8 @@ import { PolicyPageShell } from "@/components/PolicyPageShell";
 import { getPageContent } from "@/lib/site-content-server";
 
 export const metadata: Metadata = {
-  title: "Return and Exchange Policy | Duti Heritage",
-  description: "Return and Exchange Policy for Duti Heritage",
+  title: "Exchange Policy | Duti Heritage",
+  description: "Exchange policy for Duti Heritage. No returns accepted. Size exchange and defective product exchange available within 24 hours of delivery.",
 };
 
 export default async function ReturnExchangePage() {
@@ -85,7 +85,7 @@ export default async function ReturnExchangePage() {
             How to Raise an Exchange Request
           </h2>
           <ol className="list-decimal pl-5 space-y-2">
-            <li>WhatsApp us at <strong>+91 69010 80808</strong> or email us at <strong>hello@duti-heritage.com</strong></li>
+            <li>WhatsApp us at <strong>+91 7017 194982</strong> or email us at <strong>hello@duti-heritage.com</strong></li>
             <li>Share your Order ID and photos/video of the item received</li>
             <li>Our team will review your request within 24-48 business hours</li>
             <li>Once approved, we will arrange pickup and send the replacement</li>

@@ -8,16 +8,12 @@ export async function PUT(req: NextRequest) {
   try {
     await connectDB();
     const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    const token = authHeader.split("Bearer ")[1];
     let decodedToken;
     try {
-      decodedToken = await verifyIdToken(token);
+      decodedToken = await verifyIdToken(authHeader);
     } catch (err) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const uid = decodedToken.uid;

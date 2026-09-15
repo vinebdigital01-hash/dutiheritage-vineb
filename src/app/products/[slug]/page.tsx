@@ -42,9 +42,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const fallbackDesc = `Discover the exquisite ${product.name} at Duti Heritage. Shop our premium collection of luxury fashion, handcrafted for unmatched elegance, style, and comfort.`;
   const absoluteImageUrl = product.image.startsWith('http') ? product.image : `${baseUrl}${product.image}`;
 
+  const localKeywords = ["Delhi NCR", "Gurugram", "Manesar", "Haryana"];
+  const autoKeywords = [
+    product.name,
+    `buy ${product.name} online`,
+    ...localKeywords.map(loc => `${product.name} in ${loc}`),
+    ...localKeywords.map(loc => `premium ${product.name.split(" ")[0] || "ethnic wear"} in ${loc}`),
+    "Duti Heritage"
+  ];
+
   return {
     title: product.seoTitle || `${product.name} | Duti Heritage`,
     description: product.seoDescription || product.description || fallbackDesc,
+    keywords: autoKeywords,
     alternates: {
       canonical: `${baseUrl}/products/${slug}`,
     },
@@ -52,15 +62,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: product.seoTitle || product.name,
       description: product.seoDescription || product.description || fallbackDesc,
       siteName: "Duti Heritage",
-      url: `${baseUrl}/products/${slug}`,
       images: [
         {
           url: absoluteImageUrl,
-          width: 1200,
-          height: 630,
-          alt: product.name
+          width: 800,
+          height: 800,
+          alt: product.name,
         }
       ],
+      locale: "en_US",
       type: "website",
     },
     twitter: {

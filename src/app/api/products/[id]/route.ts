@@ -133,6 +133,15 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.isPartialCOD !== undefined) existing.isPartialCOD = Boolean(body.isPartialCOD);
     if (body.partialCODAdvance !== undefined) existing.partialCODAdvance = Number(body.partialCODAdvance);
     if (body.isActive !== undefined) existing.isActive = Boolean(body.isActive);
+    if (body.trackInventory !== undefined) existing.trackInventory = Boolean(body.trackInventory);
+    if (body.lowStockThreshold !== undefined) existing.lowStockThreshold = Number(body.lowStockThreshold) || 3;
+    if (body.inventory !== undefined) {
+      existing.inventory = (body.inventory || []).map((i: any) => ({
+        size: String(i.size || "").trim(),
+        stock: Number(i.stock) || 0,
+        sku: String(i.sku || "").trim(),
+      }));
+    }
 
     await existing.save();
     revalidatePath(`/products/${existing.slug}`);

@@ -33,6 +33,7 @@ export default function AdminReviewsPage() {
     userName: "",
     rating: 5,
     comment: "",
+    createdAt: "",
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -132,7 +133,7 @@ export default function AdminReviewsPage() {
       });
       show("Marketing review published!");
       setIsModalOpen(false);
-      setForm({ productId: products[0]?.id || "", userName: "", rating: 5, comment: "" });
+      setForm({ productId: products[0]?.id || "", userName: "", rating: 5, comment: "", createdAt: "" });
       load();
     } catch (e) {
       show(e instanceof AdminApiError ? e.message : "Failed to add review", "error");
@@ -149,7 +150,8 @@ export default function AdminReviewsPage() {
         productName: p.name,
         userName: "Priya Sharma",
         rating: "5",
-        comment: "Amazing product! highly recommended."
+        comment: "Amazing product! highly recommended.",
+        date: "2026-08-15"
       }));
       
       const csv = Papa.unparse(templateData);
@@ -380,6 +382,14 @@ export default function AdminReviewsPage() {
                 value={form.comment}
                 onChange={(e) => setForm({ ...form, comment: e.target.value })}
                 required
+              />
+
+              <AdminInput
+                type="datetime-local"
+                label="Review Date (Optional)"
+                value={form.createdAt}
+                onChange={(e) => setForm({ ...form, createdAt: e.target.value })}
+                placeholder="Leave empty for current time"
               />
 
               <div className="pt-2 flex justify-end gap-2">

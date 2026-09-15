@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const createdReviews = [];
 
     for (const row of reviews) {
-      const { productId, userName, rating, comment } = row;
+      const { productId, userName, rating, comment, date } = row;
       if (!productId || !userName || !rating || !comment) {
         continue; // Skip invalid rows
       }
@@ -28,17 +28,25 @@ export async function POST(request: Request) {
       const numRating = Number(rating);
       if (isNaN(numRating) || numRating < 1 || numRating > 5) continue;
 
-      const doc = await Review.create({
+      const reviewData: any = {
         productId: String(productId).trim(),
-        userId: "MARKETING_REVIEW_BULK",
+        userId: `MARKETING_BULK_${Date.now()}_${Math.random().toString(36).substring(2)}`,
         userName: String(userName).trim(),
         rating: numRating,
         comment: String(comment).trim(),
         images: [],
         status: "approved",
         isVerifiedPurchase: true,
-      });
+      };
 
+      if (date) {
+        const parsedDate = new Date(date);
+        if (!isNaN(parsedDate.getTime()) && parsedDate <= new Date()) {
+          reviewData.createdAt = parsedDate;
+        }
+      }
+
+      const doc = await Review.create(reviewData);
       createdReviews.push(toReview(doc.toObject()));
     }
 

@@ -1,4 +1,4 @@
-import { db } from "@/services/db";
+﻿import { db } from "@/services/db";
 import { Coupon } from "@/models/Coupon";
 import { connectDB } from "@/lib/mongodb";
 import { Product } from "@/models";
@@ -24,36 +24,67 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const slug = searchParams.get("slug");
     const collectionId = searchParams.get("collectionId");
-    const limit = Number(searchParams.get("limit") || "0");
     const includeAll = searchParams.get("all") === "1";
+    
+    // Pagination params
+    const page = Math.max(1, Number(searchParams.get("page") || "1"));
+    const limitParam = Number(searchParams.get("limit"));
+    const limit = limitParam > 0 ? Math.min(limitParam, 100) : 20;
+
+    requireMongo();
+    await connectDB();
 
     if (includeAll) {
-      requireMongo();
       await requireAuth(request, { admin: true });
-      await connectDB();
       const filter: Record<string, unknown> = {};
       if (collectionId) filter.collectionId = collectionId;
       if (slug) filter.slug = slug;
-      const docs = await Product.find(filter).sort({ createdAt: -1 }).lean();
+      
+      const skip = (page - 1) * limit;
+      const [docs, total] = await Promise.all([
+        Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+        Product.countDocuments(filter)
+      ]);
       const products = docs.map((d) => toProduct(d));
-      return jsonOk({ products, count: products.length });
+      return new Response(JSON.stringify({ products, count: products.length, total, page, totalPages: Math.ceil(total / limit) }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
 
     if (slug) {
       const product = await db.getProductBySlug(slug);
-      if (!product) return jsonError("Product not found", 404);
-      return jsonOk({ product });
+      if (!product) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
+      return new Response(JSON.stringify({ product }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300"
+        }
+      });
     }
 
-    let products = collectionId
-      ? await db.getProductsByCollectionId(collectionId)
-      : await db.getAllProducts();
+    const filter: Record<string, unknown> = { isActive: true };
+    if (collectionId) filter.collectionId = collectionId;
+    
+    const skip = (page - 1) * limit;
+    const [docs, total] = await Promise.all([
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Product.countDocuments(filter)
+    ]);
+    const products = docs.map((d) => toProduct(d));
 
-    if (limit > 0) {
-      products = products.slice(0, limit);
-    }
+    return new Response(JSON.stringify({
+      products,
+      count: products.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300"
+      }
+    });
 
-    return jsonOk({ products, count: products.length });
   } catch (error) {
     return handleApiError(error);
   }

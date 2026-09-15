@@ -54,11 +54,22 @@ export async function POST(request: Request) {
 
     const role = await getStaffRole(authUser.email || customer.email);
 
+    let isFrozen = false;
+    if (!role && (authUser.email || customer.email)) {
+      const email = (authUser.email || customer.email || "").toLowerCase();
+      const { Staff } = await import("@/models/Staff");
+      const staffDoc = await Staff.findOne({ email });
+      if (staffDoc && staffDoc.active === false) {
+        isFrozen = true;
+      }
+    }
+
     return jsonOk({
       customer: serializeCustomer(customer),
       profile: serializeCustomer(customer).profile,
       isAdmin: !!role,
       adminRole: role,
+      isFrozen,
       isNew,
     });
   } catch (error) {

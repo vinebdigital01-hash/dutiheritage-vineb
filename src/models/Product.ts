@@ -32,6 +32,19 @@ const ProductSchema = new Schema(
     isPartialCOD: { type: Boolean, default: false },
     partialCODAdvance: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+    lastEditedBy: { type: String },
+    inventory: {
+      type: [{
+        size: { type: String, required: true },
+        stock: { type: Number, required: true, default: 0 },
+        sku: { type: String }
+      }],
+      default: []
+    },
+    trackInventory: { type: Boolean, default: false },
+    lowStockThreshold: { type: Number, default: 3 },
+    stockStatus: { type: String, enum: ["in_stock", "low_stock", "out_of_stock"], default: "in_stock" },
+
   },
   { timestamps: true }
 );
@@ -40,6 +53,7 @@ ProductSchema.index({ name: "text", description: "text", tags: "text" });
 
 ProductSchema.index({ isActive: 1, createdAt: 1 });
 ProductSchema.index({ collectionId: 1, isActive: 1, createdAt: 1 });
+
 
 export type ProductDocument = InferSchemaType<typeof ProductSchema> & {
   _id: Schema.Types.ObjectId;

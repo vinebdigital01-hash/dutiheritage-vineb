@@ -1,4 +1,5 @@
 ﻿import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
+import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
 import { PromoBanner } from "@/components/PromoBanner/PromoBanner";
 import { db } from "@/services/db";
 import {
@@ -21,8 +22,11 @@ export default async function Home() {
     })
   );
 
+  const allProducts = collectionsData.flatMap(d => d ? d.products : []);
+
   return (
     <>
+      <OfflineSync products={allProducts.slice(0, 50)} />
       <h1 className="sr-only">Duti Heritage - Premium Fashion & Luxury Apparel</h1>
       {collectionsData.map((data, index) => {
         if (!data || data.products.length === 0) return null;

@@ -136,10 +136,17 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     if (order.status === "Cancelled" && prevStatus !== "Cancelled") {
+      const { adjustInventory } = await import("@/services/inventory");
+      await adjustInventory(order.items.map(l => ({ productId: l.productId, size: l.size || undefined, quantity: l.quantity })), true);
       void sendOrderCancelled({
         ...notifyBase,
         total: order.total,
       }).catch((e) => console.error("[order_cancelled]", e));
+    }
+    
+    if (order.status === "Returned" && prevStatus !== "Returned") {
+      const { adjustInventory } = await import("@/services/inventory");
+      await adjustInventory(order.items.map(l => ({ productId: l.productId, size: l.size || undefined, quantity: l.quantity })), true);
     }
 
     return jsonOk({ order: toOrder(order.toObject()) });

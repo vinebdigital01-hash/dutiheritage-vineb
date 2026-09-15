@@ -80,10 +80,16 @@ export async function upsertCustomerFromAuth(
 
   const now = new Date();
 
+  let phone10Digit: string | undefined;
+  if (phone) {
+    const p = phone.replace("+", "");
+    phone10Digit = p.length === 12 && p.startsWith("91") ? p.slice(2) : p;
+  }
+
   let customer =
     (await Customer.findOne({ firebaseUid: authUser.uid })) ||
     (email ? await Customer.findOne({ email }) : null) ||
-    (phone ? await Customer.findOne({ phone }) : null);
+    (phone ? await Customer.findOne({ $or: [{ phone }, { phone: phone10Digit }] }) : null);
 
   const addressUpdate =
     payload.address ||

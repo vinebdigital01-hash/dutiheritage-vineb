@@ -112,7 +112,16 @@ export default async function CollectionPage({
                   "item": {
                     "@type": "Product",
                     "name": p.name,
-                    "url": `${baseUrl}/products/${p.slug}`
+                    "url": `${baseUrl}/products/${p.slug}`,
+                    "image": p.image ? (p.image.startsWith('http') ? p.image : `${baseUrl}${p.image}`) : undefined,
+                    "offers": {
+                      "@type": "Offer",
+                      "priceCurrency": "INR",
+                      "price": p.salePrice || p.price,
+                      "itemCondition": "https://schema.org/NewCondition",
+                      "availability": "https://schema.org/InStock",
+                      "url": `${baseUrl}/products/${p.slug}`
+                    }
                   }
                 }))
               }

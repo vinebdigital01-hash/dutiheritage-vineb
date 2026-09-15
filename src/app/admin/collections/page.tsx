@@ -23,6 +23,7 @@ export default function AdminCollectionsPage() {
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDiscountBanner, setEditDiscountBanner] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -68,7 +69,7 @@ export default function AdminCollectionsPage() {
     try {
       await adminFetch(`/api/collections/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: editName }),
+        body: JSON.stringify({ name: editName, discountBanner: editDiscountBanner }),
       });
       setEditId(null);
       show("Collection updated");
@@ -187,6 +188,7 @@ export default function AdminCollectionsPage() {
                           onClick={() => {
                             setEditId(c.id);
                             setEditName(c.name);
+                          setEditDiscountBanner(c.discountBanner || "");
                           }}
                         >
                           Edit

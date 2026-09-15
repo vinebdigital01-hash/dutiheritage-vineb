@@ -3,6 +3,8 @@ export type Collection = {
   name: string;
   slug: string;
   productCount?: number;
+  seoDescription?: string;
+  discountBanner?: string;
 };
 
 export type Product = {
@@ -31,6 +33,14 @@ export type Product = {
   codAvailable?: boolean;
   isPartialCOD?: boolean;
   partialCODAdvance?: number;
+  inventory?: {
+    size: string;
+    stock: number;
+    sku?: string;
+  }[];
+  trackInventory?: boolean;
+  lowStockThreshold?: number;
+  stockStatus?: "in_stock" | "low_stock" | "out_of_stock";
 };
 
 export type UserProfile = {

@@ -1,5 +1,6 @@
 import { placeOrderSchema } from "@/lib/validators";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { waitUntil } from "@vercel/functions";
 import { connectDB } from "@/lib/mongodb";
 import { Order, Coupon, Customer, Cart } from "@/models";
 import { verifyIdToken } from "@/lib/auth";
@@ -109,7 +110,13 @@ export async function POST(request: Request) {
 
     const coupon = await resolveCouponDiscount(body.couponCode, subtotalPreview, {
       productIds: lines.map((l) => l.productId),
-      collectionIds: lines.map((l) => l.collectionId),
+      collectionIds: lines.map((l) => l.collectionId).filter(Boolean) as string[],
+      items: lines.map((l) => ({
+        productId: l.productId,
+        collectionId: l.collectionId,
+        price: l.salePrice ?? l.price,
+        quantity: l.quantity,
+      })),
     });
 
     const totals = computeCheckoutTotals({
@@ -279,6 +286,19 @@ export async function POST(request: Request) {
       status: "Confirmation Pending",
     });
 
+    // Auto-decrement inventory for ordered items
+    const inventoryItems = lines.map((line) => ({
+      productId: line.productId,
+      size: line.size,
+      quantity: line.quantity,
+    }));
+    try {
+      const { adjustInventory } = await import("@/services/inventory");
+      await adjustInventory(inventoryItems, false);
+    } catch (invErr) {
+      console.error("[place-order] inventory adjustment failed:", invErr);
+    }
+
     if (coupon?.code) {
       await Coupon.updateOne(
         { code: coupon.code },
@@ -305,25 +325,27 @@ export async function POST(request: Request) {
 
     const orderDto = toOrder(doc.toObject());
 
-    void sendOrderPlaced({
-      email: c.email || orderDto.customer.email,
-      phone: c.phone || orderDto.customer.phone,
-      name,
-      orderId,
-      total: totals.total,
-      customerId,
-    }).catch((e) => console.error("[order_placed]", e));
-
-    if (isNewGuest) {
-      void sendWelcome({
+        waitUntil(Promise.all([
+      sendOrderPlaced({
         email: c.email || orderDto.customer.email,
         phone: c.phone || orderDto.customer.phone,
         name,
+        orderId,
+        total: totals.total,
         customerId,
-      }).catch((e) => console.error("[welcome]", e));
-    }
-
-    void sendAdminNewOrderAlert(orderId).catch((e) => console.error("[admin_alert]", e));
+      }).catch((e) => console.error("[order_placed]", e)),
+      
+      ...(isNewGuest ? [
+        sendWelcome({
+          email: c.email || orderDto.customer.email,
+          phone: c.phone || orderDto.customer.phone,
+          name,
+          customerId,
+        }).catch((e) => console.error("[welcome]", e))
+      ] : []),
+      
+      sendAdminNewOrderAlert(orderId).catch((e) => console.error("[admin_alert]", e))
+    ]));
 
     return jsonCreated({
       order: orderDto,

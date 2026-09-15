@@ -67,6 +67,11 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
           </div>
         )}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
+          {product.trackInventory && (!product.inventory || product.inventory.every(i => i.stock === 0)) && (
+            <div className="bg-red-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
+              SOLD OUT
+            </div>
+          )}
           {product.tags && product.tags.map(tag => (
              <div key={tag} className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
                {tag}

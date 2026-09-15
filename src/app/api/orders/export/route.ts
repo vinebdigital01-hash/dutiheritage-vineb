@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const paymentMethod = searchParams.get("paymentMethod");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
     const query: any = {};
     if (status) {
       query.status = status;
+    }
+    if (paymentMethod) {
+      query.paymentMethod = paymentMethod;
     }
     
     if (startDate || endDate) {
@@ -76,11 +80,10 @@ export async function GET(request: Request) {
 
     const csvContent = csvLines.join("\n");
 
-    return new Response(csvContent, {
+    return new Response(JSON.stringify({ csv: csvContent }), {
       status: 200,
       headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="orders_export_${new Date().toISOString().split("T")[0]}.csv"`
+        "Content-Type": "application/json"
       }
     });
   } catch (error) {

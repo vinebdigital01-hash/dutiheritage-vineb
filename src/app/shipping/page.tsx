@@ -4,7 +4,7 @@ import { getPageContent } from "@/lib/site-content-server";
 
 export const metadata: Metadata = {
   title: "Delivery & Shipping Policy | Duti Heritage",
-  description: "Delivery and Shipping Policy for Duti Heritage",
+  description: "Free shipping on prepaid orders. Pan India delivery in 3-7 working days. COD available with partial advance. Dispatch within 48-72 hours.",
 };
 
 export default async function ShippingPolicyPage() {
@@ -99,7 +99,7 @@ export default async function ShippingPolicyPage() {
           <p>For shipping queries, reach out to us at:</p>
           <ul className="mt-2 space-y-1">
             <li><strong>Email:</strong> hello@duti-heritage.com</li>
-            <li><strong>Phone:</strong> +91 69010 80808</li>
+            <li><strong>Phone:</strong> +91 7017 194982</li>
           </ul>
         </section>
 

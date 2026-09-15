@@ -1,4 +1,4 @@
-import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
+﻿import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
 
 export const ORDER_STATUSES = [
   "Confirmation Pending",
@@ -93,6 +93,9 @@ const OrderSchema = new Schema(
 
 OrderSchema.index({ firebaseUid: 1, createdAt: -1 });
 OrderSchema.index({ status: 1, createdAt: -1 });
+
+OrderSchema.index({ orderNumber: 1 }, { unique: true });
+OrderSchema.index({ "customer.email": 1 });
 
 export type OrderDocument = InferSchemaType<typeof OrderSchema> & {
   _id: Schema.Types.ObjectId;

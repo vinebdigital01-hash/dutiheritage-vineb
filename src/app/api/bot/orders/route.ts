@@ -1,37 +1,34 @@
-import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/mongodb";
-import { Order } from "@/models/Order";
-import { handleApiError, jsonOk, jsonError } from "@/lib/api";
-import { validateBotApiKey } from "@/lib/bot-auth";
+// src/app/api/bot/orders/route.ts
+//
+// ⚠️ Assumes Order has a `phone` field to match against. If orders are only
+// linked via a Customer reference in your schema, look up the Customer by
+// phone first and query Order by customerId instead.
 
-export async function GET(request: Request) {
+import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/mongodb';
+import { Order } from '@/models/Order';
+import { validateBotApiKey } from '@/lib/bot-auth';
+
+export async function GET(req: NextRequest) {
   try {
-    await await validateBotApiKey(request);
-    
-    const { searchParams } = new URL(request.url);
-    const orderId = searchParams.get("orderId");
-    const phone = searchParams.get("phone");
-
-    await connectDB();
-
-    if (orderId) {
-      const order = await Order.findOne({ orderId });
-      if (!order) {
-        return jsonError("Order not found", 404);
-      }
-      return jsonOk(order);
-    }
-
-    if (phone) {
-      // Extract last 10 digits for loose matching if length > 10, else match exactly or regex
-      const last10 = phone.length >= 10 ? phone.slice(-10) : phone;
-      const orders = await Order.find({ "customer.phone": { $regex: last10, $options: "i" } })
-        .sort({ createdAt: -1 });
-      return jsonOk(orders);
-    }
-    
-    return jsonError("Must provide orderId or phone query param", 400);
+    await validateBotApiKey(req);
   } catch (error) {
-    return handleApiError(error);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const { searchParams } = new URL(req.url);
+  const phone = searchParams.get('phone');
+  const limit = Math.min(Number(searchParams.get('limit') || 8), 20);
+  if (!phone) return NextResponse.json({ error: 'phone is required' }, { status: 400 });
+
+  await connectDB();
+  const orders = await Order.find({ "customer.phone": phone }).sort({ createdAt: -1 }).limit(limit).lean();
+
+  return NextResponse.json({ orders: orders.map(o => ({
+    orderNumber: o.orderId,
+    status: o.status,
+    createdAt: o.createdAt,
+    total: o.total,
+    items: o.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
+  })) });
 }

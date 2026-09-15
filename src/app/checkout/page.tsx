@@ -1,19 +1,24 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { TrustBadges } from "@/components/TrustBadges";
+
 import Image from "next/image";
 import { CldImage } from "next-cloudinary";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
-import { State, City } from "country-state-city";
-import { Product } from "@/types";
 import { getCatalogProducts } from "@/app/actions";
 import { authHeaders, openRazorpayCheckout } from "@/lib/checkout-client";
 import { syncCartToServer } from "@/lib/cart-client";
 import { trackEvent } from "@/lib/track-client";
 import { trackMetaEvent } from "@/lib/meta-pixel";
+import { Product } from "@/types";
 import type { CheckoutSettings } from "@/services/checkout";
 import type { PublicCouponDTO } from "@/lib/coupons";
+import { auth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber, linkWithPhoneNumber, ConfirmationResult } from "firebase/auth";
 
 const isCloudinary = (src: string) => {
   if (!src) return false;
@@ -35,6 +40,57 @@ const FALLBACK_SETTINGS: CheckoutSettings = {
   codEnabled: true,
 };
 
+
+
+let hasProcessedCheckoutUrl = false;
+
+function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: string) => void }) {
+
+  const searchParams = useSearchParams();
+  const { addToCart } = useAppContext();
+  const [processed, setProcessed] = useState(false);
+
+  useEffect(() => {
+    if (hasProcessedCheckoutUrl) return;
+    hasProcessedCheckoutUrl = true;
+    
+    const productSlug = searchParams?.get("product");
+    const couponCode = searchParams?.get("coupon");
+    const size = searchParams?.get("size") || "M";
+
+    const applyData = async () => {
+      try {
+        if (productSlug) {
+          const res = await fetch(`/api/products?slug=${productSlug}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.product) { addToCart(data.product, size); }
+          }
+        }
+        if (couponCode) {
+          onAutoApplyCoupon(couponCode);
+        }
+        
+        if (productSlug || couponCode) {
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete("product");
+          newUrl.searchParams.delete("size");
+          newUrl.searchParams.delete("coupon");
+          window.history.replaceState({}, "", newUrl.toString());
+        }
+      } catch (err) {
+        console.error("Direct checkout link error:", err);
+      } finally {
+        setProcessed(true);
+      }
+    };
+    
+    applyData();
+  }, [searchParams, addToCart, processed, onAutoApplyCoupon]);
+
+  return null;
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, user, userProfile, clearCart, addToCart, updateQuantity, removeFromCart, isInitialized, wishlist } = useAppContext();
@@ -53,6 +109,7 @@ export default function CheckoutPage() {
   const [settings, setSettings] = useState<CheckoutSettings>(FALLBACK_SETTINGS);
   const [availableCoupons, setAvailableCoupons] = useState<PublicCouponDTO[]>([]);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [autoApplyTrigger, setAutoApplyTrigger] = useState<string | null>(null);
 
   // FOMO / Urgency States
   const [timeLeft, setTimeLeft] = useState(600); // 10 mins
@@ -62,6 +119,99 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState({
     email: "", country: "India", firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: ""
   });
+
+  const [indianStates, setIndianStates] = useState<{name: string; isoCode: string}[]>([]);
+  const [indianCities, setIndianCities] = useState<{name: string}[]>([]);
+
+  useEffect(() => {
+    fetch("/api/checkout/locations?type=states")
+      .then(r => r.json())
+      .then(data => setIndianStates(data.states || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!formData.state) { setIndianCities([]); return; }
+    const st = indianStates.find(s => s.name === formData.state);
+    if (!st) return;
+    fetch(`/api/checkout/locations?type=cities&stateCode=${st.isoCode}`)
+      .then(r => r.json())
+      .then(data => setIndianCities(data.cities || []))
+      .catch(() => {});
+  }, [formData.state, indianStates]);
+
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpInput, setOtpInput] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [confResult, setConfResult] = useState<ConfirmationResult | null>(null);
+
+  // Auto-verify if logged in user's saved phone matches
+  useEffect(() => {
+    const currentPhone = formData.phone.trim().replace(/^\+91/, "").replace(/\s/g, "");
+    const savedPhone1 = user?.phone?.replace(/^\+91/, "").replace(/\s/g, "");
+    const savedPhone2 = userProfile?.phone?.replace(/^\+91/, "").replace(/\s/g, "");
+    
+    if (currentPhone && currentPhone.length >= 10 && (currentPhone === savedPhone1 || currentPhone === savedPhone2)) {
+      setPhoneVerified(true);
+      setOtpSent(false);
+      setOtpError("");
+    } else {
+      setPhoneVerified(false);
+      setOtpSent(false);
+      setOtpInput("");
+    }
+  }, [formData.phone, user, userProfile]);
+
+  const setupRecaptcha = () => {
+    if (!(window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "invisible",
+      });
+    }
+  };
+
+  const handleSendOtp = async () => {
+    const phoneNum = formData.phone.trim().replace(/^\+91/, "").replace(/\s/g, "");
+    if (!/^[6-9]\d{9}$/.test(phoneNum)) { setOtpError("Enter valid 10-digit phone number"); return; }
+    
+    setSendingOtp(true); 
+    setOtpError("");
+    
+    try {
+      setupRecaptcha();
+      const appVerifier = (window as any).recaptchaVerifier;
+      const formattedPhone = `+91${phoneNum}`;
+      
+      let confirmationResult;
+      if (auth.currentUser && !auth.currentUser.isAnonymous) {
+        confirmationResult = await linkWithPhoneNumber(auth.currentUser, formattedPhone, appVerifier);
+      } else {
+        confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      }
+      
+      setConfResult(confirmationResult);
+      setOtpSent(true);
+    } catch (err: any) {
+      console.error("Firebase OTP Error:", err);
+      setOtpError(err.message || "Failed to send OTP. Try again.");
+    }
+    setSendingOtp(false);
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!confResult || !otpInput) return;
+    setOtpError("");
+    try {
+      await confResult.confirm(otpInput);
+      setPhoneVerified(true);
+      setOtpSent(false);
+    } catch (err: any) {
+      console.error("OTP Verify Error:", err);
+      setOtpError("Invalid OTP. Please check and try again.");
+    }
+  };
 
   useEffect(() => {
     getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
@@ -208,10 +358,7 @@ export default function CheckoutPage() {
     }
   }, [formData.pinCode, formData.city]);
 
-  const indianStates = State.getStatesOfCountry("IN");
-  const selectedState = indianStates.find(s => s.name === formData.state);
-  const indianCities = selectedState ? City.getCitiesOfState("IN", selectedState.isoCode) : [];
-
+  // Location states are fetched via API
   // ---- PRICING CALCULATIONS (from live settings) ----
   const subtotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   const isFreeShipping = subtotal >= settings.freeShippingAbove;
@@ -280,8 +427,22 @@ export default function CheckoutPage() {
   }, [cart, catalog, wishlist]);
 
   // ---- HANDLERS ----
-  const handleApplyDiscount = async (e: React.FormEvent) => {
-    e.preventDefault();
+  
+  useEffect(() => {
+    if (autoApplyTrigger && cart.length > 0) {
+      setDiscountCode(autoApplyTrigger);
+      // Wait for React to update the state before calling handleApplyDiscount
+      setTimeout(() => {
+        handleApplyDiscount(new Event("submit") as any, autoApplyTrigger);
+        setAutoApplyTrigger(null);
+      }, 500);
+    }
+  }, [autoApplyTrigger, cart]);
+
+  // Modified handleApplyDiscount to accept an optional code override
+  const handleApplyDiscount = async (e: React.FormEvent, overrideCode?: string) => {
+    if (e?.preventDefault) e.preventDefault();
+
     setDiscountError("");
     if (discountApplied) {
       setDiscountApplied(null);
@@ -289,7 +450,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    const code = discountCode.trim().toUpperCase();
+    const code = (overrideCode || discountCode).trim().toUpperCase();
     if (!code) {
       setDiscountError("Enter a coupon code");
       return;
@@ -305,6 +466,12 @@ export default function CheckoutPage() {
           subtotal,
           productIds: cart.map((i) => i.id),
           collectionIds: cart.map((i) => i.collectionId),
+          items: cart.map(i => ({
+            productId: i.id,
+            collectionId: i.collectionId,
+            price: i.salePrice ?? i.price,
+            quantity: i.quantity
+          })),
         }),
       });
       const data = await res.json();
@@ -336,6 +503,13 @@ export default function CheckoutPage() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if ((paymentMethod === "cod" || paymentMethod === "partial") && !phoneVerified) {
+      setCheckoutError("Please verify your phone number with OTP before placing COD order.");
+      setIsProcessing(false);
+      return;
+    }
+
     if (isProcessing) return;
     setCheckoutError(null);
     setIsProcessing(true);
@@ -478,7 +652,8 @@ export default function CheckoutPage() {
   if (cart.length === 0) {
     return (
       <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
-        <div className="max-w-[800px] w-full text-center">
+        <Suspense fallback={null}><CheckoutUrlHandler onAutoApplyCoupon={(code) => setAutoApplyTrigger(code)} /></Suspense>
+                <div className="max-w-[800px] w-full text-center">
           <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-8">Checkout</h1>
           <div className="flex flex-col items-center gap-6">
             <p className="text-[var(--color-text-muted)]">Your cart is empty.</p>
@@ -818,6 +993,31 @@ export default function CheckoutPage() {
 
                 <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Mobile number (For delivery updates)" aria-label="Mobile number (For delivery updates)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
 
+              {/* OTP Verification for COD */}
+              <div id="recaptcha-container"></div>
+              {(paymentMethod === "cod" || paymentMethod === "partial") && !phoneVerified && (
+                <div className="mt-2 space-y-2">
+                  {!otpSent ? (
+                    <button type="button" onClick={handleSendOtp} disabled={sendingOtp || !formData.phone}
+                      className="text-sm px-4 py-2 bg-[var(--color-text)] text-[var(--color-bg)] rounded disabled:opacity-50">
+                      {sendingOtp ? "Sending..." : "Verify Phone (Send OTP)"}
+                    </button>
+                  ) : (
+                    <div className="flex gap-2 items-center">
+                      <input type="text" value={otpInput} onChange={e => setOtpInput(e.target.value)}
+                        placeholder="Enter 6-digit OTP" maxLength={6}
+                        className="flex-1 px-3 py-2 border border-[var(--color-border)] bg-transparent text-sm rounded" />
+                      <button type="button" onClick={handleVerifyOtp}
+                        className="text-sm px-4 py-2 bg-[var(--color-text)] text-[var(--color-bg)] rounded">Verify</button>
+                    </div>
+                  )}
+                  {otpError && <p className="text-red-500 text-xs">{otpError}</p>}
+                </div>
+              )}
+              {phoneVerified && (paymentMethod === "cod" || paymentMethod === "partial") && (
+                <p className="text-green-600 text-xs mt-1">✓ Phone verified</p>
+              )}
+
                 {/* COD Availability Indicator */}
                 {formData.pinCode.length === 6 && (
                   <div className={`flex items-center gap-2 text-[13px] px-4 py-3 rounded-lg font-medium shadow-sm border ${codChecking ? "bg-gray-50 border-gray-200 text-gray-600" : codAvailable ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
@@ -947,7 +1147,11 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
             </div>
           </form>
 
-          {/* Footer Links */}
+          <div className="mt-8 border-t border-[var(--color-border)] pt-8">
+              <TrustBadges className="!border-none !py-0 !border-transparent grid-cols-2 lg:grid-cols-4 gap-y-6" />
+            </div>
+
+            {/* Footer Links */}
           <div className="mt-12 border-t border-[var(--color-border)] pt-6 text-[13px] text-[var(--color-text-muted)] flex gap-6 flex-wrap justify-center lg:justify-start">
             <Link href="/return-exchange" className="hover:text-black font-medium transition-colors">Refund policy</Link>
             <Link href="/shipping" className="hover:text-black font-medium transition-colors">Shipping policy</Link>

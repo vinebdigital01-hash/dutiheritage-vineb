@@ -56,7 +56,13 @@ export async function POST(request: Request) {
 
     const coupon = await resolveCouponDiscount(body.couponCode, subtotalPreview, {
       productIds: lines.map((l) => l.productId),
-      collectionIds: lines.map((l) => l.collectionId),
+      collectionIds: lines.map((l) => l.collectionId).filter(Boolean) as string[],
+      items: lines.map((l) => ({
+        productId: l.productId,
+        collectionId: l.collectionId,
+        price: l.salePrice ?? l.price,
+        quantity: l.quantity,
+      })),
     });
 
     const c = body.customer;

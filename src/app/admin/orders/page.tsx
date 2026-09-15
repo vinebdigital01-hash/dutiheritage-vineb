@@ -130,6 +130,7 @@ export default function AdminOrdersPage() {
   const [exportStatus, setExportStatus] = useState("");
   const [exportStart, setExportStart] = useState("");
   const [exportEnd, setExportEnd] = useState("");
+  const [exportPayment, setExportPayment] = useState("");
   const { user } = useAppContext();
 
   const downloadExport = async () => {
@@ -138,6 +139,7 @@ export default function AdminOrdersPage() {
       if (exportStatus) qs.set("status", exportStatus);
       if (exportStart) qs.set("startDate", exportStart);
       if (exportEnd) qs.set("endDate", exportEnd);
+    if (exportPayment) qs.set("paymentMethod", exportPayment);
       
       const res = await adminFetch<{csv: string}>(`/api/orders/export?${qs.toString()}`);
       

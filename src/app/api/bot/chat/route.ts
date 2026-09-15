@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { ChatMessage } from "@/models/ChatMessage";
 import { ChatSession } from "@/models/ChatSession";
@@ -7,7 +7,7 @@ import { validateBotApiKey } from "@/lib/bot-auth";
 
 export async function GET(request: Request) {
   try {
-    await await validateBotApiKey(request);
+    await validateBotApiKey(request);
     const { searchParams } = new URL(request.url);
     const phone = searchParams.get("phone");
 
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await await validateBotApiKey(request);
+    await validateBotApiKey(request);
     await connectDB();
 
     const body = await request.json();

@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+﻿import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/mongodb";
 import { SiteContent } from "@/models";
 import { requireAuth } from "@/lib/auth";
@@ -18,22 +18,31 @@ async function getOrCreateSiteContent() {
 }
 
 /**
- * GET /api/site-content — public
- * PUT /api/site-content — admin
+ * GET /api/site-content â€” public
+ * PUT /api/site-content â€” admin
  */
 export async function GET() {
   try {
     requireMongo();
     const doc = await getOrCreateSiteContent();
-    return jsonOk({
-      content: {
-        announcementText: doc.announcementText,
-        headerNavLinks: doc.headerNavLinks,
-        homepageSlugs: doc.homepageSlugs,
-        promoBanner: doc.promoBanner,
-        footer: doc.footer,
-      },
-    });
+    return new Response(
+      JSON.stringify({
+        content: {
+          announcementText: doc.announcementText,
+          headerNavLinks: doc.headerNavLinks,
+          homepageSlugs: doc.homepageSlugs,
+          promoBanner: doc.promoBanner,
+          footer: doc.footer,
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      }
+    );
   } catch (error) {
     return handleApiError(error);
   }

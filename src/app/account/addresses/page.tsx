@@ -1,10 +1,9 @@
-"use client";
+﻿"use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FiMapPin, FiPlus, FiEdit2, FiChevronLeft } from "react-icons/fi";
 import { authHeaders } from "@/lib/checkout-client";
-import { State, City } from "country-state-city";
 
 export default function MyAddressesPage() {
   const { userProfile, user } = useAppContext();
@@ -21,8 +20,15 @@ export default function MyAddressesPage() {
     country: "IN",
   });
 
-  const [availableStates, setAvailableStates] = useState(State.getStatesOfCountry("IN"));
-  const [availableCities, setAvailableCities] = useState<any[]>([]);
+  const [availableStates, setAvailableStates] = useState<{name: string; isoCode: string}[]>([]);
+  const [availableCities, setAvailableCities] = useState<{name: string}[]>([]);
+
+  useEffect(() => {
+    fetch("/api/checkout/locations?type=states")
+      .then(r => r.json())
+      .then(data => setAvailableStates(data.states || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (userProfile) {
@@ -38,12 +44,17 @@ export default function MyAddressesPage() {
   }, [userProfile]);
 
   useEffect(() => {
-    if (formData.state) {
-      setAvailableCities(City.getCitiesOfState("IN", formData.state));
-    } else {
+    if (!formData.state) {
       setAvailableCities([]);
+      return;
     }
-  }, [formData.state]);
+    const st = availableStates.find(s => s.name === formData.state || s.isoCode === formData.state);
+    if (!st) return;
+    fetch(`/api/checkout/locations?type=cities&stateCode=${st.isoCode}`)
+      .then(r => r.json())
+      .then(data => setAvailableCities(data.cities || []))
+      .catch(() => {});
+  }, [formData.state, availableStates]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

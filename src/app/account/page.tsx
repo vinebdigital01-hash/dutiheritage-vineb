@@ -1,5 +1,6 @@
 "use client";
 import { SkeletonPage } from '@/components/ui/Skeleton';
+import { Metadata } from "next";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
@@ -21,7 +22,8 @@ import {
   signInWithPhoneNumber,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  sendSignInLinkToEmail
+  sendSignInLinkToEmail,
+  signInWithCustomToken
 } from "firebase/auth";
 import { checkEmailExists } from "@/lib/auth-client";
 import { AccountOrders } from "@/components/AccountOrders";
@@ -83,6 +85,7 @@ export default function AccountPage() {
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
+  const [otpMethod, setOtpMethod] = useState<"sms" | "whatsapp">("sms");
   
   // Status States
   const [error, setError] = useState<string | null>(null);
@@ -108,21 +111,33 @@ export default function AccountPage() {
     setLoading(true);
     setError(null);
     setMessage(null);
+    setOtpMethod(method);
 
     try {
-      setupRecaptcha();
-      const appVerifier = window.recaptchaVerifier;
-      // Format number to ensure it has a country code. Defaulting to India if none provided.
       const formattedNumber = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
-      
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
-      window.confirmationResult = confirmationResult;
-      setShowOTP(true);
-      setMessage(`OTP sent to ${formattedNumber}`);
+
+      if (method === 'whatsapp') {
+        const res = await fetch("/api/auth/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: formattedNumber })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to send WhatsApp OTP");
+        
+        setShowOTP(true);
+        setMessage(`WhatsApp OTP sent to ${formattedNumber}`);
+      } else {
+        setupRecaptcha();
+        const appVerifier = window.recaptchaVerifier;
+        const confirmationResult = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
+        window.confirmationResult = confirmationResult;
+        setShowOTP(true);
+        setMessage(`SMS OTP sent to ${formattedNumber}`);
+      }
     } catch (err: any) {
       setError(getCleanErrorMessage(err));
-      // Reset recaptcha if it fails
-      if (window.recaptchaVerifier) {
+      if (method === 'sms' && window.recaptchaVerifier) {
         window.recaptchaVerifier.clear();
         window.recaptchaVerifier = null;
       }
@@ -139,10 +154,23 @@ export default function AccountPage() {
     setError(null);
 
     try {
-      await window.confirmationResult.confirm(otp);
+      if (otpMethod === 'whatsapp') {
+        const formattedNumber = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
+        const res = await fetch("/api/auth/whatsapp/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: formattedNumber, otp })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Invalid OTP");
+        
+        await signInWithCustomToken(auth, data.token);
+      } else {
+        await window.confirmationResult.confirm(otp);
+      }
       // Success! AppContext will handle the redirect.
     } catch (err: any) {
-      setError("Invalid OTP code. Please try again.");
+      setError(err.message || "Invalid OTP code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -519,10 +547,7 @@ export default function AccountPage() {
                     </button>
                     <button 
                       type="button"
-                      onClick={(e) => {
-                        alert("WhatsApp OTP requires backend integration (e.g. Twilio). Sending via SMS for now.");
-                        handleSendOTP(e, 'whatsapp');
-                      }}
+                      onClick={(e) => handleSendOTP(e, 'whatsapp')}
                       disabled={loading}
                       className="flex-1 bg-[#25D366] text-white text-[12px] tracking-[1px] uppercase py-4 hover:opacity-90 transition-opacity disabled:opacity-50"
                     >

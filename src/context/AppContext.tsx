@@ -30,6 +30,7 @@ interface AppContextType {
   user: { name: string; email: string; uid: string; phone?: string } | null;
   userProfile: UserProfile | null;
   isAdmin: boolean;
+  isFrozen: boolean;
   adminRole: string | null;
   authLoading: boolean;
   login: (email: string) => void;
@@ -47,6 +48,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<{ name: string; email: string; uid: string; phone?: string } | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
   const [adminRole, setAdminRole] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -77,28 +79,26 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           phone: firebaseUser.phoneNumber || undefined
         });
 
-        const synced = await syncAuthToBackend(firebaseUser);
+        const token = await firebaseUser.getIdToken();
+        const [synced, wRes] = await Promise.all([
+          syncAuthToBackend(firebaseUser),
+          fetch("/api/wishlist", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null)
+        ]);
+
         setUserProfile(synced.profile);
         setIsAdmin(synced.isAdmin);
+        setIsFrozen(synced.isFrozen || false);
         setAdminRole(synced.adminRole || null);
 
-        // Fetch wishlist items
-        try {
-          const token = await firebaseUser.getIdToken();
-          const wRes = await fetch("/api/wishlist", {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (wRes.ok) {
-            const wData = await wRes.json();
-            setWishlist(wData.wishlists.map((w: any) => w.productId));
-          }
-        } catch (e) {
-          console.error("Failed to load wishlist", e);
+        if (wRes && wRes.ok) {
+          const wData = await wRes.json();
+          setWishlist(wData.wishlists?.map((w: any) => w.productId) || []);
         }
       } else {
         setUser(null);
         setUserProfile(null);
         setIsAdmin(false);
+        setIsFrozen(false);
         setAdminRole(null);
       }
       setAuthLoading(false);
@@ -232,6 +232,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = React.useCallback(async () => {
     try {
       await signOut(auth);
+      window.location.href = "/";
     } catch (error) {
       console.error("Error signing out", error);
     }
@@ -253,6 +254,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     userProfile,
     isAdmin,
     adminRole,
+    isFrozen,
     authLoading,
     login,
     logout,

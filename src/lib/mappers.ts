@@ -30,6 +30,10 @@ export function toProduct(doc: LeanDoc): Product & { isActive?: boolean } {
     isPartialCOD: (doc.isPartialCOD as boolean | undefined) ?? false,
     partialCODAdvance: (doc.partialCODAdvance as number | undefined) ?? 0,
     isActive: doc.isActive !== false,
+    inventory: ((doc.inventory as any[]) || []).map((i: any) => ({ size: String(i.size || ""), stock: Number(i.stock || 0), sku: String(i.sku || "") })),
+    trackInventory: Boolean(doc.trackInventory),
+    lowStockThreshold: (doc.lowStockThreshold as number | undefined) ?? 3,
+    stockStatus: (doc.stockStatus as Product["stockStatus"]) ?? "in_stock",
   };
 }
 

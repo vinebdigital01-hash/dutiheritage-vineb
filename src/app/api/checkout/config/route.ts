@@ -10,10 +10,10 @@ export async function GET() {
     requireMongo();
     const settings = await getCheckoutSettings();
 
-    return jsonOk({
+    return new Response(JSON.stringify({
       ...settings,
       razorpayEnabled: isRazorpayConfigured(),
-    });
+    }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, s-maxage=300" } });
   } catch (error) {
     return handleApiError(error);
   }

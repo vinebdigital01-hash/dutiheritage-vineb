@@ -41,6 +41,9 @@ type FormState = {
   partialCODAdvance: string;
   isActive: boolean;
   offers: OfferForm[];
+  trackInventory: boolean;
+  lowStockThreshold: string;
+  inventory: { size: string; stock: string; sku: string }[];
 };
 
 const emptyForm = (): FormState => ({
@@ -64,6 +67,9 @@ const emptyForm = (): FormState => ({
     partialCODAdvance: "0",
     isActive: true,
   offers: [],
+  trackInventory: false,
+  lowStockThreshold: "3",
+  inventory: []
 });
 
 function slugify(s: string) {
@@ -97,9 +103,83 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     partialCODAdvance: String(p.partialCODAdvance || 0),
     isActive: p.isActive !== false,
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
+    trackInventory: p.trackInventory || false,
+    lowStockThreshold: String(p.lowStockThreshold || 3),
+    inventory: (p.inventory || []).map(i => ({ size: i.size || "", stock: String(i.stock), sku: i.sku || "" }))
   };
 }
 
+
+function CharCounter({ current, max, recommended }: { current: number, max: number, recommended?: number }) {
+  let color = "bg-neutral-200";
+  let textColor = "text-neutral-500";
+  const percentage = (current / max) * 100;
+  
+  if (recommended && current > 0) {
+    if (current <= recommended) {
+      color = "bg-emerald-500";
+      textColor = "text-emerald-600";
+    } else if (current <= max * 0.9) {
+      color = "bg-amber-400";
+      textColor = "text-amber-600";
+    } else {
+      color = "bg-red-500";
+      textColor = "text-red-600";
+    }
+  } else if (current > 0) {
+    if (percentage > 90) {
+      color = "bg-red-500";
+      textColor = "text-red-600";
+    } else if (percentage > 75) {
+      color = "bg-amber-400";
+      textColor = "text-amber-600";
+    } else {
+      color = "bg-emerald-500";
+      textColor = "text-emerald-600";
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1 mt-1">
+      <div className="w-full h-1 bg-neutral-100 rounded-full overflow-hidden">
+        <div 
+          className={`h-full transition-all duration-300 ${color}`} 
+          style={{ width: `${Math.min(percentage, 100)}%` }} 
+        />
+      </div>
+      <div className={`flex justify-between text-[10px] ${textColor}`}>
+        <span>{current} / {max} chars</span>
+        {recommended ? <span>Recommended: {recommended}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function GooglePreview({ title, description, slug }: { title: string, description: string, slug: string }) {
+  const displayTitle = title || "Product Title";
+  const displayDesc = description || "No meta description provided. Google will try to find a relevant part of your page text to show here.";
+  
+  return (
+    <div className="mt-4 p-4 border rounded-lg bg-white shadow-sm font-sans col-span-full">
+      <p className="text-[12px] text-neutral-500 uppercase tracking-widest mb-3">Google Search Preview</p>
+      <div className="max-w-[600px]">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-6 h-6 bg-neutral-100 rounded-full flex items-center justify-center text-xs">DH</div>
+          <div>
+            <p className="text-[14px] text-[#202124] leading-tight">Duti Heritage</p>
+            <p className="text-[12px] text-[#4d5156] leading-tight">https://www.dutiheritage.co.in › products › {slug || 'product-slug'}</p>
+          </div>
+        </div>
+        <h3 className="text-[20px] text-[#1a0dab] cursor-pointer hover:underline leading-normal truncate">
+          {displayTitle} | Duti Heritage
+        </h3>
+        <p className="text-[14px] text-[#4d5156] mt-1 leading-snug line-clamp-2">
+          {displayDesc}
+        </p>
+      </div>
+    </div>
+  );
+}
 export function ProductForm({ productId }: { productId?: string }) {
   const router = useRouter();
   const { show, Toast } = useToast();
@@ -197,6 +277,8 @@ export function ProductForm({ productId }: { productId?: string }) {
           partialCODAdvance: Number(form.partialCODAdvance) || 0,
           isActive: form.isActive,
           offers: (form.offers || []).filter(o => o.title.trim() && o.description.trim()),
+          trackInventory: form.trackInventory,
+          inventory: form.inventory.map(i => ({ size: i.size.trim(), stock: Number(i.stock) || 0, sku: i.sku.trim() })),
         };
 
       if (!payload.name || !payload.image || !payload.collectionId) {
@@ -254,20 +336,166 @@ export function ProductForm({ productId }: { productId?: string }) {
         onSubmit={onSubmit}
         className="bg-white border border-[var(--color-border)] rounded-xl p-5 md:p-8 shadow-sm space-y-8"
       >
+
+        {/* INVENTORY SECTION */}
+        <section className="space-y-6 border border-[var(--color-border)] rounded-xl p-5 bg-neutral-50/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[14px] font-bold tracking-[1px] uppercase text-neutral-800 mb-1">
+                Inventory Management
+              </p>
+              <p className="text-[12px] text-neutral-500">
+                Track per-size stock. If disabled, product is always in stock.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.trackInventory}
+                onChange={(e) => set("trackInventory", e.target.checked)}
+                className="w-4 h-4 accent-black"
+              />
+              <span className="text-[13px] font-medium">Track Inventory</span>
+            </label>
+          </div>
+
+          {form.trackInventory && (
+            <div className="space-y-4 pt-4 border-t border-[var(--color-border)]">
+              <div className="flex justify-between items-end">
+                <div className="max-w-[200px]">
+                  <AdminInput
+                    label="Low Stock Alert Threshold"
+                    type="number"
+                    min="0"
+                    value={form.lowStockThreshold}
+                    onChange={(e) => set("lowStockThreshold", e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newInventory = form.sizes.map(size => {
+                        const existing = form.inventory.find(i => i.size === size);
+                        return { size, stock: "0", sku: existing?.sku || "" };
+                      });
+                      set("inventory", newInventory as any);
+                    }}
+                    className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider bg-white border border-neutral-300 rounded hover:bg-neutral-50"
+                  >
+                    Set All Out of Stock
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[var(--color-border)] rounded-lg overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-50 text-[11px] font-bold tracking-[1px] uppercase text-neutral-500">
+                      <th className="p-3 border-b">Size</th>
+                      <th className="p-3 border-b">Stock Qty</th>
+                      <th className="p-3 border-b">SKU (Optional)</th>
+                      <th className="p-3 border-b">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {form.sizes.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-4 text-center text-[13px] text-neutral-500">
+                          Please add sizes above first.
+                        </td>
+                      </tr>
+                    ) : (
+                      form.sizes.map((size) => {
+                        const invIndex = form.inventory.findIndex(i => i.size === size);
+                        const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
+                        const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
+                        const stockNum = Number(currentStock) || 0;
+                        const lowThreshold = Number(form.lowStockThreshold) || 3;
+                        
+                        let statusColor = "bg-emerald-100 text-emerald-800";
+                        let statusText = "In Stock";
+                        if (stockNum === 0) {
+                          statusColor = "bg-red-100 text-red-800";
+                          statusText = "Out of Stock";
+                        } else if (stockNum <= lowThreshold) {
+                          statusColor = "bg-amber-100 text-amber-800";
+                          statusText = "Low Stock";
+                        }
+
+                        return (
+                          <tr key={size}>
+                            <td className="p-3 font-medium text-[14px]">{size}</td>
+                            <td className="p-3 max-w-[120px]">
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentStock}
+                                onChange={(e) => {
+                                  const newInventory = [...form.inventory];
+                                  const idx = newInventory.findIndex(i => i.size === size);
+                                  if (idx >= 0) {
+                                    newInventory[idx].stock = e.target.value;
+                                  } else {
+                                    newInventory.push({ size, stock: e.target.value, sku: "" });
+                                  }
+                                  set("inventory", newInventory as any);
+                                }}
+                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={currentSku}
+                                onChange={(e) => {
+                                  const newInventory = [...form.inventory];
+                                  const idx = newInventory.findIndex(i => i.size === size);
+                                  if (idx >= 0) {
+                                    newInventory[idx].sku = e.target.value;
+                                  } else {
+                                    newInventory.push({ size, stock: "0", sku: e.target.value });
+                                  }
+                                  set("inventory", newInventory as any);
+                                }}
+                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                                placeholder={`DH-${form.slug || 'sku'}-${size}`}
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded ${statusColor}`}>
+                                {statusText}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="grid md:grid-cols-2 gap-5">
-          <AdminInput
-            label="Name *"
-            required
-            value={form.name}
-            onChange={(e) => {
-              const name = e.target.value;
-              setForm((prev) => ({
-                ...prev,
-                name,
-                slug: prev.slug && isEdit ? prev.slug : slugify(name),
-              }));
-            }}
-          />
+          <div>
+            <AdminInput
+              label="Name *"
+              required
+              value={form.name}
+              onChange={(e) => {
+                const name = e.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  name,
+                  slug: prev.slug && isEdit ? prev.slug : slugify(name),
+                }));
+              }}
+              maxLength={80}
+            />
+            <CharCounter current={form.name.length} max={80} recommended={60} />
+          </div>
           <AdminInput
             label="Slug"
             value={form.slug}
@@ -334,11 +562,15 @@ export function ProductForm({ productId }: { productId?: string }) {
           />
         </section>
 
-        <AdminTextarea
-          label="Description"
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-        />
+        <div>
+          <AdminTextarea
+            label="Description"
+            value={form.description}
+            onChange={(e) => set("description", e.target.value)}
+            maxLength={5000}
+          />
+          <CharCounter current={form.description.length} max={5000} />
+        </div>
 
         <section className="space-y-6 border border-[var(--color-border)] rounded-xl p-5 bg-neutral-50/50">
           <div>
@@ -577,17 +809,171 @@ export function ProductForm({ productId }: { productId?: string }) {
           </div>
         </div>
 
+
+        {/* INVENTORY SECTION */}
+        <section className="space-y-6 border border-[var(--color-border)] rounded-xl p-5 bg-neutral-50/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[14px] font-bold tracking-[1px] uppercase text-neutral-800 mb-1">
+                Inventory Management
+              </p>
+              <p className="text-[12px] text-neutral-500">
+                Track per-size stock. If disabled, product is always in stock.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.trackInventory}
+                onChange={(e) => set("trackInventory", e.target.checked)}
+                className="w-4 h-4 accent-black"
+              />
+              <span className="text-[13px] font-medium">Track Inventory</span>
+            </label>
+          </div>
+
+          {form.trackInventory && (
+            <div className="space-y-4 pt-4 border-t border-[var(--color-border)]">
+              <div className="flex justify-between items-end">
+                <div className="max-w-[200px]">
+                  <AdminInput
+                    label="Low Stock Alert Threshold"
+                    type="number"
+                    min="0"
+                    value={form.lowStockThreshold}
+                    onChange={(e) => set("lowStockThreshold", e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newInventory = form.sizes.map(size => {
+                        const existing = form.inventory.find(i => i.size === size);
+                        return { size, stock: "0", sku: existing?.sku || "" };
+                      });
+                      set("inventory", newInventory as any);
+                    }}
+                    className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider bg-white border border-neutral-300 rounded hover:bg-neutral-50"
+                  >
+                    Set All Out of Stock
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[var(--color-border)] rounded-lg overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-50 text-[11px] font-bold tracking-[1px] uppercase text-neutral-500">
+                      <th className="p-3 border-b">Size</th>
+                      <th className="p-3 border-b">Stock Qty</th>
+                      <th className="p-3 border-b">SKU (Optional)</th>
+                      <th className="p-3 border-b">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {form.sizes.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-4 text-center text-[13px] text-neutral-500">
+                          Please add sizes above first.
+                        </td>
+                      </tr>
+                    ) : (
+                      form.sizes.map((size) => {
+                        const invIndex = form.inventory.findIndex(i => i.size === size);
+                        const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
+                        const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
+                        const stockNum = Number(currentStock) || 0;
+                        const lowThreshold = Number(form.lowStockThreshold) || 3;
+                        
+                        let statusColor = "bg-emerald-100 text-emerald-800";
+                        let statusText = "In Stock";
+                        if (stockNum === 0) {
+                          statusColor = "bg-red-100 text-red-800";
+                          statusText = "Out of Stock";
+                        } else if (stockNum <= lowThreshold) {
+                          statusColor = "bg-amber-100 text-amber-800";
+                          statusText = "Low Stock";
+                        }
+
+                        return (
+                          <tr key={size}>
+                            <td className="p-3 font-medium text-[14px]">{size}</td>
+                            <td className="p-3 max-w-[120px]">
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentStock}
+                                onChange={(e) => {
+                                  const newInventory = [...form.inventory];
+                                  const idx = newInventory.findIndex(i => i.size === size);
+                                  if (idx >= 0) {
+                                    newInventory[idx].stock = e.target.value;
+                                  } else {
+                                    newInventory.push({ size, stock: e.target.value, sku: "" });
+                                  }
+                                  set("inventory", newInventory as any);
+                                }}
+                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={currentSku}
+                                onChange={(e) => {
+                                  const newInventory = [...form.inventory];
+                                  const idx = newInventory.findIndex(i => i.size === size);
+                                  if (idx >= 0) {
+                                    newInventory[idx].sku = e.target.value;
+                                  } else {
+                                    newInventory.push({ size, stock: "0", sku: e.target.value });
+                                  }
+                                  set("inventory", newInventory as any);
+                                }}
+                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                                placeholder={`DH-${form.slug || 'sku'}-${size}`}
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded ${statusColor}`}>
+                                {statusText}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="grid md:grid-cols-2 gap-5">
-          <AdminInput
-            label="SEO title"
-            value={form.seoTitle}
-            onChange={(e) => set("seoTitle", e.target.value)}
-          />
-          <AdminTextarea
-            label={`SEO description (${form.seoDescription.length} chars)`}
-            value={form.seoDescription}
-            onChange={(e) => set("seoDescription", e.target.value)}
-            maxLength={200}
+          <div>
+            <AdminInput
+              label="SEO title"
+              value={form.seoTitle}
+              onChange={(e) => set("seoTitle", e.target.value)}
+              maxLength={70}
+            />
+            <CharCounter current={form.seoTitle.length} max={70} recommended={60} />
+          </div>
+          <div>
+            <AdminTextarea
+              label="SEO description"
+              value={form.seoDescription}
+              onChange={(e) => set("seoDescription", e.target.value)}
+              maxLength={200}
+            />
+            <CharCounter current={form.seoDescription.length} max={200} recommended={160} />
+          </div>
+          <GooglePreview 
+            title={form.seoTitle || form.name} 
+            description={form.seoDescription || form.description} 
+            slug={form.slug} 
           />
         </section>
 

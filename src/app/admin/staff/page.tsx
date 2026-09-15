@@ -79,13 +79,32 @@ export default function StaffPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this staff member?")) return;
+    if (!confirm("Are you sure you want to permanently remove this staff member?")) return;
     if (!user) return;
     try {
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
       await fetch(`/api/staff/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchStaff();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleFreeze = async (id: string, currentActive: boolean) => {
+    if (!confirm(`Are you sure you want to ${currentActive ? 'freeze' : 'unfreeze'} this staff member?`)) return;
+    if (!user) return;
+    try {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
+      await fetch(`/api/staff/${id}`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ active: !currentActive }),
       });
       fetchStaff();
     } catch (err) {
@@ -141,14 +160,15 @@ export default function StaffPage() {
             <tr>
               <th className="px-4 py-3 font-medium">Name & Email</th>
               <th className="px-4 py-3 font-medium">Role</th>
+              <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {staff.map((s) => (
-              <tr key={s._id} className="hover:bg-neutral-50/50">
+              <tr key={s._id} className={`hover:bg-neutral-50/50 ${s.active === false ? "opacity-60 bg-neutral-100/50" : ""}`}>
                 <td className="px-4 py-3">
-                  <div className="font-medium">{s.name}</div>
+                  <div className={`font-medium ${s.active === false ? "line-through text-neutral-500" : ""}`}>{s.name}</div>
                   <div className="text-neutral-500 text-xs">{s.email}</div>
                 </td>
                 <td className="px-4 py-3">
@@ -158,18 +178,31 @@ export default function StaffPage() {
                   </span>
                   {s.isEnv && <span className="ml-2 text-[10px] text-neutral-400">(.env.local)</span>}
                 </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold tracking-[1px] uppercase ${s.active !== false ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>
+                    {s.active !== false ? "🟢 Active" : "🔴 Frozen"}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right">
                   {!s.isEnv && (
-                    <button onClick={() => handleDelete(s._id)} className="p-2 text-neutral-400 hover:text-red-500 transition-colors" title="Remove staff">
-                      <FiTrash2 />
-                    </button>
+                    <div className="flex justify-end items-center gap-3">
+                      <button 
+                        onClick={() => handleToggleFreeze(s._id, s.active !== false)} 
+                        className={`text-[11px] font-bold tracking-[1px] uppercase transition-colors ${s.active !== false ? "text-red-600 hover:text-red-800" : "text-emerald-600 hover:text-emerald-800"}`}
+                      >
+                        {s.active !== false ? "Freeze" : "Unfreeze"}
+                      </button>
+                      <button onClick={() => handleDelete(s._id)} className="p-2 text-neutral-400 hover:text-red-500 transition-colors" title="Delete permanently">
+                        <FiTrash2 />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
             ))}
             {staff.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-neutral-400 text-sm">
+                <td colSpan={4} className="px-4 py-8 text-center text-neutral-400 text-sm">
                   No staff members found.
                 </td>
               </tr>

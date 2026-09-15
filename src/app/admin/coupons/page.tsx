@@ -23,9 +23,11 @@ export default function AdminCouponsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     code: "",
-    discountType: "PERCENT" as "PERCENT" | "FLAT",
+    discountType: "PERCENT" as "PERCENT" | "FLAT" | "BUY_X_PERCENT" | "BUY_X_GET_Y_FREE",
     discountValue: "",
     minOrderAmount: "0",
+    minQuantity: "2",
+    freeQuantity: "1",
     scope: "ALL_PRODUCTS" as "ALL_PRODUCTS" | "SPECIFIC_PRODUCTS" | "SPECIFIC_CATEGORY",
     targetIds: [] as string[]
   });
@@ -62,8 +64,10 @@ export default function AdminCouponsPage() {
         body: JSON.stringify({
           code: form.code,
           discountType: form.discountType,
-          discountValue: Number(form.discountValue),
+          discountValue: Number(form.discountValue) || 0,
           minOrderAmount: Number(form.minOrderAmount) || 0,
+          minQuantity: Number(form.minQuantity) || 0,
+          freeQuantity: Number(form.freeQuantity) || 0,
           scope: form.scope,
           targetIds: form.targetIds,
           active: true,
@@ -74,6 +78,8 @@ export default function AdminCouponsPage() {
         discountType: "PERCENT",
         discountValue: "",
         minOrderAmount: "0",
+        minQuantity: "2",
+        freeQuantity: "1",
         scope: "ALL_PRODUCTS",
         targetIds: []
       });
@@ -119,13 +125,39 @@ export default function AdminCouponsPage() {
       <form onSubmit={create} className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-8 shadow-sm space-y-4">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <AdminInput label="Code *" required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="DIWALI50" />
-          <AdminSelect label="Type" value={form.discountType} onChange={(e) => setForm((f) => ({ ...f, discountType: e.target.value as "PERCENT" | "FLAT" }))}>
-            <option value="PERCENT">Percent %</option>
-            <option value="FLAT">Flat â‚¹</option>
+          <AdminSelect label="Discount Type" value={form.discountType} onChange={(e) => setForm((f) => ({ ...f, discountType: e.target.value as any }))}>
+            <option value="PERCENT">Percent Off (%)</option>
+            <option value="FLAT">{`Flat Off (\u20B9)`}</option>
+            <option value="BUY_X_PERCENT">Buy X, Get Y% Off</option>
+            <option value="BUY_X_GET_Y_FREE">Buy X, Get Y Free</option>
           </AdminSelect>
-          <AdminInput label="Value *" type="number" min={0} required value={form.discountValue} onChange={(e) => setForm((f) => ({ ...f, discountValue: e.target.value }))} />
-          <AdminInput label="Min order â‚¹" type="number" min={0} value={form.minOrderAmount} onChange={(e) => setForm((f) => ({ ...f, minOrderAmount: e.target.value }))} />
+          {form.discountType === "BUY_X_PERCENT" && (
+            <>
+              <AdminInput label="Min Quantity (Buy X) *" type="number" min={1} required value={form.minQuantity} onChange={(e) => setForm((f) => ({ ...f, minQuantity: e.target.value }))} placeholder="2" />
+              <AdminInput label="Discount % (Y%) *" type="number" min={0} max={100} required value={form.discountValue} onChange={(e) => setForm((f) => ({ ...f, discountValue: e.target.value }))} placeholder="15" />
+            </>
+          )}
+          {form.discountType === "BUY_X_GET_Y_FREE" && (
+            <>
+              <AdminInput label="Min Quantity (Buy X) *" type="number" min={1} required value={form.minQuantity} onChange={(e) => setForm((f) => ({ ...f, minQuantity: e.target.value }))} placeholder="3" />
+              <AdminInput label="Free Items (Get Y) *" type="number" min={1} required value={form.freeQuantity} onChange={(e) => setForm((f) => ({ ...f, freeQuantity: e.target.value }))} placeholder="1" />
+            </>
+          )}
+          {(form.discountType === "PERCENT" || form.discountType === "FLAT") && (
+            <>
+              <AdminInput label="Value *" type="number" min={0} required value={form.discountValue} onChange={(e) => setForm((f) => ({ ...f, discountValue: e.target.value }))} />
+              <AdminInput label={`Min order (\u20B9)`} type="number" min={0} value={form.minOrderAmount} onChange={(e) => setForm((f) => ({ ...f, minOrderAmount: e.target.value }))} />
+            </>
+          )}
         </div>
+
+        {(form.discountType === "BUY_X_PERCENT" || form.discountType === "BUY_X_GET_Y_FREE") && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-[13px] text-blue-800">
+            {form.discountType === "BUY_X_PERCENT"
+              ? `Preview: Buy ${form.minQuantity || "X"} items, get ${form.discountValue || "Y"}% off`
+              : `Preview: Buy ${form.minQuantity || "X"} items, get ${form.freeQuantity || "Y"} item(s) free (cheapest)`}
+          </div>
+        )}
         
         <div className="grid md:grid-cols-2 gap-4 items-start pt-4 border-t border-gray-100">
           <AdminSelect label="Coupon Scope" value={form.scope} onChange={(e) => setForm((f) => ({ ...f, scope: e.target.value as any, targetIds: [] }))}>
@@ -190,7 +222,10 @@ export default function AdminCouponsPage() {
                       {c.code}
                     </td>
                     <td className="p-4">
-                      {c.discountType === "PERCENT" ? `${c.discountValue}%` : `â‚¹${c.discountValue}`}
+                      {c.discountType === "PERCENT" && `${c.discountValue}%`}
+                      {c.discountType === "FLAT" && `\u20B9${c.discountValue}`}
+                      {c.discountType === "BUY_X_PERCENT" && `Buy ${c.minQuantity}, ${c.discountValue}% off`}
+                      {c.discountType === "BUY_X_GET_Y_FREE" && `Buy ${c.minQuantity}, ${c.freeQuantity} free`}
                     </td>
                     <td className="p-4">
                       {c.scope === "ALL_PRODUCTS" && <Badge tone="info">All Products</Badge>}
@@ -198,7 +233,7 @@ export default function AdminCouponsPage() {
                       {c.scope === "SPECIFIC_PRODUCTS" && <Badge tone="neutral">{c.targetIds.length} Products</Badge>}
                     </td>
                     <td className="p-4">
-                      {c.minOrderAmount > 0 ? `â‚¹${c.minOrderAmount}` : "-"}
+                      {c.minOrderAmount > 0 ? `\u20B9${c.minOrderAmount}` : "-"}
                     </td>
                     <td className="p-4 text-neutral-500">{c.usedCount}</td>
                     <td className="p-4">

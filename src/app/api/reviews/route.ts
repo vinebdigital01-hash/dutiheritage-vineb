@@ -43,10 +43,10 @@ export async function GET(request: Request) {
       const status = searchParams.get("status");
       if (status) filter.status = status;
       const docs = await Review.find(filter).sort({ createdAt: -1 }).limit(200).lean();
-      return jsonOk({
+      return new Response(JSON.stringify({
         reviews: docs.map((d) => toReview(d)),
         count: docs.length,
-      });
+      }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } });
     }
 
     const docs = await Review.find({
@@ -65,11 +65,11 @@ export async function GET(request: Request) {
           ) / 10
         : 0;
 
-    return jsonOk({
+    return new Response(JSON.stringify({
       reviews: docs.map((d) => toReview(d)),
       count: docs.length,
       averageRating: avg,
-    });
+    }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } });
   } catch (error) {
     return handleApiError(error);
   }
@@ -102,9 +102,9 @@ export async function POST(request: Request) {
     });
 
     const isAdmin = isAdminEmail(authUser.email);
-    const doc = await Review.create({
+    const reviewData: any = {
       productId,
-      userId: isAdmin && body.isMarketing ? "MARKETING_REVIEW" : authUser.uid,
+      userId: isAdmin && body.isMarketing ? `MARKETING_${Date.now()}_${Math.random().toString(36).substring(2)}` : authUser.uid,
       userName: (isAdmin && body.userName) 
         ? String(body.userName).trim() 
         : (authUser.name || authUser.email?.split("@")[0] || "Customer"),
@@ -114,7 +114,19 @@ export async function POST(request: Request) {
       status: isAdmin ? "approved" : "pending",
       isVerifiedPurchase: (isAdmin && body.isMarketing) ? true : !eligibility.isAdmin,
       orderId: eligibility.orderId,
-    });
+    };
+    
+    // Backdating support for marketing reviews
+    if (isAdmin && body.createdAt) {
+      const parsedDate = new Date(body.createdAt);
+      if (parsedDate <= new Date()) {
+        reviewData.createdAt = parsedDate;
+      } else {
+        throw new ApiError("Review date cannot be in the future");
+      }
+    }
+
+    const doc = await Review.create(reviewData);
 
     return jsonCreated({
       review: toReview(doc.toObject()),

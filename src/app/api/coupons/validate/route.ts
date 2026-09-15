@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       subtotal,
       productIds: body.productIds,
       collectionIds: body.collectionIds,
+      items: body.items,
     });
 
     return jsonOk({

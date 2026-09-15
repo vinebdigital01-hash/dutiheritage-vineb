@@ -2,15 +2,21 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { TrustBadges } from "@/components/TrustBadges";
+
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { POLICY_LINKS } from "@/lib/site-content-shared";
 
 export const Footer = () => {
+  const pathname = usePathname();
+  const isCheckout = pathname?.startsWith("/checkout");
   const content = useSiteContent();
   const footer = content?.footer;
 
   const companyName = footer?.companyName || "Duti Heritage";
-  const phone = footer?.phone || "6901080808";
+  const phone = footer?.phone || "+91 7017 194982";
   const email = footer?.email || "hello@duti-heritage.com";
   const address = footer?.address || "103, Block D, DLF Express Green M1, IMT Manesar, Gurugram, Haryana - 122052";
   const gst = "GSTIN: 06ANFPR1728Q2ZF";
@@ -42,7 +48,9 @@ export const Footer = () => {
   };
 
   return (
-    <footer className="w-full pt-16 pb-8 px-4 border-t border-[var(--color-border)]">
+    <footer className="w-full bg-white relative z-50">
+        <div className="max-w-[1440px] mx-auto px-4">{!isCheckout && <TrustBadges />}</div>
+        <div className="w-full pt-16 pb-8 px-4 border-t border-[var(--color-border)]">
       <div className="max-w-[1440px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
         <div className="flex flex-col text-sm text-[var(--color-text)] space-y-2">
           <h3 className="text-base tracking-[2px] uppercase mb-2">{companyName}</h3>
@@ -101,6 +109,6 @@ export const Footer = () => {
           </a>
         </p>
       </div>
-    </footer>
+    </div></footer>
   );
 };

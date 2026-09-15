@@ -139,6 +139,18 @@ export async function priceCartLines(
       throw new ApiError(`Product not found or inactive: ${line.productId}`, 400);
     }
     const qty = Math.max(1, Number(line.quantity) || 1);
+    
+    // Validate Inventory
+    if (product.trackInventory && product.inventory) {
+      const inv = product.inventory.find(i => i.size === line.size);
+      if (!inv || inv.stock < qty) {
+        throw new ApiError(
+          `Only ${inv ? inv.stock : 0} left for ${product.name} (Size: ${line.size || 'Default'})`, 
+          400
+        );
+      }
+    }
+
     return {
       productId: line.productId,
       slug: product.slug,
@@ -157,7 +169,11 @@ export async function priceCartLines(
 export async function resolveCouponDiscount(
   code: string | undefined | null,
   subtotal: number,
-  opts?: { productIds?: string[]; collectionIds?: string[] }
+  opts?: { 
+    productIds?: string[]; 
+    collectionIds?: string[];
+    items?: Array<{ productId: string; collectionId?: string; price: number; quantity: number; }>;
+  }
 ): Promise<{ code: string; amount: number } | null> {
   if (!code?.trim()) return null;
   const { validateCouponCode } = await import("@/lib/coupons");
@@ -166,6 +182,7 @@ export async function resolveCouponDiscount(
     subtotal,
     productIds: opts?.productIds,
     collectionIds: opts?.collectionIds,
+    items: opts?.items,
   });
   return { code: result.code, amount: result.amount };
 }

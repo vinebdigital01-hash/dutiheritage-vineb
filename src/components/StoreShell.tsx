@@ -20,8 +20,8 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AnnouncementBar />
-      <Header />
+      {!pathname?.startsWith("/checkout") && <AnnouncementBar />}
+      {!pathname?.startsWith("/checkout") && <Header />}
       <SearchDrawer />
       <CartDrawer />
       <main className="flex-grow">{children}</main>
