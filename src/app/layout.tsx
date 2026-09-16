@@ -17,38 +17,55 @@ const outfit = Outfit({
 });
 
 import { getBaseUrl } from "@/lib/utils";
+import { getStoreSettings } from "@/lib/store-settings";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(getBaseUrl()),
-  title: "Duti Heritage | Premium Fashion",
-  description: "Shop the finest premium ethnic wear, pure cotton suits, and luxury nightwear in Delhi NCR, Gurugram, and Manesar. Experience elegance with Duti Heritage.",
-  keywords: ["ethnic wear Delhi NCR", "premium fashion Gurugram", "cotton suits Manesar", "luxury nightwear Gurgaon", "boutique Delhi", "Duti Heritage", "women clothing Gurgaon"],
-  openGraph: {
-    title: "Duti Heritage | Premium Fashion",
-    description: "Shop the finest premium ethnic wear, pure cotton suits, and luxury nightwear in Delhi NCR, Gurugram, and Manesar. Experience elegance with Duti Heritage.",
-    siteName: "Duti Heritage",
-    images: [
-      {
-        url: "/images/velvet.jpg", // Default OG image for the homepage
-        width: 1200,
-        height: 630,
-        alt: "Duti Heritage Premium Fashion"
-      }
-    ],
-    locale: "en_US",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Duti Heritage | Premium Fashion",
-    description: "Shop the finest premium ethnic wear, pure cotton suits, and luxury nightwear in Delhi NCR, Gurugram, and Manesar. Experience elegance with Duti Heritage.",
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  manifest: "/manifest.json",
-};
+const FALLBACK_TITLE = "Duti Heritage | Premium Fashion";
+const FALLBACK_DESC =
+  "Shop the finest premium ethnic wear, pure cotton suits, and luxury nightwear in Delhi NCR, Gurugram, and Manesar. Experience elegance with Duti Heritage.";
+
+export async function generateMetadata(): Promise<Metadata> {
+  let title = FALLBACK_TITLE;
+  let description = FALLBACK_DESC;
+  try {
+    const store = await getStoreSettings();
+    if (store.seoTitle) title = store.seoTitle;
+    if (store.seoDescription) description = store.seoDescription;
+  } catch {
+    /* keep fallbacks */
+  }
+
+  return {
+    metadataBase: new URL(getBaseUrl()),
+    title,
+    description,
+    keywords: ["ethnic wear Delhi NCR", "premium fashion Gurugram", "cotton suits Manesar", "luxury nightwear Gurgaon", "boutique Delhi", "Duti Heritage", "women clothing Gurgaon"],
+    openGraph: {
+      title,
+      description,
+      siteName: "Duti Heritage",
+      images: [
+        {
+          url: "/images/velvet.jpg",
+          width: 1200,
+          height: 630,
+          alt: "Duti Heritage Premium Fashion"
+        }
+      ],
+      locale: "en_US",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
+    manifest: "/manifest.json",
+  };
+}
 
 export const viewport = {
   themeColor: "#000000",

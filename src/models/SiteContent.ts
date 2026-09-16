@@ -8,6 +8,19 @@ const NavLinkSchema = new Schema(
   { _id: false }
 );
 
+const HeroBannerSchema = new Schema(
+  {
+    image: { type: String, required: true },
+    href: { type: String, default: "" },
+    headline: { type: String, default: "" },
+    subtext: { type: String, default: "" },
+    startsAt: { type: Date },
+    endsAt: { type: Date },
+    active: { type: Boolean, default: true },
+  },
+  { _id: true }
+);
+
 const PromoBannerSchema = new Schema(
   {
     headline: { type: String, default: "" },
@@ -55,6 +68,7 @@ const SiteContentSchema = new Schema(
       ],
     },
     homepageGridOverrides: { type: Map, of: String, default: {} },
+    heroBanners: { type: [HeroBannerSchema], default: [] },
     promoBanner: {
       type: PromoBannerSchema,
       default: () => ({

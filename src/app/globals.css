@@ -70,3 +70,18 @@
     scrollbar-width: none;
   }
 }
+
+/* Admin: pointer cursor on every clickable control */
+.admin-shell button:not(:disabled),
+.admin-shell a,
+.admin-shell summary,
+.admin-shell select,
+.admin-shell label:has(input[type="file"]),
+.admin-shell [role="button"] {
+  cursor: pointer;
+}
+
+.admin-shell button:disabled,
+.admin-shell select:disabled {
+  cursor: not-allowed;
+}

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { Product as ProductModel, Collection as CollectionModel } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
 import { toProduct } from "@/lib/mappers";
 import { connectDB } from "@/lib/mongodb";
 
 export async function POST(req: Request) {
   try {
-    await requireAuth(req, { admin: true });
+    await requireAuth(req, { admin: true, roles: CATALOG_WRITE });
     await connectDB();
     const { products } = await req.json();
 

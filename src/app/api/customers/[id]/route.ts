@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/mongodb";
 import { Customer } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { OPS_WRITE } from "@/lib/rbac";
+import { logAdminAction } from "@/lib/admin-audit";
 import {
   getCustomerProfile,
   refreshCustomerStats,
@@ -40,7 +42,7 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PATCH(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: OPS_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid customer id", 400);
 
@@ -69,7 +71,25 @@ export async function PATCH(request: Request, { params }: Params) {
       customer.tags = (customer.tags || []).filter((t) => !remove.has(t));
     }
 
+    if (body.notes !== undefined) customer.notes = String(body.notes || "").slice(0, 2000);
+    if (body.frozen !== undefined) customer.frozen = Boolean(body.frozen);
+    if (body.codBlocked !== undefined) customer.codBlocked = Boolean(body.codBlocked);
+    if (body.blockReason !== undefined) {
+      customer.blockReason = String(body.blockReason || "").slice(0, 400);
+    }
+
     await customer.save();
+    const flags: string[] = [];
+    if (body.frozen !== undefined) flags.push(customer.frozen ? "frozen" : "unfrozen");
+    if (body.codBlocked !== undefined) flags.push(customer.codBlocked ? "COD blocked" : "COD unblocked");
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: flags.length ? flags.join(",") : "update",
+      resource: "customer",
+      resourceId: id,
+      message: flags.join("; ") || "Updated customer",
+    });
     return jsonOk({ customer: toCustomerDTO(customer) });
   } catch (error) {
     return handleApiError(error);

@@ -1,6 +1,6 @@
 import { connectDB } from "@/lib/mongodb";
 import { Order, ORDER_STATUSES } from "@/models";
-import { isAdminEmail, verifyIdToken, AuthError } from "@/lib/auth";
+import { verifyIdToken, AuthError, getStaffRole } from "@/lib/auth";
 import { toOrder } from "@/lib/mappers";
 import {
   handleApiError,
@@ -10,10 +10,11 @@ import {
   generateOrderId,
   ApiError,
 } from "@/lib/api";
+import { buildAdminOrderFilter, parsePageParams } from "@/lib/order-workspace";
 
 /**
  * GET /api/orders
- *  - Admin: all orders (?status=&limit=)
+ *  - Admin: paginated list (?q=&status=&paymentMethod=&city=&from=&to=&page=&limit=)
  *  - User: own orders (Bearer token)
  *
  * POST /api/orders
@@ -30,31 +31,44 @@ export async function GET(request: Request) {
     }
 
     const authUser = await verifyIdToken(authHeader);
-    const admin = isAdminEmail(authUser.email);
+    const admin = Boolean(await getStaffRole(authUser.email));
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const limit = Math.min(Number(searchParams.get("limit") || "50"), 200);
 
-    const filter: Record<string, unknown> = {};
-    if (status) {
-      if (!(ORDER_STATUSES as readonly string[]).includes(status)) {
-        throw new ApiError(`Invalid status. Allowed: ${ORDER_STATUSES.join(", ")}`);
+    let filter: Record<string, unknown>;
+    if (admin) {
+      filter = buildAdminOrderFilter({
+        status: searchParams.get("status"),
+        q: searchParams.get("q"),
+        paymentMethod: searchParams.get("paymentMethod"),
+        city: searchParams.get("city"),
+        from: searchParams.get("from"),
+        to: searchParams.get("to"),
+      });
+    } else {
+      filter = { firebaseUid: authUser.uid };
+      const status = searchParams.get("status");
+      if (status) {
+        if (!(ORDER_STATUSES as readonly string[]).includes(status)) {
+          throw new ApiError(`Invalid status. Allowed: ${ORDER_STATUSES.join(", ")}`);
+        }
+        filter.status = status;
       }
-      filter.status = status;
     }
 
-    if (!admin) {
-      filter.firebaseUid = authUser.uid;
-    }
+    const { page, pageSize, skip } = parsePageParams(searchParams);
 
-    const docs = await Order.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
+    const [docs, total] = await Promise.all([
+      Order.find(filter).sort({ createdAt: -1 }).skip(skip).limit(pageSize).lean(),
+      Order.countDocuments(filter),
+    ]);
 
     return jsonOk({
-      orders: docs.map((d) => toOrder(d)),
+      orders: docs.map((d) => toOrder(d, { includeTimeline: false })),
       count: docs.length,
+      total,
+      page,
+      pageSize,
+      pages: Math.max(1, Math.ceil(total / pageSize)),
       isAdmin: admin,
     });
   } catch (error) {

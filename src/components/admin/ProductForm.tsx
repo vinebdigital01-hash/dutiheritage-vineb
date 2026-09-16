@@ -44,6 +44,8 @@ type FormState = {
   trackInventory: boolean;
   lowStockThreshold: string;
   inventory: { size: string; stock: string; sku: string }[];
+  hsn: string;
+  gstRate: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -69,7 +71,9 @@ const emptyForm = (): FormState => ({
   offers: [],
   trackInventory: false,
   lowStockThreshold: "3",
-  inventory: []
+  inventory: [],
+  hsn: "6104",
+  gstRate: "5",
 });
 
 function slugify(s: string) {
@@ -105,7 +109,9 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
     trackInventory: p.trackInventory || false,
     lowStockThreshold: String(p.lowStockThreshold || 3),
-    inventory: (p.inventory || []).map(i => ({ size: i.size || "", stock: String(i.stock), sku: i.sku || "" }))
+    inventory: (p.inventory || []).map(i => ({ size: i.size || "", stock: String(i.stock), sku: i.sku || "" })),
+    hsn: p.hsn || "6104",
+    gstRate: String(p.gstRate ?? 5),
   };
 }
 
@@ -208,6 +214,21 @@ export function ProductForm({ productId }: { productId?: string }) {
           if (!cancelled && res.product) {
             setForm(productToForm(res.product));
           }
+        } else {
+          try {
+            const store = await adminFetch<{ settings: { defaultHsn: string; defaultGstRate: number } }>(
+              "/api/settings/store"
+            );
+            if (!cancelled && store.settings) {
+              setForm((prev) => ({
+                ...prev,
+                hsn: store.settings.defaultHsn || prev.hsn,
+                gstRate: String(store.settings.defaultGstRate ?? prev.gstRate),
+              }));
+            }
+          } catch {
+            /* keep form defaults */
+          }
         }
       } catch (e) {
         show(e instanceof AdminApiError ? e.message : "Load failed", "error");
@@ -278,6 +299,9 @@ export function ProductForm({ productId }: { productId?: string }) {
           isActive: form.isActive,
           offers: (form.offers || []).filter(o => o.title.trim() && o.description.trim()),
           trackInventory: form.trackInventory,
+          lowStockThreshold: Number(form.lowStockThreshold) || 3,
+          hsn: form.hsn.trim() || "6104",
+          gstRate: Number(form.gstRate) || 5,
           inventory: form.inventory.map(i => ({ size: i.size.trim(), stock: Number(i.stock) || 0, sku: i.sku.trim() })),
         };
 
@@ -324,7 +348,7 @@ export function ProductForm({ productId }: { productId?: string }) {
       {Toast}
       <PageHeader
         title={isEdit ? "Edit product" : "New product"}
-        subtitle="Full catalog fields — SEO, sizes, COD, media"
+        subtitle={isEdit ? "Change photos, price (GST included), and size stock, then Save." : "One item for the shop — photo, price (GST included), sizes, stock."}
         actions={
           <Link href="/admin/products">
             <AdminButton variant="secondary">Back to list</AdminButton>
@@ -342,10 +366,10 @@ export function ProductForm({ productId }: { productId?: string }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[14px] font-bold tracking-[1px] uppercase text-neutral-800 mb-1">
-                Inventory Management
+                Track stock
               </p>
               <p className="text-[12px] text-neutral-500">
-                Track per-size stock. If disabled, product is always in stock.
+                Track how many of each size you have. If this is off, the product never shows as sold out.
               </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -516,6 +540,23 @@ export function ProductForm({ productId }: { productId?: string }) {
             value={form.salePrice}
             onChange={(e) => set("salePrice", e.target.value)}
           />
+          <AdminInput
+            label="HSN code"
+            value={form.hsn}
+            onChange={(e) => set("hsn", e.target.value)}
+            placeholder="6104"
+          />
+          <AdminSelect
+            label="GST rate (inclusive)"
+            value={form.gstRate}
+            onChange={(e) => set("gstRate", e.target.value)}
+          >
+            <option value="0">0%</option>
+            <option value="5">5%</option>
+            <option value="12">12%</option>
+            <option value="18">18%</option>
+            <option value="28">28%</option>
+          </AdminSelect>
           <AdminSelect
             label="Collection *"
             required
@@ -815,10 +856,10 @@ export function ProductForm({ productId }: { productId?: string }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[14px] font-bold tracking-[1px] uppercase text-neutral-800 mb-1">
-                Inventory Management
+                Track stock
               </p>
               <p className="text-[12px] text-neutral-500">
-                Track per-size stock. If disabled, product is always in stock.
+                Track how many of each size you have. If this is off, the product never shows as sold out.
               </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">

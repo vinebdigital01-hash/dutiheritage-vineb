@@ -16,7 +16,7 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["mongoose"],
+  serverExternalPackages: ["mongoose", "exceljs"],
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },

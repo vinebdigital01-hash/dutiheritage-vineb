@@ -2,6 +2,8 @@ import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/mongodb";
 import { Product, Coupon } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
+import { logAdminAction } from "@/lib/admin-audit";
 import { toProduct } from "@/lib/mappers";
 import { refreshCollectionProductCount } from "@/lib/catalog";
 import {
@@ -49,7 +51,7 @@ export async function GET(request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid product id", 400);
 
@@ -133,17 +135,44 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.isPartialCOD !== undefined) existing.isPartialCOD = Boolean(body.isPartialCOD);
     if (body.partialCODAdvance !== undefined) existing.partialCODAdvance = Number(body.partialCODAdvance);
     if (body.isActive !== undefined) existing.isActive = Boolean(body.isActive);
+    if (body.hsn !== undefined) existing.hsn = String(body.hsn || "6104").trim() || "6104";
+    if (body.gstRate !== undefined) {
+      existing.gstRate = Math.min(28, Math.max(0, Number(body.gstRate) || 5));
+    }
     if (body.trackInventory !== undefined) existing.trackInventory = Boolean(body.trackInventory);
     if (body.lowStockThreshold !== undefined) existing.lowStockThreshold = Number(body.lowStockThreshold) || 3;
     if (body.inventory !== undefined) {
-      existing.inventory = (body.inventory || []).map((i: any) => ({
-        size: String(i.size || "").trim(),
+      const prev = (existing.inventory || []).map((i) => ({
+        size: String(i.size || ""),
         stock: Number(i.stock) || 0,
-        sku: String(i.sku || "").trim(),
+        sku: String(i.sku || ""),
       }));
+      const next = (body.inventory || [])
+        .map((i: { size?: string; stock?: number; sku?: string }) => ({
+          size: String(i.size || "").trim(),
+          stock: Number(i.stock) || 0,
+          sku: String(i.sku || "").trim(),
+        }))
+        .filter((i: { size: string }) => i.size);
+      existing.inventory = next;
+      const { computeStockStatus, logInventoryDiff } = await import("@/services/inventory");
+      existing.stockStatus = computeStockStatus(existing);
+      await existing.save();
+      await logInventoryDiff(
+        existing._id.toString(),
+        existing.name,
+        prev,
+        next,
+        {
+          reason: "admin",
+          actor: authUser.email || authUser.name || "admin",
+        }
+      );
     }
 
-    await existing.save();
+    if (body.inventory === undefined) {
+      await existing.save();
+    }
     revalidatePath(`/products/${existing.slug}`);
     revalidatePath(`/`);
 
@@ -151,6 +180,14 @@ export async function PUT(request: Request, { params }: Params) {
     if (prevCollectionId !== existing.collectionId) {
       await refreshCollectionProductCount(String(prevCollectionId));
     }
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: "update",
+      resource: "product",
+      resourceId: id,
+      message: existing.name,
+    });
 
     return jsonOk({ product: toProduct(existing.toObject()) });
   } catch (error) {
@@ -161,7 +198,7 @@ export async function PUT(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid product id", 400);
 
@@ -181,6 +218,14 @@ export async function DELETE(request: Request, { params }: Params) {
 
     await refreshCollectionProductCount(collectionId);
     revalidatePath("/", "layout");
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: hard ? "delete" : "archive",
+      resource: "product",
+      resourceId: id,
+      message: existing.name,
+    });
 
     return jsonOk({
       deleted: true,

@@ -34,7 +34,7 @@ interface AppContextType {
   adminRole: string | null;
   authLoading: boolean;
   login: (email: string) => void;
-  logout: () => void;
+  logout: (redirectTo?: string) => void;
   isInitialized: boolean;
   wishlist: string[];
   toggleWishlist: (productId: string) => Promise<void>;
@@ -229,10 +229,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     // Handled by account UI via Firebase; AppContext syncs on onAuthStateChanged.
   }, []);
 
-  const logout = React.useCallback(async () => {
+  const logout = React.useCallback(async (redirectTo = "/") => {
     try {
       await signOut(auth);
-      window.location.href = "/";
+      window.location.href = redirectTo;
     } catch (error) {
       console.error("Error signing out", error);
     }

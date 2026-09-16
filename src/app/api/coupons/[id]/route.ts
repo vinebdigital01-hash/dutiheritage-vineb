@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
 import { toCoupon } from "@/lib/coupons";
 import {
   handleApiError,
@@ -20,7 +21,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function PUT(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid coupon id", 400);
 
@@ -66,7 +67,7 @@ export async function PUT(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid coupon id", 400);
 

@@ -43,8 +43,8 @@ export default function WhatsAppLogsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">Bot Activity Logs</h1>
-        <p className="text-sm text-neutral-500">View recent interactions handled by the automated bot.</p>
+        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">WhatsApp send log</h1>
+        <p className="text-sm text-neutral-500">Technical send history. Day-to-day replies are on WhatsApp chats.</p>
       </div>
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl shadow-sm overflow-hidden">

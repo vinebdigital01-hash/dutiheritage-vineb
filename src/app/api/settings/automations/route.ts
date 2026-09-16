@@ -1,4 +1,6 @@
 import { requireAuth } from "@/lib/auth";
+import { SETTINGS_WRITE } from "@/lib/rbac";
+import { logAdminAction } from "@/lib/admin-audit";
 import { connectDB } from "@/lib/mongodb";
 import {
   AutomationSettings,
@@ -66,7 +68,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: SETTINGS_WRITE });
     await connectDB();
 
     const body = await request.json();
@@ -96,6 +98,14 @@ export async function PUT(request: Request) {
       settings.winback = { enabled: Boolean(body.winback.enabled) };
 
     await settings.save();
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: "update",
+      resource: "settings",
+      resourceId: "automations",
+      message: "Updated automation toggles",
+    });
     return jsonOk({
       settings: {
         welcome: settings.welcome,

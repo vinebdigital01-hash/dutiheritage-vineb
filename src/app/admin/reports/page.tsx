@@ -34,8 +34,8 @@ export default function ReportsPage() {
   return (
     <div>
       <PageHeader
-        title="Reports"
-        subtitle="Generate and email store performance reports"
+        title="Email reports"
+        subtitle="Send a monthly summary to the store inbox"
       />
       
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-6 shadow-sm max-w-2xl">

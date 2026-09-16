@@ -5,6 +5,7 @@ import { PageHeader, AdminButton, useToast } from "@/components/admin/ui";
 import { FiDownload, FiUpload, FiCheckCircle } from "react-icons/fi";
 import Papa from "papaparse";
 import { adminFetch } from "@/lib/admin-api";
+import { authHeaders } from "@/lib/checkout-client";
 import Link from "next/link";
 
 export default function BulkInventoryPage() {
@@ -13,8 +14,24 @@ export default function BulkInventoryPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ updatedCount: number } | null>(null);
 
-  const handleDownload = () => {
-    window.location.href = "/api/products/bulk-inventory";
+  const handleDownload = async () => {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/products/bulk-inventory", { headers });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Download failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "inventory.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      show(e instanceof Error ? e.message : "Download failed", "error");
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,27 +77,27 @@ export default function BulkInventoryPage() {
     <div className="max-w-3xl space-y-8">
       {Toast}
       <PageHeader
-        title="Bulk Inventory Update"
-        subtitle="Download current inventory, edit stock, and re-upload"
+        title="Update stock"
+        subtitle="Download stock → edit the numbers → upload again"
       />
 
       <div className="bg-white border border-neutral-200 rounded-xl p-8 space-y-6">
         <div className="space-y-4">
-          <h3 className="text-sm font-bold tracking-[1px] uppercase">Step 1: Download Inventory</h3>
+          <h3 className="text-sm font-bold tracking-[1px] uppercase">Step 1: Download stock</h3>
           <p className="text-[13px] text-neutral-500">
-            Download the current stock levels of all products tracking inventory.
+            Download current stock for products that track inventory.
           </p>
           <AdminButton variant="secondary" onClick={handleDownload} className="flex items-center gap-2">
-            <FiDownload /> Download CSV
+            <FiDownload /> Download spreadsheet
           </AdminButton>
         </div>
 
         <hr className="border-neutral-100" />
 
         <div className="space-y-4">
-          <h3 className="text-sm font-bold tracking-[1px] uppercase">Step 2: Upload Updated Inventory</h3>
+          <h3 className="text-sm font-bold tracking-[1px] uppercase">Step 2: Upload updated stock</h3>
           <p className="text-[13px] text-neutral-500">
-            Upload the edited CSV. Do not change the <code>productId</code> or <code>size</code> columns.
+            Upload the edited file. Do not change the productId or size columns.
           </p>
           
           <div className="border-2 border-dashed border-neutral-200 rounded-xl p-8 text-center bg-neutral-50">

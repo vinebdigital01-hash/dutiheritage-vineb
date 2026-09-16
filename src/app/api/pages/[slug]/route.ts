@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { Page } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { SETTINGS_WRITE } from "@/lib/rbac";
 import {
   handleApiError,
   jsonOk,
@@ -39,7 +40,7 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: SETTINGS_WRITE });
     const { slug } = await params;
     const body = await request.json();
 

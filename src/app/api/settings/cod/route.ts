@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/mongodb";
 import { Settings } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { SETTINGS_WRITE } from "@/lib/rbac";
+import { logAdminAction } from "@/lib/admin-audit";
 import { getCheckoutSettings } from "@/services/checkout";
 import {
   handleApiError,
@@ -26,7 +28,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: SETTINGS_WRITE });
     await connectDB();
 
     const body = await request.json();
@@ -68,6 +70,14 @@ export async function PUT(request: Request) {
     ).lean();
 
     const settings = await getCheckoutSettings();
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: "update",
+      resource: "settings",
+      resourceId: "cod",
+      message: "Updated COD / shipping settings",
+    });
     return jsonOk({ settings, raw: doc });
   } catch (error) {
     return handleApiError(error);

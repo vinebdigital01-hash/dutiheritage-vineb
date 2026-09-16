@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { adminFetch, AdminApiError } from "@/lib/admin-api";
+import { adminFetch, AdminApiError, downloadAdminFile } from "@/lib/admin-api";
 import {
   PageHeader,
   AdminInput,
   AdminSelect,
+  AdminButton,
   Badge,
   EmptyState,
   useToast,
@@ -19,17 +20,19 @@ export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [ltv, setLtv] = useState("");
+  const [segment, setSegment] = useState("");
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [creatingGroup, setCreatingGroup] = useState(false);
 
-  const load = async (search = q, ltvFilter = ltv) => {
+  const load = async (search = q, ltvFilter = ltv, segmentFilter = segment) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: "100" });
       if (search.trim()) params.set("q", search.trim());
       if (ltvFilter) params.set("ltv", ltvFilter);
+      if (segmentFilter) params.set("segment", segmentFilter);
       const data = await adminFetch<{ customers: CustomerDTO[]; count: number }>(
         `/api/customers?${params}`
       );
@@ -92,16 +95,44 @@ export default function AdminCustomersPage() {
       {Toast}
       <PageHeader
         title="Customers"
-        subtitle="Unified profiles from Firebase, checkout, and on-site tracking"
+        subtitle="Search a person, open them, see their orders"
         actions={
-          selectedCustomers.length > 0 && (
-            <button
-              onClick={() => setShowGroupModal(true)}
-              className="text-[12px] font-bold uppercase tracking-[1px] px-4 py-2 bg-black text-white rounded hover:bg-neutral-800 transition-colors"
+          <div className="flex flex-wrap gap-2">
+            <AdminButton
+              variant="secondary"
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (q.trim()) params.set("q", q.trim());
+                if (ltv) params.set("ltv", ltv);
+                if (segment) params.set("segment", segment);
+                downloadAdminFile(
+                  `/api/customers/export?${params}`,
+                  `customers-${new Date().toISOString().slice(0, 10)}.csv`
+                ).catch((e) => show(e.message, "error"));
+              }}
             >
-              + Create Group ({selectedCustomers.length})
-            </button>
-          )
+              Export customers
+            </AdminButton>
+            <AdminButton
+              variant="secondary"
+              onClick={() =>
+                downloadAdminFile(
+                  "/api/analytics/export-audience?days=30",
+                  "meta_ads_audience_30d.csv"
+                ).catch((e) => show(e.message, "error"))
+              }
+            >
+              Ads audience
+            </AdminButton>
+            {selectedCustomers.length > 0 && (
+              <button
+                onClick={() => setShowGroupModal(true)}
+                className="text-[12px] font-bold uppercase tracking-[1px] px-4 py-2 bg-black text-white rounded hover:bg-neutral-800 transition-colors"
+              >
+                + Create Group ({selectedCustomers.length})
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -152,9 +183,21 @@ export default function AdminCustomersPage() {
           <option value="MEDIUM">Medium</option>
           <option value="LOW">Low</option>
         </AdminSelect>
+        <AdminSelect
+          value={segment}
+          onChange={(e) => setSegment(e.target.value)}
+          className="min-w-[150px]"
+        >
+          <option value="">All customers</option>
+          <option value="new">New (≤1 order)</option>
+          <option value="repeat">Repeat (2+)</option>
+          <option value="high_ltv">High LTV</option>
+          <option value="cod">Has COD orders</option>
+          <option value="blocked">Frozen / COD blocked</option>
+        </AdminSelect>
         <button
           type="button"
-          onClick={() => load(q, ltv)}
+          onClick={() => load(q, ltv, segment)}
           className="border border-black px-5 py-2.5 text-[12px] tracking-[1.5px] uppercase rounded-lg hover:bg-black hover:text-white transition-colors"
         >
           Search
@@ -214,6 +257,13 @@ export default function AdminCustomersPage() {
                       <span className="block text-[12px] text-neutral-500">
                         {c.email || c.phone || "Guest"}
                       </span>
+                      {(c.frozen || c.codBlocked) && (
+                        <span className="mt-1 inline-block">
+                          <Badge tone="danger">
+                            {c.frozen ? "Frozen" : "COD blocked"}
+                          </Badge>
+                        </span>
+                      )}
                     </Link>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell capitalize text-neutral-600">

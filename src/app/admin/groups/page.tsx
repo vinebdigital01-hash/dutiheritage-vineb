@@ -150,8 +150,8 @@ export default function AdminGroupsPage() {
     <div>
       {Toast}
       <PageHeader
-        title="Groups & campaigns"
-        subtitle="Segment customers and send bulk email or WhatsApp"
+        title="Customer lists"
+        subtitle="Groups of people you can email or WhatsApp together"
       />
 
       <form
@@ -159,7 +159,7 @@ export default function AdminGroupsPage() {
         className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-8 shadow-sm grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-end"
       >
         <AdminInput
-          label="Group name"
+          label="List name"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           required
@@ -195,7 +195,7 @@ export default function AdminGroupsPage() {
       {loading ? (
         <p className="text-[13px] animate-pulse text-neutral-500">Loading…</p>
       ) : groups.length === 0 ? (
-        <EmptyState title="No groups" description="Create a smart or manual group above." />
+        <EmptyState title="No lists yet" description="Create a list above." />
       ) : (
         <ul className="grid md:grid-cols-2 gap-4 mb-12">
           {groups.map((g) => (
@@ -250,14 +250,14 @@ export default function AdminGroupsPage() {
       >
         <div className="grid md:grid-cols-2 gap-4">
           <AdminSelect
-            label="Group"
+            label="List"
             value={campaignForm.groupId}
             onChange={(e) =>
               setCampaignForm({ ...campaignForm, groupId: e.target.value })
             }
             required
           >
-            <option value="">Select group…</option>
+            <option value="">Select a list…</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name} ({g.memberCount})
@@ -303,7 +303,7 @@ export default function AdminGroupsPage() {
         </AdminButton>
       </form>
 
-      <h2 className="text-[13px] tracking-[2px] uppercase mb-4">Campaign history</h2>
+      <h2 className="text-[13px] tracking-[2px] uppercase mb-4">Messages sent</h2>
       {campaigns.length === 0 ? (
         <EmptyState title="No campaigns sent yet" />
       ) : (

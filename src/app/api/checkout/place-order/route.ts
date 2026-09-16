@@ -4,7 +4,7 @@ import { waitUntil } from "@vercel/functions";
 import { connectDB } from "@/lib/mongodb";
 import { Order, Coupon, Customer, Cart } from "@/models";
 import { verifyIdToken } from "@/lib/auth";
-import { upsertCustomerFromAuth } from "@/lib/customers";
+import { upsertCustomerFromAuth, findCustomerByCheckoutIdentity } from "@/lib/customers";
 import { toOrder } from "@/lib/mappers";
 import { sendOrderPlaced, sendWelcome, sendAdminNewOrderAlert } from "@/lib/automations";
 import {
@@ -18,6 +18,7 @@ import {
   computeCheckoutTotals,
   type CartLineInput,
 } from "@/services/checkout";
+import { getStoreSettings } from "@/lib/store-settings";
 import {
   handleApiError,
   jsonCreated,
@@ -72,6 +73,11 @@ export async function POST(request: Request) {
       throw new ApiError("Invalid paymentMethod");
     }
 
+    const store = await getStoreSettings();
+    if (paymentMethod === "prepaid" && !store.prepaidEnabled) {
+      throw new ApiError("Online payment is currently disabled. Use COD if available.", 400);
+    }
+
     const c = body.customer;
     if (!c?.phone || !c?.address || !c?.city || !c?.state || !c?.pinCode) {
       throw new ApiError(
@@ -99,6 +105,29 @@ export async function POST(request: Request) {
       } catch {
         // guest checkout
       }
+    }
+
+    const existingCustomer = await findCustomerByCheckoutIdentity({
+      phone: c.phone,
+      email: c.email,
+      firebaseUid,
+    });
+    if (existingCustomer?.frozen) {
+      throw new ApiError(
+        existingCustomer.blockReason ||
+          "This account is frozen. Contact support to place an order.",
+        403
+      );
+    }
+    if (
+      existingCustomer?.codBlocked &&
+      (paymentMethod === "cod" || paymentMethod === "partial")
+    ) {
+      throw new ApiError(
+        existingCustomer.blockReason ||
+          "COD is not available on this account. Please pay online.",
+        403
+      );
     }
 
     const settings = await getCheckoutSettings();
@@ -271,6 +300,8 @@ export async function POST(request: Request) {
         quantity: line.quantity,
         price: line.price,
         salePrice: line.salePrice ?? undefined,
+        hsn: line.hsn,
+        gstRate: line.gstRate,
       })),
       subtotal: totals.subtotal,
       discount: totals.discountAmount,
@@ -294,9 +325,14 @@ export async function POST(request: Request) {
     }));
     try {
       const { adjustInventory } = await import("@/services/inventory");
-      await adjustInventory(inventoryItems, false);
+      await adjustInventory(inventoryItems, false, {
+        reason: "order",
+        orderId,
+        actor: "checkout",
+      });
     } catch (invErr) {
-      console.error("[place-order] inventory adjustment failed:", invErr);
+      await Order.deleteOne({ _id: doc._id });
+      throw invErr;
     }
 
     if (coupon?.code) {

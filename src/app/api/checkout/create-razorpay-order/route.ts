@@ -8,6 +8,8 @@ import {
   resolveCouponDiscount,
   computeCheckoutTotals,
 } from "@/services/checkout";
+import { getStoreSettings } from "@/lib/store-settings";
+import { findCustomerByCheckoutIdentity } from "@/lib/customers";
 import {
   handleApiError,
   jsonOk,
@@ -45,6 +47,22 @@ export async function POST(request: Request) {
     const paymentMethod = body.paymentMethod || "prepaid";
     if (!["prepaid", "partial"].includes(paymentMethod)) {
       throw new ApiError("Razorpay order requires prepaid or partial payment method");
+    }
+
+    const store = await getStoreSettings();
+    if (paymentMethod === "prepaid" && !store.prepaidEnabled) {
+      throw new ApiError("Online payment is currently disabled.", 400);
+    }
+
+    const risk = await findCustomerByCheckoutIdentity({
+      phone: body.customer?.phone,
+      email: body.customer?.email,
+    });
+    if (risk?.frozen) {
+      throw new ApiError(
+        risk.blockReason || "This account is frozen. Contact support.",
+        403
+      );
     }
 
     const settings = await getCheckoutSettings();

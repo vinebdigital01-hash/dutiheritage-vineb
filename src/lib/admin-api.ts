@@ -32,3 +32,22 @@ export async function adminFetch<T = unknown>(
   }
   return data as T;
 }
+
+export async function downloadAdminFile(path: string, filename: string) {
+  const headers = await authHeaders();
+  const res = await fetch(path, { headers });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new AdminApiError(
+      (data as { error?: string }).error || `Download failed (${res.status})`,
+      res.status
+    );
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

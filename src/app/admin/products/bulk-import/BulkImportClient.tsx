@@ -81,8 +81,8 @@ export function BulkImportClient() {
   return (
     <div className="max-w-4xl mx-auto py-8">
       <PageHeader 
-        title="Bulk Import Products" 
-        subtitle="Upload a CSV to add multiple products at once. New collections will be created automatically."
+        title="Add many products"
+        subtitle="One spreadsheet creates many products. New collections are created if the name is new."
         actions={
           <AdminButton variant="secondary" onClick={() => router.push("/admin/products")}>
             Back to Products
@@ -92,10 +92,9 @@ export function BulkImportClient() {
 
       <div className="bg-white rounded-2xl border p-6 md:p-8 space-y-8">
         <div>
-          <h2 className="text-lg font-serif mb-2">1. Download Template</h2>
+          <h2 className="text-lg font-serif mb-2">1. Download spreadsheet template</h2>
           <p className="text-sm text-neutral-500 mb-4">
-            Start with our template to ensure your data is formatted correctly. 
-            For multiple sizes, tags, or images, separate them with commas.
+            Use this file so columns match. For more than one size, tag, or image, separate them with commas.
           </p>
           <AdminButton variant="secondary" onClick={downloadTemplate}>
             Download CSV Template

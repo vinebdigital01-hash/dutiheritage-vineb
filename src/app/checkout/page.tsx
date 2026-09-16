@@ -104,6 +104,7 @@ export default function CheckoutPage() {
   const [codChecking, setCodChecking] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [razorpayEnabled, setRazorpayEnabled] = useState(false);
+  const [prepaidEnabled, setPrepaidEnabled] = useState(true);
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<CheckoutSettings>(FALLBACK_SETTINGS);
@@ -221,6 +222,7 @@ export default function CheckoutPage() {
       .then((data) => {
         if (!data) return;
         setRazorpayEnabled(Boolean(data.razorpayEnabled));
+        setPrepaidEnabled(data.prepaidEnabled !== false);
         setSettings({
           freeShippingAbove: data.freeShippingAbove ?? FALLBACK_SETTINGS.freeShippingAbove,
           flatShippingFee: data.flatShippingFee ?? FALLBACK_SETTINGS.flatShippingFee,
@@ -380,11 +382,13 @@ export default function CheckoutPage() {
   
   React.useEffect(() => {
     if (isFinalCodAvailable === false && (paymentMethod === "cod" || paymentMethod === "partial")) {
-      setPaymentMethod("prepaid");
+      if (prepaidEnabled) setPaymentMethod("prepaid");
     } else if (isPartialCodRequired && paymentMethod === "cod") {
       setPaymentMethod("partial");
+    } else if (!prepaidEnabled && paymentMethod === "prepaid") {
+      if (isFinalCodAvailable !== false) setPaymentMethod("cod");
     }
-  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod]);
+  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod, prepaidEnabled]);
 
   const codCharge = paymentMethod === "cod" ? settings.codExtraCharge : 0;
   const prepaidDiscount =
@@ -1043,8 +1047,8 @@ export default function CheckoutPage() {
 
               <div className="flex flex-col gap-4">
                 {/* Prepaid */}
-                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 cursor-pointer transition-all shadow-sm ${paymentMethod === "prepaid" ? "border-black bg-blue-50/30" : "border-gray-200 bg-white hover:border-gray-300"}`}>
-                  <input type="radio" name="paymentMethod" value="prepaid" checked={paymentMethod === "prepaid"} onChange={() => setPaymentMethod("prepaid")} className="mt-1 accent-black w-5 h-5" />
+                <label className={`flex items-start gap-4 border-2 rounded-xl p-5 transition-all shadow-sm ${!prepaidEnabled ? "opacity-50 cursor-not-allowed bg-gray-50" : paymentMethod === "prepaid" ? "border-black bg-blue-50/30 cursor-pointer" : "border-gray-200 bg-white hover:border-gray-300 cursor-pointer"}`}>
+                  <input type="radio" name="paymentMethod" value="prepaid" checked={paymentMethod === "prepaid"} onChange={() => { if (prepaidEnabled) setPaymentMethod("prepaid"); }} disabled={!prepaidEnabled} className="mt-1 accent-black w-5 h-5" />
                   <div className="flex-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[15px] font-bold">Pay Online (UPI / Card / Net Banking)</span>

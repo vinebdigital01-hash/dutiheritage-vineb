@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { CustomerGroup } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
 import {
   resolveGroupMembers,
   toCustomerDTO,
@@ -25,7 +26,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(_request, { admin: true });
+    await requireAuth(_request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid group id", 400);
 
@@ -55,7 +56,7 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid group id", 400);
 
@@ -84,7 +85,7 @@ export async function PUT(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(_request, { admin: true });
+    await requireAuth(_request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid group id", 400);
 

@@ -22,6 +22,8 @@ const ChatSessionSchema = new Schema(
     mode: { type: String, enum: ["bot", "human"], default: "bot" },
     lastMessageAt: { type: Date },
     unreadCount: { type: Number, default: 0 },
+    assignedTo: { type: String, default: "" },
+    assignedName: { type: String, default: "" },
     negotiation: NegotiationSchema,
     metadata: { type: Schema.Types.Mixed },
   },

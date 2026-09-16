@@ -329,6 +329,70 @@ export async function sendAdminNewOrderAlert(orderId: string) {
   }
 }
 
+export async function sendOrderConfirmed(input: {
+  email?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  orderId: string;
+  total: number;
+  customerId?: string;
+}) {
+  const name = input.name || "there";
+  const subject = `Order ${input.orderId} is confirmed`;
+  const intro = `Hi ${name},<br/><br/>Good news — we have confirmed your order <strong>${input.orderId}</strong> (₹${input.total}). We will pack it next.`;
+  const nextStep =
+    "You will receive tracking details by SMS/email after we hand it to the courier.";
+  const bodyHtml = await buildOrderEmailHtml(
+    input.orderId,
+    "Confirmed",
+    intro,
+    nextStep
+  );
+  const wa = `Your order ${input.orderId} is confirmed. Total ₹${input.total}. We will share tracking once it ships.`;
+
+  const result = await notifyChannels({
+    email: input.email,
+    phone: input.phone,
+    subject,
+    html: emailLayout(subject, bodyHtml),
+    text: `Order ${input.orderId} confirmed. Total ₹${input.total}.`,
+    waMessage: wa,
+    emailType: "orders",
+  });
+  return { sent: true, detail: result.detail };
+}
+
+export async function sendOrderOnHold(input: {
+  email?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  orderId: string;
+  reason?: string;
+  customerId?: string;
+}) {
+  const name = input.name || "there";
+  const reason = input.reason
+    ? `<p>Reason: ${String(input.reason).replace(/[<>]/g, "")}</p>`
+    : "<p>Our team is reviewing a few details before we continue.</p>";
+  const subject = `Order ${input.orderId} is on hold`;
+  const html = emailLayout(
+    subject,
+    `<p>Hi ${name},</p><p>Your order <strong>${input.orderId}</strong> is temporarily on hold.</p>${reason}<p>We will update you as soon as it moves forward.</p>`
+  );
+  const wa = `Your order ${input.orderId} is on hold${input.reason ? `: ${input.reason}` : ""}. We will update you shortly.`;
+
+  const result = await notifyChannels({
+    email: input.email,
+    phone: input.phone,
+    subject,
+    html,
+    text: `Order ${input.orderId} is on hold. ${input.reason || ""}`.trim(),
+    waMessage: wa,
+    emailType: "orders",
+  });
+  return { sent: true, detail: result.detail };
+}
+
 export async function sendOrderShipped(input: {
   email?: string | null;
   phone?: string | null;

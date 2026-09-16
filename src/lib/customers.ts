@@ -151,3 +151,56 @@ export async function findCustomerByEmail(email: string) {
   if (!normalized) return null;
   return Customer.findOne({ email: normalized }).lean();
 }
+
+export async function findCustomerByCheckoutIdentity(input: {
+  phone?: string;
+  email?: string;
+  firebaseUid?: string;
+}) {
+  await connectDB();
+  const or: Record<string, unknown>[] = [];
+  const email = input.email?.trim().toLowerCase();
+  const phone = input.phone?.trim();
+  const uid = input.firebaseUid?.trim();
+  if (uid) or.push({ firebaseUid: uid });
+  if (email) or.push({ email });
+  if (phone) {
+    const digits = phone.replace(/\D/g, "");
+    const phone10 =
+      digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.slice(-10);
+    or.push({ phone });
+    if (phone10) or.push({ phone: phone10 }, { phone: `+91${phone10}` });
+  }
+  if (!or.length) return null;
+  return Customer.findOne({ $or: or });
+}
+
+export function buildCustomerListFilter(
+  searchParams: URLSearchParams
+): Record<string, unknown> {
+  const q = searchParams.get("q")?.trim();
+  const ltv = searchParams.get("ltv");
+  const segment = searchParams.get("segment");
+  const and: Record<string, unknown>[] = [];
+
+  if (q) {
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    and.push({
+      $or: [{ email: regex }, { phone: regex }, { name: regex }, { city: regex }],
+    });
+  }
+  if (ltv && ["LOW", "MEDIUM", "HIGH"].includes(ltv)) {
+    and.push({ ltvScore: ltv });
+  }
+  if (segment === "new") and.push({ totalOrders: { $lte: 1 } });
+  if (segment === "repeat") and.push({ totalOrders: { $gte: 2 } });
+  if (segment === "high_ltv") and.push({ ltvScore: "HIGH" });
+  if (segment === "cod") and.push({ codOrderCount: { $gt: 0 } });
+  if (segment === "blocked") {
+    and.push({ $or: [{ frozen: true }, { codBlocked: true }] });
+  }
+
+  if (and.length === 0) return {};
+  if (and.length === 1) return and[0];
+  return { $and: and };
+}

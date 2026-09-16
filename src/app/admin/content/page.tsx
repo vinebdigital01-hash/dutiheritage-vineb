@@ -9,11 +9,14 @@ import {
   AdminTextarea,
   useToast,
 } from "@/components/admin/ui";
+import { ImageUploader } from "@/components/admin/ImageUploader";
+import type { HeroBanner } from "@/lib/site-content-shared";
 
 type SiteContent = {
   announcementText?: string;
   headerNavLinks?: { label: string; slug: string }[];
   homepageSlugs?: string[];
+  heroBanners?: HeroBanner[];
   promoBanner?: { headline?: string; subtext?: string; buttonText?: string };
   footer?: {
     companyName?: string;
@@ -108,6 +111,7 @@ export default function AdminContentPage() {
           ...content,
           headerNavLinks,
           homepageSlugs,
+          heroBanners: content.heroBanners || [],
         }),
       });
       show("Site content saved");
@@ -144,8 +148,8 @@ export default function AdminContentPage() {
     <div>
       {Toast}
       <PageHeader
-        title="Site content"
-        subtitle="Announcement, navigation, promo, footer, and policy pages"
+        title="Homepage"
+        subtitle="Banners, top menu, announcement bar, and policy pages — no developer needed"
       />
 
       <form
@@ -172,6 +176,126 @@ export default function AdminContentPage() {
           value={slugsText}
           onChange={(e) => setSlugsText(e.target.value)}
         />
+
+        <div className="space-y-4 border-t border-[var(--color-border)] pt-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] tracking-[2px] uppercase font-medium">Homepage banners</h2>
+            <AdminButton
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setContent((c) => ({
+                  ...c,
+                  heroBanners: [...(c.heroBanners || []), { image: "", href: "/", active: true }],
+                }))
+              }
+            >
+              Add banner
+            </AdminButton>
+          </div>
+          <p className="text-[12px] text-neutral-500 normal-case tracking-normal">
+            Images + optional schedule. Empty start/end means always on. Inactive banners are hidden.
+          </p>
+          {(content.heroBanners || []).map((banner, idx) => (
+            <div key={idx} className="border border-[var(--color-border)] rounded-xl p-4 space-y-3">
+              <ImageUploader
+                label={`Banner ${idx + 1} image`}
+                value={banner.image}
+                folder="dutiheritage/banners"
+                onChange={(url) =>
+                  setContent((c) => {
+                    const next = [...(c.heroBanners || [])];
+                    next[idx] = { ...next[idx]!, image: url };
+                    return { ...c, heroBanners: next };
+                  })
+                }
+              />
+              <div className="grid md:grid-cols-2 gap-3">
+                <AdminInput
+                  label="Link"
+                  value={banner.href || ""}
+                  onChange={(e) =>
+                    setContent((c) => {
+                      const next = [...(c.heroBanners || [])];
+                      next[idx] = { ...next[idx]!, href: e.target.value };
+                      return { ...c, heroBanners: next };
+                    })
+                  }
+                  placeholder="/collections/new-arrivals"
+                />
+                <AdminInput
+                  label="Headline"
+                  value={banner.headline || ""}
+                  onChange={(e) =>
+                    setContent((c) => {
+                      const next = [...(c.heroBanners || [])];
+                      next[idx] = { ...next[idx]!, headline: e.target.value };
+                      return { ...c, heroBanners: next };
+                    })
+                  }
+                />
+                <AdminInput
+                  label="Starts"
+                  type="datetime-local"
+                  value={banner.startsAt ? banner.startsAt.slice(0, 16) : ""}
+                  onChange={(e) =>
+                    setContent((c) => {
+                      const next = [...(c.heroBanners || [])];
+                      next[idx] = {
+                        ...next[idx]!,
+                        startsAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                      };
+                      return { ...c, heroBanners: next };
+                    })
+                  }
+                />
+                <AdminInput
+                  label="Ends"
+                  type="datetime-local"
+                  value={banner.endsAt ? banner.endsAt.slice(0, 16) : ""}
+                  onChange={(e) =>
+                    setContent((c) => {
+                      const next = [...(c.heroBanners || [])];
+                      next[idx] = {
+                        ...next[idx]!,
+                        endsAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                      };
+                      return { ...c, heroBanners: next };
+                    })
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] flex items-center gap-2 normal-case tracking-normal">
+                  <input
+                    type="checkbox"
+                    checked={banner.active !== false}
+                    onChange={(e) =>
+                      setContent((c) => {
+                        const next = [...(c.heroBanners || [])];
+                        next[idx] = { ...next[idx]!, active: e.target.checked };
+                        return { ...c, heroBanners: next };
+                      })
+                    }
+                  />
+                  Active
+                </label>
+                <button
+                  type="button"
+                  className="text-[12px] text-red-600"
+                  onClick={() =>
+                    setContent((c) => ({
+                      ...c,
+                      heroBanners: (c.heroBanners || []).filter((_, i) => i !== idx),
+                    }))
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
 
         <div className="grid md:grid-cols-3 gap-4">
           <AdminInput

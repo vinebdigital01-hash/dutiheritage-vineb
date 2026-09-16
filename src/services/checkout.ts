@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { Product, Settings } from "@/models";
 import { ApiError } from "@/lib/api";
+import { assertLineInStock, resolveInventorySize } from "@/services/inventory";
 
 export type CheckoutSettings = {
   freeShippingAbove: number;
@@ -107,6 +108,8 @@ export type PricedLine = {
   quantity: number;
   price: number;
   salePrice?: number | null;
+  hsn?: string;
+  gstRate?: number;
 };
 
 export async function priceCartLines(
@@ -139,17 +142,8 @@ export async function priceCartLines(
       throw new ApiError(`Product not found or inactive: ${line.productId}`, 400);
     }
     const qty = Math.max(1, Number(line.quantity) || 1);
-    
-    // Validate Inventory
-    if (product.trackInventory && product.inventory) {
-      const inv = product.inventory.find(i => i.size === line.size);
-      if (!inv || inv.stock < qty) {
-        throw new ApiError(
-          `Only ${inv ? inv.stock : 0} left for ${product.name} (Size: ${line.size || 'Default'})`, 
-          400
-        );
-      }
-    }
+    const size = resolveInventorySize(product, line.size);
+    assertLineInStock(product, size, qty);
 
     return {
       productId: line.productId,
@@ -157,11 +151,13 @@ export async function priceCartLines(
       name: product.name,
       image: product.image,
       collectionId: String(product.collectionId ?? ""),
-      size: line.size,
+      size,
       color: line.color,
       quantity: qty,
       price: product.price,
       salePrice: product.salePrice ?? null,
+      hsn: (product as { hsn?: string }).hsn || "6104",
+      gstRate: Number((product as { gstRate?: number }).gstRate ?? 5),
     };
   });
 }

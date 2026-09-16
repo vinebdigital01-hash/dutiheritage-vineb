@@ -99,8 +99,8 @@ export default function BulkOffersClient() {
     <div>
       {Toast}
       <PageHeader
-        title='Bulk Offers'
-        subtitle='Download the CSV template, fill in offer details, and upload to update multiple products at once.'
+        title="Offers on many products"
+        subtitle="Download the spreadsheet, fill offer text, upload to update many products at once."
         actions={
           <Link href='/admin/products'>
             <AdminButton variant='secondary'>Back to products</AdminButton>
@@ -109,13 +109,13 @@ export default function BulkOffersClient() {
       />
       <div className='max-w-2xl bg-white border border-[var(--color-border)] rounded-xl p-6'>
         <div className='mb-8 pb-8 border-b border-[var(--color-border)]'>
-          <h2 className='text-base font-semibold mb-2'>1. Download Template</h2>
+          <h2 className='text-base font-semibold mb-2'>1. Download spreadsheet</h2>
           <p className='text-[13px] text-neutral-500 mb-4'>
             Get a CSV file containing all your current products. The file includes columns for <strong>offer_title</strong>, <strong>offer_description</strong>, and <strong>offer_code</strong>. If you leave these blank for a product, its offers will be cleared. If you want multiple offers for the same product, just duplicate the row for that product!
           </p>
           <AdminButton onClick={handleDownload} disabled={downloading}>
             <FiDownload className='inline-block mr-2' />
-            {downloading ? 'Preparing CSV...' : 'Download CSV Template'}
+            {downloading ? 'Preparing…' : 'Download spreadsheet template'}
           </AdminButton>
         </div>
         <div>

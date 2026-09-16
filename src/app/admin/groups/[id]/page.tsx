@@ -42,11 +42,11 @@ export default function AdminGroupDetailPage() {
     <div>
       {Toast}
       <PageHeader
-        title={name || "Group"}
-        subtitle={`${members.length} members`}
+        title={name || "This list"}
+        subtitle={`${members.length} people in this list`}
         actions={
           <Link href="/admin/groups">
-            <AdminButton variant="secondary">All groups</AdminButton>
+            <AdminButton variant="secondary">All lists</AdminButton>
           </Link>
         }
       />

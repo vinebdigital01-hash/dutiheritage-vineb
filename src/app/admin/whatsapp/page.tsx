@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { FiSend, FiUser, FiCpu, FiMessageCircle, FiClock, FiCheck } from "react-icons/fi";
 import { adminFetch } from "@/lib/admin-api";
+import { useAppContext } from "@/context/AppContext";
 
 type Session = {
   phone: string;
@@ -10,31 +12,46 @@ type Session = {
   unreadCount: number;
   lastMessageAt: string;
   mode: "bot" | "human";
+  assignedTo?: string;
+  assignedName?: string;
 };
 
 type ChatMessage = {
   id: string;
-  direction: "inbound" | "outbound" | "admin";
+  direction: "inbound" | "outbound" | "admin" | "incoming" | "outgoing";
   body: string;
   createdAt: string;
   messageType: string;
-  sentBy: "user" | "bot" | "admin";
+  sentBy: "user" | "bot" | "admin" | "customer";
 };
 
+type LinkedOrder = {
+  orderId: string;
+  status: string;
+  total: number;
+  paymentMethod: string;
+  name?: string;
+  href: string;
+};
+
+type Canned = { id: string; title: string; body: string };
+
 export default function WhatsAppInboxPage() {
+  const { user } = useAppContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [order, setOrder] = useState<LinkedOrder | null>(null);
+  const [canned, setCanned] = useState<Canned[]>([]);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchSessions = async () => {
     try {
-      const data = await adminFetch<any>("/api/bot/chat");
-      if (data) {
-        setSessions(data.sessions || []);
-      }
+      const data = await adminFetch<{ sessions?: Session[] }>("/api/bot/chat");
+      if (data) setSessions(data.sessions || []);
     } catch (error) {
       console.error("Error fetching sessions:", error);
     } finally {
@@ -44,9 +61,19 @@ export default function WhatsAppInboxPage() {
 
   const fetchMessages = async (phone: string) => {
     try {
-      const data = await adminFetch<any>(`/api/bot/chat/${phone}`);
+      const data = await adminFetch<{
+        messages?: ChatMessage[];
+        session?: Session;
+        order?: LinkedOrder | null;
+      }>(`/api/bot/chat/${encodeURIComponent(phone)}`);
       if (data) {
         setMessages(data.messages || []);
+        setOrder(data.order || null);
+        if (data.session) {
+          setSelectedSession((prev) =>
+            prev && prev.phone === phone ? { ...prev, ...data.session } : prev
+          );
+        }
         scrollToBottom();
       }
     } catch (error) {
@@ -56,6 +83,9 @@ export default function WhatsAppInboxPage() {
 
   useEffect(() => {
     fetchSessions();
+    adminFetch<{ replies: Canned[] }>("/api/bot/canned")
+      .then((d) => setCanned(d.replies || []))
+      .catch(() => undefined);
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -63,10 +93,14 @@ export default function WhatsAppInboxPage() {
   useEffect(() => {
     if (selectedSession) {
       fetchMessages(selectedSession.phone);
+      void adminFetch(`/api/bot/chat/${encodeURIComponent(selectedSession.phone)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ markAsRead: true }),
+      }).catch(() => undefined);
       const interval = setInterval(() => fetchMessages(selectedSession.phone), 5000);
       return () => clearInterval(interval);
     }
-  }, [selectedSession]);
+  }, [selectedSession?.phone]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -79,7 +113,6 @@ export default function WhatsAppInboxPage() {
     const newMessage = replyText;
     setReplyText("");
 
-    // Optimistic update
     const tempMsg: ChatMessage = {
       id: Date.now().toString(),
       direction: "admin",
@@ -92,17 +125,14 @@ export default function WhatsAppInboxPage() {
     scrollToBottom();
 
     try {
-      await fetch(`/api/bot/chat/${selectedSession.phone}`, {
+      await adminFetch(`/api/bot/chat/${encodeURIComponent(selectedSession.phone)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          direction: "admin",
           body: newMessage,
           sentBy: "admin",
           messageType: "text",
         }),
       });
-      // fetchMessages(selectedSession.phone); // let polling handle it
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -111,21 +141,34 @@ export default function WhatsAppInboxPage() {
   const handleToggleMode = async () => {
     if (!selectedSession) return;
     const newMode = selectedSession.mode === "bot" ? "human" : "bot";
-    
-    // Optimistic update
     setSelectedSession({ ...selectedSession, mode: newMode });
-    setSessions(prev => prev.map(s => s.phone === selectedSession.phone ? { ...s, mode: newMode } : s));
-
+    setSessions((prev) =>
+      prev.map((s) => (s.phone === selectedSession.phone ? { ...s, mode: newMode } : s))
+    );
     try {
-      await fetch(`/api/bot/chat/${selectedSession.phone}`, {
+      await adminFetch(`/api/bot/chat/${encodeURIComponent(selectedSession.phone)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: newMode }),
       });
     } catch (error) {
       console.error("Error toggling mode:", error);
     }
   };
+
+  const assignToMe = async () => {
+    if (!selectedSession || !user?.email) return;
+    try {
+      await adminFetch(`/api/bot/chat/${encodeURIComponent(selectedSession.phone)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ assignedTo: user.email, assignedName: user.email }),
+      });
+      setSelectedSession({ ...selectedSession, assignedTo: user.email, assignedName: user.email });
+    } catch (error) {
+      console.error("Error assigning:", error);
+    }
+  };
+
+  const visible = unreadOnly ? sessions.filter((s) => (s.unreadCount || 0) > 0) : sessions;
 
   if (loading) {
     return <div className="p-8">Loading...</div>;
@@ -134,20 +177,28 @@ export default function WhatsAppInboxPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Pane - Sessions */}
         <div className="w-1/3 border-r border-[var(--color-border)] flex flex-col bg-[#f8f9fa]">
-          <div className="p-4 border-b border-[var(--color-border)] bg-white">
+          <div className="p-4 border-b border-[var(--color-border)] bg-white space-y-3">
             <h2 className="text-lg font-serif tracking-[1px] uppercase flex items-center gap-2">
-              <FiMessageCircle /> Live Inbox
+              <FiMessageCircle /> WhatsApp chats
             </h2>
+            <p className="text-[13px] text-neutral-500">Chats with customers. The order card opens that order.</p>
+            <label className="flex items-center gap-2 text-xs text-neutral-600">
+              <input
+                type="checkbox"
+                checked={unreadOnly}
+                onChange={(e) => setUnreadOnly(e.target.checked)}
+              />
+              Unread only (who is waiting)
+            </label>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {sessions.length === 0 ? (
+            {visible.length === 0 ? (
               <div className="p-8 text-center text-sm text-neutral-500">
-                No active conversations.
+                No conversations.
               </div>
             ) : (
-              sessions.map((session) => (
+              visible.map((session) => (
                 <div
                   key={session.phone}
                   onClick={() => setSelectedSession(session)}
@@ -167,12 +218,17 @@ export default function WhatsAppInboxPage() {
                   </div>
                   <div className="flex justify-between items-center text-xs text-neutral-500">
                     <span className="flex items-center gap-1">
-                      {session.mode === "bot" ? <FiCpu size={12}/> : <FiUser size={12}/>}
-                      {session.mode === "bot" ? "Bot" : "Human"}
+                      {session.mode === "bot" ? <FiCpu size={12} /> : <FiUser size={12} />}
+                      {session.assignedName || (session.mode === "bot" ? "Bot" : "Human")}
                     </span>
                     <span className="flex items-center gap-1">
                       <FiClock size={12} />
-                      {new Date(session.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {session.lastMessageAt
+                        ? new Date(session.lastMessageAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : ""}
                     </span>
                   </div>
                 </div>
@@ -181,33 +237,59 @@ export default function WhatsAppInboxPage() {
           </div>
         </div>
 
-        {/* Right Pane - Chat */}
         <div className="flex-1 flex flex-col bg-[#efeae2]">
           {selectedSession ? (
             <>
-              {/* Chat Header */}
-              <div className="p-4 bg-white border-b border-[var(--color-border)] flex justify-between items-center">
+              <div className="p-4 bg-white border-b border-[var(--color-border)] flex justify-between items-center gap-3">
                 <div>
                   <h3 className="font-medium">{selectedSession.customerName || selectedSession.phone}</h3>
                   <p className="text-xs text-neutral-500">{selectedSession.phone}</p>
+                  {selectedSession.assignedTo ? (
+                    <p className="text-[11px] text-neutral-400">Assigned: {selectedSession.assignedName}</p>
+                  ) : null}
                 </div>
-                <button
-                  onClick={handleToggleMode}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-2 transition-colors ${
-                    selectedSession.mode === "bot"
-                      ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                      : "bg-green-100 text-green-700 hover:bg-green-200"
-                  }`}
-                >
-                  {selectedSession.mode === "bot" ? (
-                    <><FiCpu /> Bot Mode (Click to pause)</>
-                  ) : (
-                    <><FiUser /> Human Mode (Click to resume bot)</>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={assignToMe}
+                    className="px-3 py-1.5 text-xs border rounded-full"
+                  >
+                    Assign to me
+                  </button>
+                  <button
+                    onClick={handleToggleMode}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-2 transition-colors ${
+                      selectedSession.mode === "bot"
+                        ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        : "bg-green-100 text-green-700 hover:bg-green-200"
+                    }`}
+                  >
+                    {selectedSession.mode === "bot" ? (
+                      <>
+                        <FiCpu /> Bot Mode
+                      </>
+                    ) : (
+                      <>
+                        <FiUser /> Human Mode
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {/* Chat Messages */}
+              {order ? (
+                <Link
+                  href={order.href}
+                  className="mx-4 mt-3 bg-white border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm shadow-sm hover:bg-neutral-50"
+                >
+                  <p className="text-[11px] uppercase tracking-wider text-neutral-400">Latest order — click to open</p>
+                  <p className="font-medium">{order.orderId}</p>
+                  <p className="text-neutral-500">
+                    {order.status} · {order.paymentMethod} · ₹{Number(order.total).toLocaleString("en-IN")}
+                  </p>
+                </Link>
+              ) : null}
+
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 ? (
                   <div className="text-center text-sm text-neutral-500 mt-10 bg-white/50 py-2 rounded-lg mx-auto max-w-xs">
@@ -215,7 +297,10 @@ export default function WhatsAppInboxPage() {
                   </div>
                 ) : (
                   messages.map((msg, idx) => {
-                    const isOutbound = msg.direction === "outbound" || msg.direction === "admin";
+                    const isOutbound =
+                      msg.direction === "outbound" ||
+                      msg.direction === "outgoing" ||
+                      msg.direction === "admin";
                     return (
                       <div
                         key={msg.id || idx}
@@ -233,7 +318,12 @@ export default function WhatsAppInboxPage() {
                             {msg.sentBy === "bot" && <span>Bot</span>}
                             {msg.sentBy === "admin" && <span>Admin</span>}
                             <span>
-                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {msg.createdAt
+                                ? new Date(msg.createdAt).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : ""}
                             </span>
                             {isOutbound && <FiCheck size={10} />}
                           </div>
@@ -245,8 +335,22 @@ export default function WhatsAppInboxPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Chat Input */}
-              <div className="p-3 bg-[#f0f2f5]">
+              <div className="p-3 bg-[#f0f2f5] space-y-2">
+                {canned.length > 0 ? (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    <span className="shrink-0 self-center text-[11px] text-neutral-500">Saved replies:</span>
+                    {canned.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setReplyText(c.body)}
+                        className="shrink-0 px-3 py-1 text-[11px] bg-white border rounded-full"
+                      >
+                        {c.title}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <form onSubmit={handleSendReply} className="flex gap-2">
                   <input
                     type="text"

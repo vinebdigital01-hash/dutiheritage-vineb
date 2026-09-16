@@ -25,3 +25,16 @@ export { Wishlist, type WishlistDocument } from "./Wishlist";
 export * from './SystemLog';
 export { ChatMessage, type ChatMessageDocument } from "./ChatMessage";
 export { ChatSession, type ChatSessionDocument } from "./ChatSession";
+export { StockMovement, type StockMovementDocument } from "./StockMovement";
+export { StoreSettings, type StoreSettingsDocument } from "./StoreSettings";
+export { AdminAudit, type AdminAuditDocument } from "./AdminAudit";
+export {
+  ReturnRequest,
+  RETURN_STATUSES,
+  type ReturnRequestDocument,
+  type ReturnStatus,
+} from "./ReturnRequest";
+export {
+  WhatsAppCannedReply,
+  type WhatsAppCannedReplyDocument,
+} from "./WhatsAppCannedReply";

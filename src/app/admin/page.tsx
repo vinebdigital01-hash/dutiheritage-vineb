@@ -2,8 +2,8 @@
 import { SkeletonAdminDashboard } from "@/components/ui/Skeleton";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { adminFetch } from "@/lib/admin-api";
-import { PageHeader, StatCard, AdminButton, Badge } from "@/components/admin/ui";
+import { adminFetch, downloadAdminFile } from "@/lib/admin-api";
+import { PageHeader, StatCard, AdminButton, Badge, useToast } from "@/components/admin/ui";
 import type { OrderDTO } from "@/lib/mappers";
 import type { Product, Collection } from "@/types";
 
@@ -33,6 +33,8 @@ export default function AdminDashboardPage() {
   const [days, setDays] = useState(30);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [chartsLoading, setChartsLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const { show, Toast } = useToast();
 
   // Core stats — fetched from simple, reliable endpoints
   const [recentOrders, setRecentOrders] = useState<OrderDTO[]>([]);
@@ -43,23 +45,29 @@ export default function AdminDashboardPage() {
   const [productCount, setProductCount] = useState(0);
   const [collectionCount, setCollectionCount] = useState(0);
   const [needsConfirmation, setNeedsConfirmation] = useState(0);
+  const [lowStockCount, setLowStockCount] = useState(0);
+  const [outOfStockCount, setOutOfStockCount] = useState(0);
 
   const loadCoreData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, productsRes, collectionsRes, customersRes] = await Promise.all([
-        adminFetch<{ orders: OrderDTO[]; count: number }>("/api/orders?limit=8"),
+      const [ordersRes, productsRes, collectionsRes, customersRes, inventoryRes] = await Promise.all([
+        adminFetch<{ orders: OrderDTO[]; count: number; total?: number }>("/api/orders?limit=8"),
         adminFetch<{ products: Product[]; count: number }>("/api/products?all=1"),
         adminFetch<{ collections: Collection[] }>("/api/collections?all=1"),
         adminFetch<{ customers: any[]; count: number }>("/api/customers?limit=1"),
+        adminFetch<{ lowCount: number; outCount: number }>("/api/inventory/alerts").catch(() => ({
+          lowCount: 0,
+          outCount: 0,
+        })),
       ]);
 
       const orders = ordersRes?.orders || [];
       setRecentOrders(orders);
-      setTotalOrderCount(ordersRes?.count || orders.length);
+      setTotalOrderCount(ordersRes?.total || ordersRes?.count || orders.length);
 
       // Fetch ALL orders to compute revenue (the list API may return paginated)
-      const allOrdersRes = await adminFetch<{ orders: OrderDTO[]; count: number }>("/api/orders?limit=500");
+        const allOrdersRes = await adminFetch<{ orders: OrderDTO[]; count: number; total?: number }>("/api/orders?limit=100");
       const allOrders = allOrdersRes?.orders || [];
 
       // Calculate revenue from non-cancelled orders in the time period
@@ -88,6 +96,8 @@ export default function AdminDashboardPage() {
       setTotalRevenue(revenue);
       setTotalOrderCount(ordersInPeriod);
       setNeedsConfirmation(pendingConfirmation);
+      setLowStockCount(inventoryRes?.lowCount || 0);
+      setOutOfStockCount(inventoryRes?.outCount || 0);
       setProductCount(productsRes?.products?.length || 0);
       setCollectionCount(collectionsRes?.collections?.length || 0);
       setCustomerCount(customersRes?.count || 0);
@@ -124,13 +134,29 @@ export default function AdminDashboardPage() {
     loadCharts(days);
   }, [days]);
 
+  const downloadCompleteAnalysis = async () => {
+    setExporting(true);
+    try {
+      await downloadAdminFile(
+        `/api/analytics/export-complete?days=${days}`,
+        `complete-analysis-last-${days}-days.xlsx`
+      );
+      show("Excel downloaded");
+    } catch (e) {
+      show(e instanceof Error ? e.message : "Download failed", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
+      {Toast}
       <PageHeader
-        title="Dashboard"
-        subtitle="Overview of your Duti Heritage store"
+        title="Home"
+        subtitle="Today’s snapshot — you pack from Orders, not here"
         actions={
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-wrap gap-3 items-center">
             <select 
               value={days} 
               onChange={e => { setDays(Number(e.target.value)); }}
@@ -140,6 +166,13 @@ export default function AdminDashboardPage() {
               <option value={30}>Last 30 Days</option>
               <option value={90}>Last 90 Days</option>
             </select>
+            <AdminButton
+              variant="secondary"
+              onClick={downloadCompleteAnalysis}
+              disabled={exporting}
+            >
+              {exporting ? "Preparing Excel…" : "Download complete analysis (Excel)"}
+            </AdminButton>
             <Link href="/admin/products/new">
               <AdminButton>Add product</AdminButton>
             </Link>
@@ -151,21 +184,66 @@ export default function AdminDashboardPage() {
         <SkeletonAdminDashboard />
       ) : (
         <div className="space-y-6">
+          <div className="grid md:grid-cols-3 gap-4">
+            <Link
+              href="/admin/orders"
+              className="block bg-white border border-[var(--color-border)] rounded-xl px-5 py-4 hover:border-black"
+            >
+              <p className="text-[11px] uppercase tracking-wider text-neutral-500">Start here</p>
+              <p className="text-[15px] font-medium mt-1">Orders waiting to confirm</p>
+              <p className="text-2xl font-serif mt-1">{needsConfirmation}</p>
+              <p className="text-[13px] text-neutral-500 mt-1">Open Orders →</p>
+            </Link>
+            <Link
+              href="/admin/inventory"
+              className="block bg-white border border-[var(--color-border)] rounded-xl px-5 py-4 hover:border-black"
+            >
+              <p className="text-[11px] uppercase tracking-wider text-neutral-500">Start here</p>
+              <p className="text-[15px] font-medium mt-1">Low or sold-out sizes</p>
+              <p className="text-2xl font-serif mt-1">
+                {lowStockCount} / {outOfStockCount}
+              </p>
+              <p className="text-[13px] text-neutral-500 mt-1">Open Stock →</p>
+            </Link>
+            <div className="bg-white border border-[var(--color-border)] rounded-xl px-5 py-4">
+              <p className="text-[11px] uppercase tracking-wider text-neutral-500">Start here</p>
+              <p className="text-[15px] font-medium mt-1">Recent orders</p>
+              <p className="text-[13px] text-neutral-600 mt-2 leading-snug">
+                Scroll down and click an order number to open it.
+              </p>
+            </div>
+          </div>
+
           {/* Row 1: Key Revenue Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label={`Revenue (${days}d)`} value={`\u20B9${totalRevenue.toLocaleString("en-IN")}`} />
             <StatCard label={`Orders (${days}d)`} value={totalOrderCount} />
             <StatCard label="Customers" value={customerCount} />
-            <StatCard label="Abandoned Carts" value={abandonedCount} />
+            <StatCard label="Carts left unpaid" value={abandonedCount} />
           </div>
 
           {/* Row 2: Catalog Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Products" value={productCount} />
             <StatCard label="Collections" value={collectionCount} />
-            <StatCard label="Needs Confirmation" value={needsConfirmation} />
-            <StatCard label="Catalog Health" value="Live" />
+            <StatCard label="Orders waiting to confirm" value={needsConfirmation} />
+            <StatCard
+              label="Low / sold out"
+              value={`${lowStockCount} / ${outOfStockCount}`}
+              hint="Open Stock for sizes running out"
+            />
           </div>
+
+          {(lowStockCount > 0 || outOfStockCount > 0) && (
+            <Link
+              href="/admin/inventory"
+              className="block bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-[13px] hover:bg-amber-100/80"
+            >
+              <span className="font-medium">Stock alerts:</span> {lowStockCount} low and{" "}
+              {outOfStockCount} sold-out size{outOfStockCount === 1 ? "" : "s"}. Open Stock
+              →
+            </Link>
+          )}
 
           {/* Charts Section */}
           {chartsLoading ? (
@@ -185,7 +263,7 @@ export default function AdminDashboardPage() {
                 <TopProductsChart data={dashboardData.topProducts} />
                 <div className="grid grid-rows-2 gap-6">
                   <CollectionInsights data={dashboardData.topCollections} title="Top Collections (Views)" />
-                  <CollectionInsights data={dashboardData.abandonedCartsByCollection} title="Abandoned Carts by Collection" />
+                  <CollectionInsights data={dashboardData.abandonedCartsByCollection} title="Carts left unpaid by collection" />
                 </div>
               </div>
 

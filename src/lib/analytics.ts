@@ -4,6 +4,7 @@ import {
   Order,
   Event,
   Cart,
+  Review,
   CustomerGroup,
   type CustomerDocument,
 } from "@/models";
@@ -30,6 +31,11 @@ export type CustomerDTO = {
   lastPurchase?: string;
   createdAt?: string;
   address?: CustomerDocument["address"];
+  notes?: string;
+  frozen?: boolean;
+  codBlocked?: boolean;
+  blockReason?: string;
+  codOrderCount?: number;
 };
 
 export function computeLtvScore(
@@ -72,6 +78,11 @@ export function toCustomerDTO(doc: CustomerDocument | LeanCustomer): CustomerDTO
       ? new Date(doc.createdAt).toISOString()
       : undefined,
     address: doc.address,
+    notes: (doc as LeanCustomer).notes || "",
+    frozen: Boolean((doc as LeanCustomer).frozen),
+    codBlocked: Boolean((doc as LeanCustomer).codBlocked),
+    blockReason: (doc as LeanCustomer).blockReason || "",
+    codOrderCount: Number((doc as LeanCustomer).codOrderCount ?? 0),
   };
 }
 
@@ -96,13 +107,37 @@ type LeanCustomer = {
   lastPurchase?: Date | string;
   createdAt?: Date | string;
   address?: CustomerDocument["address"];
+  notes?: string;
+  frozen?: boolean;
+  codBlocked?: boolean;
+  blockReason?: string;
+  codOrderCount?: number;
 };
 
 /** Recompute order stats on a customer from orders collection. */
+export function customerOrderMatch(customer: {
+  _id: { toString(): string };
+  firebaseUid?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}) {
+  const or: Record<string, unknown>[] = [
+    { customerId: customer._id.toString() },
+    { customerId: customer._id },
+  ];
+  if (customer.firebaseUid) or.push({ firebaseUid: customer.firebaseUid });
+  if (customer.email) or.push({ "customer.email": customer.email });
+  if (customer.phone) or.push({ "customer.phone": customer.phone });
+  return { $or: or };
+}
+
 export async function refreshCustomerStats(customerId: string) {
   await connectDB();
+  const customer = await Customer.findById(customerId).lean();
+  if (!customer) return;
+
   const orders = await Order.find({
-    customerId,
+    ...customerOrderMatch(customer),
     status: { $nin: ["Cancelled", "Returned"] },
   }).lean();
 
@@ -119,12 +154,14 @@ export async function refreshCustomerStats(customerId: string) {
         new Date(0)
       )
     : undefined;
+  const codOrderCount = orders.filter((o) => o.paymentMethod === "cod").length;
 
   await Customer.findByIdAndUpdate(customerId, {
     totalOrders,
     totalSpent,
     avgOrderValue,
     ltvScore: computeLtvScore(totalSpent, totalOrders),
+    codOrderCount,
     ...(lastPurchase && lastPurchase.getTime() > 0
       ? { lastPurchase }
       : {}),
@@ -136,10 +173,10 @@ export async function getCustomerProfile(customerId: string) {
   const customer = await Customer.findById(customerId).lean();
   if (!customer) return null;
 
-  const [orders, events, carts] = await Promise.all([
-    Order.find({ customerId })
+  const [orders, events, carts, reviews] = await Promise.all([
+    Order.find(customerOrderMatch(customer))
       .sort({ createdAt: -1 })
-      .limit(20)
+      .limit(30)
       .lean(),
     Event.find({
       $or: [
@@ -156,13 +193,27 @@ export async function getCustomerProfile(customerId: string) {
     Cart.find({
       $or: [
         { customerId },
-        { firebaseUid: customer.firebaseUid },
+        ...(customer.firebaseUid ? [{ firebaseUid: customer.firebaseUid }] : []),
         ...(customer.email ? [{ email: customer.email }] : []),
+        ...(customer.phone ? [{ phone: customer.phone }] : []),
       ],
       status: { $in: ["abandoned", "emailed", "active"] },
     })
       .sort({ lastUpdated: -1 })
       .limit(5)
+      .lean(),
+    Review.find(
+      customer.firebaseUid || customer.email
+        ? {
+            $or: [
+              ...(customer.firebaseUid ? [{ userId: customer.firebaseUid }] : []),
+              ...(customer.email ? [{ userId: customer.email }] : []),
+            ],
+          }
+        : { _id: null }
+    )
+      .sort({ createdAt: -1 })
+      .limit(20)
       .lean(),
   ]);
 
@@ -196,6 +247,7 @@ export async function getCustomerProfile(customerId: string) {
       orderId: o.orderId,
       total: o.total,
       status: o.status,
+      paymentMethod: o.paymentMethod,
       createdAt: o.createdAt,
     })),
     recentEvents: events.map((e) => ({
@@ -211,6 +263,19 @@ export async function getCustomerProfile(customerId: string) {
       status: c.status,
       itemCount: c.items?.length ?? 0,
       lastUpdated: c.lastUpdated,
+      items: (c.items || []).map((i) => ({
+        name: i.name || i.productId,
+        size: i.size,
+        quantity: i.quantity,
+      })),
+    })),
+    reviews: reviews.map((r) => ({
+      id: r._id.toString(),
+      productId: r.productId,
+      rating: r.rating,
+      comment: r.comment,
+      status: r.status,
+      createdAt: (r as { createdAt?: Date }).createdAt,
     })),
     topProductViews: productViews.map((p) => ({
       productId: p._id,

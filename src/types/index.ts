@@ -41,6 +41,8 @@ export type Product = {
   trackInventory?: boolean;
   lowStockThreshold?: number;
   stockStatus?: "in_stock" | "low_stock" | "out_of_stock";
+  hsn?: string;
+  gstRate?: number;
 };
 
 export type UserProfile = {

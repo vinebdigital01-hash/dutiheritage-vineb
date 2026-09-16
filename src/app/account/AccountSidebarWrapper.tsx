@@ -72,7 +72,7 @@ export function AccountSidebarWrapper({ children }: { children: React.ReactNode 
 
         <div className="p-6 border-t border-[var(--color-border)]">
           <button 
-            onClick={logout}
+            onClick={() => logout()}
             className="flex items-center gap-4 w-full px-4 py-3 text-[13px] font-medium tracking-[1px] uppercase text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
             <FiLogOut className="text-[18px]" />

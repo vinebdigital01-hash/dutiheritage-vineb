@@ -1,13 +1,14 @@
 ﻿import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
 import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
 import { PromoBanner } from "@/components/PromoBanner/PromoBanner";
+import { HomepageHero } from "@/components/HomepageHero/HomepageHero";
 import { db } from "@/services/db";
 import {
   getSiteContent,
   resolveHomepageSlugs,
 } from "@/lib/site-content-server";
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export default async function Home() {
   const siteContent = await getSiteContent();
@@ -28,6 +29,7 @@ export default async function Home() {
     <>
       <OfflineSync products={allProducts.slice(0, 50)} />
       <h1 className="sr-only">Duti Heritage - Premium Fashion & Luxury Apparel</h1>
+      <HomepageHero banners={siteContent.heroBanners || []} />
       {collectionsData.map((data, index) => {
         if (!data || data.products.length === 0) return null;
 

@@ -88,7 +88,7 @@ export default function AnalyticsInsightsPage() {
   if (loading && !data) {
     return (
       <div className="p-8">
-        <PageHeader title="Analytics & Insights" subtitle="Loading insights data..." />
+        <PageHeader title="Sales charts" subtitle="Loading charts…" />
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         </div>
@@ -107,7 +107,7 @@ export default function AnalyticsInsightsPage() {
   return (
     <div className="p-8 space-y-6">
       <div className="flex justify-between items-start">
-        <PageHeader title="Analytics & Insights" subtitle="Comprehensive store performance metrics" />
+        <PageHeader title="Sales charts" subtitle="What sold and who bought — not for packing parcels" />
         <select 
           value={days} 
           onChange={(e) => setDays(Number(e.target.value))}
@@ -149,8 +149,8 @@ export default function AnalyticsInsightsPage() {
                 <StatCard label="Conversion Rate" value={`${data.overview.conversionRate.toFixed(2)}%`} />
                 <StatCard label="Total Customers" value={data.overview.totalCustomers.toLocaleString()} />
                 <StatCard label="New / Returning" value={`${data.overview.newCustomers} / ${data.overview.returningCustomers}`} />
-                <StatCard label="Abandoned Carts" value={data.overview.abandonedCarts.toLocaleString()} />
-                <StatCard label="Abandoned Value" value={`\u20B9${data.overview.abandonedCartValue.toLocaleString()}`} />
+                <StatCard label="Carts left unpaid" value={data.overview.abandonedCarts.toLocaleString()} />
+                <StatCard label="Value of unpaid carts" value={`\u20B9${data.overview.abandonedCartValue.toLocaleString()}`} />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -450,7 +450,7 @@ export default function AnalyticsInsightsPage() {
                         <th className="p-4 font-medium text-gray-600 text-right">Orders</th>
                         <th className="p-4 font-medium text-gray-600 text-right">Revenue</th>
                         <th className="p-4 font-medium text-gray-600 text-right">Conv. Rate</th>
-                        <th className="p-4 font-medium text-gray-600 text-right">Abandoned Carts</th>
+                        <th className="p-4 font-medium text-gray-600 text-right">Carts left unpaid</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)]">

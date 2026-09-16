@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAppContext } from "@/context/AppContext";
-import { 
+import {
   FiBox,
   FiGrid,
   FiHome,
@@ -19,31 +19,67 @@ import {
   FiMessageSquare,
   FiZap,
   FiUsers,
-  FiBarChart2, FiFileText,
+  FiBarChart2,
+  FiFileText,
   FiLayers,
   FiShield,
   FiActivity,
-  FiMessageCircle
+  FiMessageCircle,
+  FiAlertCircle,
+  FiClipboard,
+  FiRotateCcw,
 } from "react-icons/fi";
+import { ADMIN_NAV, ADMIN_IDLE_MS, canRoleAccessPath, defaultAdminPath, NAV_SECTIONS } from "@/lib/rbac";
+import { AdminCommandPalette, AdminNewOrderToast } from "@/components/admin/AdminCommandPalette";
+import { AdminHowTo } from "@/components/admin/AdminHowTo";
+import type { StaffRole } from "@/models/Staff";
+import type { IconType } from "react-icons";
 
-const NAV = [
-  { href: "/admin", label: "Dashboard", icon: FiHome, exact: true, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/products", label: "Products", icon: FiBox, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/collections", label: "Collections", icon: FiGrid, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/orders", label: "Orders", icon: FiPackage, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/customers", label: "Customers", icon: FiUsers, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/analytics", label: "Insights", icon: FiBarChart2, FiFileText, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/reports", label: "Reports", icon: FiFileText, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/reviews", label: "Reviews", icon: FiMessageSquare, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/groups", label: "Groups", icon: FiLayers, roles: ["SUPERADMIN", "ADMIN"] },
-  { href: "/admin/coupons", label: "Coupons", icon: FiTag, roles: ["SUPERADMIN", "ADMIN"] },
-  { href: "/admin/automations", label: "Automations", icon: FiZap, roles: ["SUPERADMIN", "ADMIN"] },
-  { href: "/admin/content", label: "Site content", icon: FiEdit3, roles: ["SUPERADMIN", "ADMIN"] },
-  { href: "/admin/settings/cod", label: "COD & Shipping", icon: FiSettings, roles: ["SUPERADMIN", "ADMIN"] },
-  { href: "/admin/staff", label: "Staff", icon: FiShield, roles: ["SUPERADMIN"] },
-  { href: "/admin/whatsapp", label: "WhatsApp", icon: FiMessageCircle, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] },
-  { href: "/admin/logs", label: "System Logs", icon: FiActivity, roles: ["SUPERADMIN"] },
-];
+const ICONS: Record<string, IconType> = {
+  "/admin": FiHome,
+  "/admin/orders": FiPackage,
+  "/admin/returns": FiRotateCcw,
+  "/admin/inventory": FiAlertCircle,
+  "/admin/customers": FiUsers,
+  "/admin/reviews": FiMessageSquare,
+  "/admin/whatsapp": FiMessageCircle,
+  "/admin/products": FiBox,
+  "/admin/collections": FiGrid,
+  "/admin/analytics": FiBarChart2,
+  "/admin/reports": FiFileText,
+  "/admin/groups": FiLayers,
+  "/admin/coupons": FiTag,
+  "/admin/automations": FiZap,
+  "/admin/content": FiEdit3,
+  "/admin/settings": FiSettings,
+  "/admin/audit": FiClipboard,
+  "/admin/staff": FiShield,
+  "/admin/logs": FiActivity,
+};
+
+const LABELS: Record<string, string> = {
+  "/admin": "Home",
+  "/admin/orders": "Orders",
+  "/admin/returns": "Returns",
+  "/admin/inventory": "Stock",
+  "/admin/customers": "Customers",
+  "/admin/reviews": "Reviews",
+  "/admin/whatsapp": "WhatsApp chats",
+  "/admin/products": "Products",
+  "/admin/collections": "Collections",
+  "/admin/analytics": "Sales charts",
+  "/admin/reports": "Email reports",
+  "/admin/groups": "Customer lists",
+  "/admin/coupons": "Discount codes",
+  "/admin/automations": "Auto messages",
+  "/admin/content": "Homepage",
+  "/admin/settings": "Store settings",
+  "/admin/audit": "Who changed what",
+  "/admin/staff": "Staff",
+  "/admin/logs": "Error log",
+};
+
+const IDLE_KEY = "duti_admin_last_active";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -51,21 +87,60 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, adminRole, authLoading, logout } = useAppContext();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [denied, setDenied] = useState(false);
+  const isLogin = pathname === "/admin/login";
 
   useEffect(() => {
-    if (authLoading) return;
+    if (isLogin || authLoading) return;
     if (!user) {
-      router.replace(`/account?next=${encodeURIComponent(pathname || "/admin")}`);
+      router.replace(`/admin/login?next=${encodeURIComponent(pathname || "/admin")}`);
       return;
     }
     if (!isAdmin) {
       setDenied(true);
+      return;
     }
-  }, [authLoading, user, isAdmin, router, pathname]);
+    if (!canRoleAccessPath(adminRole, pathname || "/admin")) {
+      router.replace(defaultAdminPath(adminRole));
+    }
+  }, [authLoading, user, isAdmin, adminRole, router, pathname, isLogin]);
+
+  useEffect(() => {
+    if (isLogin || !user || !isAdmin) return;
+    const bump = () => {
+      try {
+        localStorage.setItem(IDLE_KEY, String(Date.now()));
+      } catch {
+        /* ignore */
+      }
+    };
+    bump();
+    const events: Array<keyof WindowEventMap> = ["click", "keydown", "mousemove", "scroll"];
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    const t = window.setInterval(() => {
+      try {
+        const last = Number(localStorage.getItem(IDLE_KEY) || "0");
+        if (last && Date.now() - last > ADMIN_IDLE_MS) {
+          logout("/admin/login?timeout=1");
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 15000);
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+      window.clearInterval(t);
+    };
+  }, [isLogin, user, isAdmin, logout]);
+
+  if (isLogin) {
+    return <div className="admin-shell">{children}</div>;
+  }
 
   if (authLoading) {
     return (
-      <div className="min-h-screen p-8"><SkeletonPage /></div>
+      <div className="min-h-screen p-8">
+        <SkeletonPage />
+      </div>
     );
   }
 
@@ -73,7 +148,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
         <p className="text-[13px] tracking-[2px] uppercase text-[var(--color-text-muted)]">
-          Redirecting to login…
+          Redirecting to staff login…
         </p>
       </div>
     );
@@ -89,8 +164,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           Admin access required
         </h1>
         <p className="text-[14px] text-[var(--color-text-muted)] mb-8 max-w-md">
-          Signed in as <span className="text-black font-medium">{user.email}</span>.
-          This account is not authorized for the admin dashboard.
+          Signed in as <span className="text-black font-medium">{user.email}</span>. This account is
+          not authorized for the admin dashboard.
         </p>
         <div className="flex gap-3">
           <Link
@@ -101,7 +176,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
           <button
             type="button"
-            onClick={() => logout()}
+            onClick={() => logout("/admin/login")}
             className="bg-black text-white px-6 py-3 text-[12px] tracking-[2px] uppercase hover:bg-black/90"
           >
             Sign out
@@ -112,33 +187,44 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => {
-    // Filter nav items by the user's role
-    const allowedNav = NAV.filter((item) => {
-      if (!adminRole) return false;
-      return item.roles.includes(adminRole);
-    });
+    const allowedNav = ADMIN_NAV.filter(
+      (item) => adminRole && item.roles.includes(adminRole as StaffRole)
+    );
 
     return (
-      <nav className="flex flex-col gap-1 px-3">
-        {allowedNav.map((item) => {
-          const active = item.exact
-            ? pathname === item.href
-            : pathname === item.href || pathname?.startsWith(item.href + "/");
-          const Icon = item.icon;
+      <nav className="flex flex-col gap-4 px-3">
+        {NAV_SECTIONS.map((section) => {
+          const items = allowedNav.filter((item) => item.section === section.id);
+          if (!items.length) return null;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={`flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-[0.5px] transition-colors rounded-lg ${
-                active
-                  ? "bg-black text-white"
-                  : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
-              }`}
-            >
-              <Icon className="text-[16px] shrink-0" />
-              {item.label}
-            </Link>
+            <div key={section.id}>
+              <p className="px-3 mb-1 text-[10px] font-semibold tracking-[1px] uppercase text-neutral-400">
+                {section.label}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {items.map((item) => {
+                  const active = item.exact
+                    ? pathname === item.href
+                    : pathname === item.href || pathname?.startsWith(item.href + "/");
+                  const Icon = ICONS[item.href] || FiHome;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-3 px-3 py-2 text-[13px] transition-colors rounded-lg ${
+                        active
+                          ? "bg-black text-white"
+                          : "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+                      }`}
+                    >
+                      <Icon className="text-[16px] shrink-0" />
+                      {LABELS[item.href] || item.href}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </nav>
@@ -146,14 +232,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-black flex">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-[260px] shrink-0 flex-col border-r border-[var(--color-border)] bg-white">
+    <div className="admin-shell min-h-screen bg-[#fafafa] text-black flex">
+      <aside className="hidden lg:flex w-[260px] shrink-0 flex-col border-r border-[var(--color-border)] bg-white print:hidden sticky top-0 h-screen self-start overflow-hidden">
         <div className="px-6 py-6 border-b border-[var(--color-border)]">
           <p className="text-[10px] tracking-[3px] uppercase text-[var(--color-text-muted)] mb-1">
             Duti Heritage
           </p>
           <h1 className="text-lg font-serif tracking-[2px] uppercase">Admin</h1>
+          <p className="text-[11px] text-neutral-500 mt-1 leading-snug">Run the shop: orders, stock, customers</p>
         </div>
         <div className="flex-1 py-4 overflow-y-auto">
           <NavLinks />
@@ -167,7 +253,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
           <button
             type="button"
-            onClick={() => logout()}
+            onClick={() => logout("/admin/login")}
             className="flex items-center gap-2 px-3 py-2 text-[12px] text-neutral-600 hover:text-black w-full text-left"
           >
             <FiLogOut /> Sign out
@@ -183,21 +269,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile header */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-[var(--color-border)]">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="p-2 -ml-2"
-            aria-label="Open menu"
-          >
+        <header className="sticky top-0 z-40 flex items-center gap-3 px-4 py-3 bg-white border-b border-[var(--color-border)] print:hidden">
+          <button type="button" onClick={() => setMobileOpen(true)} className="p-2 -ml-2 lg:hidden" aria-label="Open menu">
             <FiMenu className="text-xl" />
           </button>
-          <span className="text-[13px] tracking-[2px] uppercase font-medium">
-            Admin
-          </span>
-          <Link href="/" className="text-[11px] tracking-[1px] uppercase text-neutral-500">
+          <div className="flex-1 min-w-0">
+            <AdminCommandPalette />
+          </div>
+          <Link href="/" className="lg:hidden text-[11px] tracking-[1px] uppercase text-neutral-500">
             Store
           </Link>
         </header>
@@ -224,9 +304,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <div className="flex-1 p-4 md:p-8 max-w-[1200px] w-full mx-auto">
+        <div className="flex-1 p-4 md:p-8 max-w-[1200px] w-full mx-auto print:p-0 print:max-w-none">
+          <AdminHowTo />
           {children}
         </div>
+        <AdminNewOrderToast />
       </div>
     </div>
   );

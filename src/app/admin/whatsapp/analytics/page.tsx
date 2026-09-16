@@ -42,8 +42,8 @@ export default function WhatsAppAnalyticsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">WhatsApp Analytics</h1>
-        <p className="text-sm text-neutral-500">Overview of your WhatsApp bot performance and metrics.</p>
+        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">WhatsApp numbers</h1>
+        <p className="text-sm text-neutral-500">How many chats and messages. Replies are on WhatsApp chats.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -2,6 +2,7 @@
 
 export const ORDER_STATUSES = [
   "Confirmation Pending",
+  "On Hold",
   "Confirmed",
   "Packed",
   "Shipped",
@@ -24,6 +25,8 @@ const OrderItemSchema = new Schema(
     quantity: { type: Number, required: true, min: 1 },
     price: { type: Number, required: true, min: 0 },
     salePrice: { type: Number },
+    hsn: { type: String },
+    gstRate: { type: Number },
   },
   { _id: false }
 );
@@ -48,6 +51,19 @@ const TrackingInfoSchema = new Schema(
     awb: String,
     courier: String,
     trackingUrl: String,
+  },
+  { _id: false }
+);
+
+const TimelineEventSchema = new Schema(
+  {
+    at: { type: Date, default: Date.now },
+    actor: { type: String, default: "system" },
+    action: { type: String, required: true },
+    fromStatus: { type: String },
+    toStatus: { type: String },
+    message: { type: String },
+    internal: { type: Boolean, default: true },
   },
   { _id: false }
 );
@@ -77,6 +93,19 @@ const OrderSchema = new Schema(
     },
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
+    refundedAmount: { type: Number, default: 0 },
+    refunds: {
+      type: [
+        {
+          amount: { type: Number, required: true },
+          reason: { type: String },
+          actor: { type: String },
+          razorpayRefundId: { type: String },
+          at: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     couponCode: { type: String },
     status: {
       type: String,
@@ -86,6 +115,9 @@ const OrderSchema = new Schema(
     },
     trackingInfo: { type: TrackingInfoSchema },
     notes: { type: String },
+    tags: { type: [String], default: [] },
+    statusReason: { type: String },
+    timeline: { type: [TimelineEventSchema], default: [] },
   },
   { timestamps: true }
 );
@@ -93,9 +125,12 @@ const OrderSchema = new Schema(
 
 OrderSchema.index({ firebaseUid: 1, createdAt: -1 });
 OrderSchema.index({ status: 1, createdAt: -1 });
-
-OrderSchema.index({ orderNumber: 1 }, { unique: true });
+OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ paymentMethod: 1, createdAt: -1 });
+OrderSchema.index({ "customer.phone": 1 });
 OrderSchema.index({ "customer.email": 1 });
+OrderSchema.index({ "customer.name": 1 });
+OrderSchema.index({ "customer.city": 1 });
 
 export type OrderDocument = InferSchemaType<typeof OrderSchema> & {
   _id: Schema.Types.ObjectId;

@@ -183,18 +183,18 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
       {Toast}
       <PageHeader
         title="Products"
-        subtitle={`${products.length} in catalog`}
+        subtitle={`${products.length} products · photos, price (GST included), sizes, stock`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <AdminButton variant="secondary" onClick={handleExportCSV}>Export CSV</AdminButton>
+            <AdminButton variant="secondary" onClick={handleExportCSV}>Download products spreadsheet</AdminButton>
             <Link href="/admin/products/bulk-inventory">
-              <AdminButton variant="secondary">Bulk Inventory</AdminButton>
+              <AdminButton variant="secondary">Update stock (spreadsheet)</AdminButton>
             </Link>
             <Link href="/admin/products/bulk-import">
-              <AdminButton variant="secondary">Bulk Import</AdminButton>
+              <AdminButton variant="secondary">Add many products</AdminButton>
             </Link>
             <Link href="/admin/products/bulk-offers">
-              <AdminButton variant="secondary">Bulk Offers</AdminButton>
+              <AdminButton variant="secondary">Offers on many products</AdminButton>
             </Link>
             <Link href="/admin/products/new">
               <AdminButton>Add product</AdminButton>

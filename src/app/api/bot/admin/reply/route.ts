@@ -6,7 +6,7 @@
 // key. Add that check where marked below; I don't have that middleware.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyIdToken, isAdminEmail } from '@/lib/auth';
+import { verifyIdToken } from '@/lib/auth';
 
 const BOT_SERVER_URL = process.env.BOT_SERVER_URL || 'http://localhost:4000';
 
@@ -16,7 +16,9 @@ export async function POST(req: NextRequest) {
     if (!authHeader) throw new Error("No authorization header");
     
     const user = await verifyIdToken(authHeader);
-    if (!isAdminEmail(user.email)) {
+    const { getStaffRole } = await import("@/lib/auth");
+    const role = await getStaffRole(user.email);
+    if (!role) {
       throw new Error("Not an admin");
     }
   } catch (error) {

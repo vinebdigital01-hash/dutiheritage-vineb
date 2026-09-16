@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth";
 import { Product } from "@/models";
 import { connectDB } from "@/lib/mongodb";
 import { handleApiError, jsonOk, ApiError, requireMongo } from "@/lib/api";
+import { setAbsoluteStock } from "@/services/inventory";
 
 export async function GET(request: Request) {
   try {
@@ -10,31 +11,25 @@ export async function GET(request: Request) {
     await connectDB();
 
     const products = await Product.find({ trackInventory: true }).lean();
-    
-    // Create CSV rows
+
     const rows = [];
     rows.push(["productId", "productName", "size", "sku", "stock"].join(","));
 
-    products.forEach(p => {
+    products.forEach((p) => {
       if (p.inventory && p.inventory.length > 0) {
-        p.inventory.forEach(inv => {
-          rows.push([
-            p._id.toString(),
-            `"${p.name.replace(/"/g, '""')}"`,
-            `"${(inv.size || "").replace(/"/g, '""')}"`,
-            `"${(inv.sku || "").replace(/"/g, '""')}"`,
-            inv.stock
-          ].join(","));
+        p.inventory.forEach((inv) => {
+          rows.push(
+            [
+              p._id.toString(),
+              `"${p.name.replace(/"/g, '""')}"`,
+              `"${(inv.size || "").replace(/"/g, '""')}"`,
+              `"${(inv.sku || "").replace(/"/g, '""')}"`,
+              inv.stock,
+            ].join(",")
+          );
         });
       } else {
-        // If trackInventory is true but no inventory array exists yet
-        rows.push([
-          p._id.toString(),
-          `"${p.name.replace(/"/g, '""')}"`,
-          "",
-          "",
-          "0"
-        ].join(","));
+        rows.push([p._id.toString(), `"${p.name.replace(/"/g, '""')}"`, "", "", "0"].join(","));
       }
     });
 
@@ -57,44 +52,20 @@ export async function POST(request: Request) {
     await connectDB();
 
     const body = await request.json();
-    const { items } = body; // Expected: [{ productId, size, stock }]
+    const { items } = body;
 
     if (!Array.isArray(items)) {
       throw new ApiError("Invalid payload. Expected { items: [...] }");
     }
 
-    let updatedCount = 0;
-    const adminName = authUser.name || authUser.email?.split("@")[0] || "Admin";
-
-    for (const item of items) {
-      if (!item.productId || typeof item.stock === 'undefined') continue;
-      
-      const parsedStock = parseInt(item.stock, 10);
-      if (isNaN(parsedStock)) continue;
-
-      if (item.size) {
-        // Update specific size
-        await Product.updateOne(
-          { _id: item.productId, "inventory.size": item.size },
-          { 
-            $set: { 
-              "inventory.$.stock": parsedStock,
-              lastEditedBy: adminName,
-              updatedAt: new Date()
-            } 
-          }
-        );
-      } else {
-        // Update single size product (or first item in array)
-        const p = await Product.findById(item.productId);
-        if (p && p.inventory && p.inventory.length > 0) {
-          p.inventory[0].stock = parsedStock;
-          p.lastEditedBy = adminName;
-          await p.save();
-        }
-      }
-      updatedCount++;
-    }
+    const updatedCount = await setAbsoluteStock(
+      items.map((item: { productId?: string; size?: string; stock?: string | number }) => ({
+        productId: String(item.productId || ""),
+        size: item.size ? String(item.size) : undefined,
+        stock: Number(item.stock),
+      })),
+      { reason: "csv", actor: authUser.email || authUser.name || "admin" }
+    );
 
     return jsonOk({ success: true, updatedCount });
   } catch (error) {

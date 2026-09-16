@@ -203,7 +203,7 @@ export default function AdminReviewsPage() {
       {Toast}
       <PageHeader
         title="Reviews"
-        subtitle="Moderate customer reviews before they appear on product pages"
+        subtitle="New reviews wait here until you allow them on the product page"
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <AdminSelect

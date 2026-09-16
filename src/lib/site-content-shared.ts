@@ -1,9 +1,21 @@
 export type NavLink = { label: string; slug: string };
 
+export type HeroBanner = {
+  id?: string;
+  image: string;
+  href?: string;
+  headline?: string;
+  subtext?: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  active?: boolean;
+};
+
 export type SiteContentData = {
   announcementText?: string;
   headerNavLinks?: NavLink[];
   homepageSlugs?: string[];
+  heroBanners?: HeroBanner[];
   promoBanner?: {
     headline?: string;
     subtext?: string;
@@ -62,6 +74,26 @@ export function navHref(slug: string): string {
 export function resolveHomepageSlugs(content: SiteContentData): string[] {
   const slugs = content.homepageSlugs?.filter(Boolean);
   return slugs?.length ? slugs : DEFAULT_HOMEPAGE_SLUGS;
+}
+
+export function isHeroBannerLive(
+  banner: HeroBanner,
+  now = Date.now()
+): boolean {
+  if (!banner.image || banner.active === false) return false;
+  if (banner.startsAt) {
+    const start = new Date(banner.startsAt).getTime();
+    if (Number.isFinite(start) && now < start) return false;
+  }
+  if (banner.endsAt) {
+    const end = new Date(banner.endsAt).getTime();
+    if (Number.isFinite(end) && now > end) return false;
+  }
+  return true;
+}
+
+export function liveHeroBanners(content: SiteContentData, now = Date.now()): HeroBanner[] {
+  return (content.heroBanners || []).filter((b) => isHeroBannerLive(b, now));
 }
 
 export function resolveHeaderNav(content: SiteContentData): NavLink[] {

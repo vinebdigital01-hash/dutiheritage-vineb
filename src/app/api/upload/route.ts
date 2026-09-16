@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
 import { isCloudinaryConfigured, uploadToCloudinary } from "@/lib/cloudinary";
 import {
   handleApiError,
@@ -16,7 +17,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
 
     if (!isCloudinaryConfigured()) {
       throw new ApiError(

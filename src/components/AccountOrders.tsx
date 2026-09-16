@@ -17,7 +17,7 @@ function statusTone(status: string) {
 
 function OrderTimeline({ status }: { status: OrderStatus | string }) {
   const flow = ORDER_STATUSES.filter(
-    (s) => !["Cancelled", "Returned"].includes(s)
+    (s) => !["Cancelled", "Returned", "On Hold"].includes(s)
   );
   const currentIdx = flow.indexOf(status as OrderStatus);
 
@@ -25,6 +25,13 @@ function OrderTimeline({ status }: { status: OrderStatus | string }) {
     return (
       <p className="mt-4 pt-4 border-t border-[var(--color-border)] text-[12px] text-red-600 font-medium">
         Order {status.toLowerCase()}
+      </p>
+    );
+  }
+  if (status === "On Hold") {
+    return (
+      <p className="mt-4 pt-4 border-t border-[var(--color-border)] text-[12px] text-amber-700 font-medium">
+        Order on hold — we will update you shortly
       </p>
     );
   }

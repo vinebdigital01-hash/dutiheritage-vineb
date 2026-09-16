@@ -45,6 +45,11 @@ const CustomerSchema = new Schema(
     firstVisit: { type: Date },
     lastVisit: { type: Date },
     lastPurchase: { type: Date },
+    notes: { type: String, default: "" },
+    frozen: { type: Boolean, default: false },
+    codBlocked: { type: Boolean, default: false },
+    blockReason: { type: String, default: "" },
+    codOrderCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

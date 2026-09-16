@@ -118,8 +118,10 @@ export default function StaffPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif tracking-[2px] uppercase">Staff & Permissions</h1>
-          <p className="text-[13px] text-neutral-500 mt-1">Manage who has access to your admin dashboard.</p>
+          <h1 className="text-2xl font-serif tracking-[2px] uppercase">Staff</h1>
+          <p className="text-[13px] text-neutral-500 mt-1">
+            Invite people. Manager = orders; Admin = catalog too. Superadmin only.
+          </p>
         </div>
         <button
           onClick={() => setIsAdding(true)}
@@ -143,8 +145,8 @@ export default function StaffPage() {
           <div>
             <label className="block text-[11px] uppercase tracking-[1px] text-neutral-500 mb-1">Role</label>
             <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full border p-2 text-sm bg-white">
-              <option value="ADMIN">Admin (Full Access to store)</option>
-              <option value="MANAGER">Manager (Orders & Customers only)</option>
+              <option value="ADMIN">Admin (catalog + settings too)</option>
+              <option value="MANAGER">Manager (orders, customers, stock)</option>
             </select>
           </div>
           <div className="flex gap-2 justify-end mt-2">

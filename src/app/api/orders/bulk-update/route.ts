@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth";
+import { OPS_WRITE } from "@/lib/rbac";
 import { Order, ORDER_STATUSES } from "@/models/Order";
 import { connectDB } from "@/lib/mongodb";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api";
@@ -14,7 +15,7 @@ type UpdateRow = {
 
 export async function POST(request: Request) {
   try {
-    await requireAuth(request, { admin: true, roles: ["SUPERADMIN", "ADMIN", "MANAGER"] });
+    await requireAuth(request, { admin: true, roles: OPS_WRITE });
     const { updates }: { updates: UpdateRow[] } = await request.json();
 
     if (!updates || !Array.isArray(updates)) {

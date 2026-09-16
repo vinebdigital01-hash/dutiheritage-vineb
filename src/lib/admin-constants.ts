@@ -1,5 +1,6 @@
 export const ORDER_STATUSES = [
   "Confirmation Pending",
+  "On Hold",
   "Confirmed",
   "Packed",
   "Shipped",
@@ -8,6 +9,10 @@ export const ORDER_STATUSES = [
   "Cancelled",
   "Returned",
 ] as const;
+
+export const CUSTOMER_ORDER_FLOW = ORDER_STATUSES.filter(
+  (s) => !["Cancelled", "Returned", "On Hold"].includes(s)
+);
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 

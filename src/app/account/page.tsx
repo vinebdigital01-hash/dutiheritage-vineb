@@ -352,7 +352,7 @@ export default function AccountPage() {
         </div>
 
         <button 
-          onClick={logout}
+          onClick={() => logout()}
           className="md:hidden mt-8 w-full border border-red-200 text-red-600 bg-red-50 py-4 text-[13px] font-bold tracking-[2px] uppercase rounded-lg"
         >
           Log Out

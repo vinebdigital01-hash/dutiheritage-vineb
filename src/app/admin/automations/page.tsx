@@ -117,9 +117,12 @@ export default function AdminAutomationsPage() {
     <div>
       {Toast}
       <PageHeader
-        title="Automations"
-        subtitle="Email + WhatsApp flows. Cron jobs need CRON_SECRET on Vercel."
+        title="Auto messages"
+        subtitle="On/off for order placed, shipped, cart left unpaid, and similar"
       />
+      <p className="text-[13px] text-neutral-600 mb-6 -mt-4">
+        Turn a message on only after a test send in Store settings works.
+      </p>
 
       <div className="flex flex-wrap gap-3 mb-8 text-[12px]">
         <Badge tone={providers.email ? "success" : "warning"}>

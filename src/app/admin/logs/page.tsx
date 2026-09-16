@@ -12,8 +12,10 @@ export default function SystemLogsPage() {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-gray-900 tracking-wide uppercase">System Logs</h1>
-          <p className="text-sm text-gray-500 mt-1">Audit trailing for API errors, security warnings, and system events.</p>
+          <h1 className="text-2xl font-serif font-bold text-gray-900 tracking-wide uppercase">Error log</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Technical errors. For an order, open the order instead — this is not parcel tracking.
+          </p>
         </div>
       </div>
       <LogViewer />

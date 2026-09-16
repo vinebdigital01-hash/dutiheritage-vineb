@@ -2,6 +2,7 @@ import { db } from "@/services/db";
 import { connectDB } from "@/lib/mongodb";
 import { Collection } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
 import { toCollection } from "@/lib/mappers";
 import {
   handleApiError,
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     await connectDB();
 
     const body = await request.json();

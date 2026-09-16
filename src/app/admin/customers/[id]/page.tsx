@@ -19,6 +19,7 @@ type Profile = {
     orderId: string;
     total: number;
     status: string;
+    paymentMethod?: string;
     createdAt?: string;
   }>;
   recentEvents: Array<{
@@ -33,6 +34,15 @@ type Profile = {
     status: string;
     itemCount: number;
     lastUpdated?: string;
+    items?: Array<{ name?: string; size?: string; quantity: number }>;
+  }>;
+  reviews: Array<{
+    id: string;
+    productId: string;
+    rating: number;
+    comment?: string;
+    status: string;
+    createdAt?: string;
   }>;
   topProductViews: Array<{
     productId: string;
@@ -49,12 +59,16 @@ export default function AdminCustomerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [blockReason, setBlockReason] = useState("");
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await adminFetch<Profile>(`/api/customers/${id}`);
       setProfile(data);
+      setNotes(data.customer.notes || "");
+      setBlockReason(data.customer.blockReason || "");
     } catch (e) {
       show(e instanceof AdminApiError ? e.message : "Failed to load", "error");
     } finally {
@@ -66,6 +80,23 @@ export default function AdminCustomerDetailPage() {
     if (id) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const patchCustomer = async (body: Record<string, unknown>, okMsg: string) => {
+    if (!profile) return;
+    setSaving(true);
+    try {
+      const data = await adminFetch<{ customer: CustomerDTO }>(`/api/customers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      setProfile({ ...profile, customer: data.customer });
+      show(okMsg);
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : "Update failed", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const addTag = async () => {
     const tag = tagInput.trim();
@@ -118,9 +149,14 @@ export default function AdminCustomerDetailPage() {
         title={c.name || "Customer"}
         subtitle={c.email || c.phone || c.id}
         actions={
-          <Link href="/admin/customers">
-            <AdminButton variant="secondary">All customers</AdminButton>
-          </Link>
+          <div className="flex gap-2">
+            {(c.frozen || c.codBlocked) && (
+              <Badge tone="danger">{c.frozen ? "Frozen" : "COD blocked"}</Badge>
+            )}
+            <Link href="/admin/customers">
+              <AdminButton variant="secondary">All customers</AdminButton>
+            </Link>
+          </div>
         }
       />
 
@@ -140,6 +176,21 @@ export default function AdminCustomerDetailPage() {
               <dt className="text-neutral-500 mb-1">Location</dt>
               <dd>
                 {[c.city, c.state, c.pincode].filter(Boolean).join(", ") || "—"}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-neutral-500 mb-1">Address</dt>
+              <dd className="whitespace-pre-line">
+                {[
+                  c.address?.address,
+                  c.address?.apartment,
+                  [c.address?.city || c.city, c.address?.state || c.state, c.address?.pinCode || c.pincode]
+                    .filter(Boolean)
+                    .join(", "),
+                  c.address?.phone,
+                ]
+                  .filter(Boolean)
+                  .join("\n") || "—"}
               </dd>
             </div>
             <div>
@@ -191,6 +242,24 @@ export default function AdminCustomerDetailPage() {
               </AdminButton>
             </div>
           </div>
+
+          <div className="mt-6 pt-6 border-t">
+            <p className="text-[12px] uppercase tracking-wider text-neutral-500 mb-2">
+              Support notes
+            </p>
+            <AdminInput
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Internal notes…"
+            />
+            <AdminButton
+              className="mt-2"
+              disabled={saving}
+              onClick={() => patchCustomer({ notes }, "Notes saved")}
+            >
+              Save notes
+            </AdminButton>
+          </div>
         </div>
 
         <div className="bg-white border border-[var(--color-border)] rounded-xl p-6 shadow-sm">
@@ -215,6 +284,46 @@ export default function AdminCustomerDetailPage() {
             <Badge tone={c.ltvScore === "HIGH" ? "success" : c.ltvScore === "MEDIUM" ? "info" : "neutral"}>
               LTV {c.ltvScore}
             </Badge>
+            <p className="text-neutral-500">COD orders: {c.codOrderCount || 0}</p>
+          </div>
+
+          <div className="mt-6 pt-6 border-t space-y-3">
+            <h3 className="text-[12px] uppercase tracking-wider text-neutral-500">Can they still shop?</h3>
+            <p className="text-[13px] text-neutral-600">
+              Freeze = they cannot place new orders. Block COD = online pay is still OK.
+            </p>
+            <AdminInput
+              label="Reason (shown at checkout)"
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <AdminButton
+                variant={c.codBlocked ? "secondary" : "danger"}
+                disabled={saving}
+                onClick={() =>
+                  patchCustomer(
+                    { codBlocked: !c.codBlocked, blockReason },
+                    c.codBlocked ? "COD unblocked" : "COD blocked"
+                  )
+                }
+              >
+                {c.codBlocked ? "Allow COD" : "Block COD"}
+              </AdminButton>
+              <AdminButton
+                variant={c.frozen ? "secondary" : "danger"}
+                disabled={saving}
+                onClick={() => {
+                  if (!c.frozen && !window.confirm("Freeze this customer? They cannot place orders.")) return;
+                  patchCustomer(
+                    { frozen: !c.frozen, blockReason },
+                    c.frozen ? "Account unfrozen" : "Account frozen"
+                  );
+                }}
+              >
+                {c.frozen ? "Unfreeze" : "Freeze account"}
+              </AdminButton>
+            </div>
           </div>
         </div>
       </div>
@@ -254,6 +363,7 @@ export default function AdminCustomerDetailPage() {
                   </Link>
                   <span className="text-neutral-500 ml-2">
                     ₹{o.total.toLocaleString("en-IN")} · {o.status}
+                    {o.paymentMethod ? ` · ${o.paymentMethod}` : ""}
                   </span>
                 </li>
               ))}
@@ -280,6 +390,48 @@ export default function AdminCustomerDetailPage() {
                       ? new Date(e.createdAt).toLocaleString("en-IN")
                       : ""}
                   </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6 mt-10">
+        <section>
+          <h2 className="text-[13px] tracking-[2px] uppercase mb-4">Carts</h2>
+          {profile.abandonedCarts.length === 0 ? (
+            <p className="text-[13px] text-neutral-500">No active or abandoned carts</p>
+          ) : (
+            <ul className="bg-white border rounded-xl divide-y">
+              {profile.abandonedCarts.map((cart) => (
+                <li key={cart.id} className="px-5 py-3 text-[13px]">
+                  <span className="capitalize font-medium">{cart.status}</span>
+                  <span className="text-neutral-500"> · {cart.itemCount} items</span>
+                  <ul className="mt-2 text-[12px] text-neutral-600">
+                    {(cart.items || []).map((i, idx) => (
+                      <li key={idx}>
+                        {i.name} × {i.quantity}
+                        {i.size ? ` (${i.size})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section>
+          <h2 className="text-[13px] tracking-[2px] uppercase mb-4">Reviews</h2>
+          {!(profile.reviews || []).length ? (
+            <p className="text-[13px] text-neutral-500">No reviews</p>
+          ) : (
+            <ul className="bg-white border rounded-xl divide-y">
+              {(profile.reviews || []).map((r) => (
+                <li key={r.id} className="px-5 py-3 text-[13px]">
+                  <span className="font-medium">{r.rating}/5</span>
+                  <span className="text-neutral-500 ml-2">{r.status}</span>
+                  {r.comment ? <p className="mt-1 text-neutral-700">{r.comment}</p> : null}
                 </li>
               ))}
             </ul>

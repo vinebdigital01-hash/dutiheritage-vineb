@@ -34,6 +34,8 @@ export function toProduct(doc: LeanDoc): Product & { isActive?: boolean } {
     trackInventory: Boolean(doc.trackInventory),
     lowStockThreshold: (doc.lowStockThreshold as number | undefined) ?? 3,
     stockStatus: (doc.stockStatus as Product["stockStatus"]) ?? "in_stock",
+    hsn: (doc.hsn as string | undefined) || "6104",
+    gstRate: Number(doc.gstRate ?? 5),
   };
 }
 
@@ -73,6 +75,8 @@ export type OrderDTO = {
     quantity: number;
     price: number;
     salePrice?: number;
+    hsn?: string;
+    gstRate?: number;
   }>;
   subtotal: number;
   discount: number;
@@ -82,6 +86,8 @@ export type OrderDTO = {
   total: number;
   paymentMethod: "prepaid" | "cod" | "partial";
   paymentStatus: string;
+  razorpayPaymentId?: string | null;
+  refundedAmount?: number;
   couponCode?: string | null;
   status: OrderStatus;
   trackingInfo?: {
@@ -90,13 +96,30 @@ export type OrderDTO = {
     trackingUrl?: string;
   } | null;
   notes?: string | null;
+  tags?: string[];
+  statusReason?: string | null;
+  timeline?: Array<{
+    at: string;
+    actor: string;
+    action: string;
+    fromStatus?: string;
+    toStatus?: string;
+    message?: string;
+    internal?: boolean;
+  }>;
   createdAt?: string;
   updatedAt?: string;
 };
 
-export function toOrder(doc: LeanDoc): OrderDTO {
+export function toOrder(
+  doc: LeanDoc,
+  opts?: { includeTimeline?: boolean; includeInternal?: boolean }
+): OrderDTO {
   const customer = (doc.customer || {}) as OrderDTO["customer"];
   const tracking = doc.trackingInfo as OrderDTO["trackingInfo"];
+  const includeTimeline = opts?.includeTimeline !== false;
+  const includeInternal = opts?.includeInternal !== false;
+  const rawTimeline = (doc.timeline as OrderDTO["timeline"]) || [];
 
   return {
     id: doc._id.toString(),
@@ -125,10 +148,22 @@ export function toOrder(doc: LeanDoc): OrderDTO {
     total: Number(doc.total ?? 0),
     paymentMethod: doc.paymentMethod as OrderDTO["paymentMethod"],
     paymentStatus: String(doc.paymentStatus ?? "pending"),
+    razorpayPaymentId: (doc.razorpayPaymentId as string | undefined) ?? null,
+    refundedAmount: Number(doc.refundedAmount ?? 0),
     couponCode: (doc.couponCode as string | undefined) ?? null,
     status: doc.status as OrderStatus,
     trackingInfo: tracking ?? null,
     notes: (doc.notes as string | undefined) ?? null,
+    tags: Array.isArray(doc.tags) ? (doc.tags as string[]) : [],
+    statusReason: (doc.statusReason as string | undefined) ?? null,
+    timeline: includeTimeline
+      ? rawTimeline
+          .filter((e) => includeInternal || !e.internal)
+          .map((e) => ({
+            ...e,
+            at: e.at ? new Date(e.at).toISOString() : new Date().toISOString(),
+          }))
+      : undefined,
     createdAt: doc.createdAt
       ? new Date(doc.createdAt as string | Date).toISOString()
       : undefined,

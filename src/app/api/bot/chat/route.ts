@@ -20,8 +20,18 @@ export async function GET(request: Request) {
       const logs = await ChatMessage.find().sort({ createdAt: -1 }).limit(100);
       return jsonOk({ logs });
     } else {
-      const sessions = await ChatSession.find().sort({ lastMessageAt: -1 });
-      return jsonOk({ sessions });
+      const sessions = await ChatSession.find().sort({ lastMessageAt: -1 }).lean();
+      return jsonOk({
+        sessions: sessions.map((s) => ({
+          phone: s.phone,
+          customerName: s.customerName,
+          unreadCount: s.unreadCount || 0,
+          lastMessageAt: s.lastMessageAt,
+          mode: s.mode || "bot",
+          assignedTo: s.assignedTo || "",
+          assignedName: s.assignedName || "",
+        })),
+      });
     }
   } catch (error) {
     return handleApiError(error);

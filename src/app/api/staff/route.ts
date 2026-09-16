@@ -3,10 +3,12 @@ import { Staff } from "@/models/Staff";
 import { connectDB } from "@/lib/mongodb";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api";
 import { getAuth } from "firebase-admin/auth";
+import { STAFF_WRITE } from "@/lib/rbac";
+import { logAdminAction } from "@/lib/admin-audit";
 
 export async function GET(request: Request) {
   try {
-    const authUser = await requireAuth(request, { admin: true, roles: ["SUPERADMIN"] });
+    const authUser = await requireAuth(request, { admin: true, roles: STAFF_WRITE });
     await connectDB();
     const staffMembers = await Staff.find().sort({ createdAt: -1 });
     
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const authUser = await requireAuth(request, { admin: true, roles: ["SUPERADMIN"] });
+    const authUser = await requireAuth(request, { admin: true, roles: STAFF_WRITE });
     const body = await request.json();
 
     if (!body.email || !body.name || !body.role) {
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
     // 3. Generate a Password Reset link which redirects to /admin
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dutiheritage.co.in";
     const resetLink = await fbAuth.generatePasswordResetLink(body.email.toLowerCase(), {
-      url: `${baseUrl}/admin`
+      url: `${baseUrl}/admin/login`
     });
 
     // 4. Send Email using explicit Resend API key and From address
@@ -110,6 +112,15 @@ export async function POST(request: Request) {
     } catch (emailErr) {
       console.error("Failed to send staff invite email:", emailErr);
     }
+
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: "create",
+      resource: "staff",
+      resourceId: staff._id.toString(),
+      message: `${staff.email} as ${staff.role}`,
+    });
 
     return jsonOk(staff);
   } catch (error) {

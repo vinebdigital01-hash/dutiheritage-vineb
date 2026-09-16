@@ -2,13 +2,14 @@
 import { connectDB } from '@/lib/mongodb';
 import { Product } from '@/models';
 import { requireAuth } from '@/lib/auth';
+import { CATALOG_WRITE } from '@/lib/rbac';
 import { handleApiError, jsonOk, requireMongo } from '@/lib/api';
 import { revalidatePath } from 'next/cache';
 
 export async function POST(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     await connectDB();
 
     const body = await request.json();

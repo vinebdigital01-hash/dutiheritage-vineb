@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { Collection, Product } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
 import { toCollection } from "@/lib/mappers";
 import {
   handleApiError,
@@ -39,7 +40,7 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid collection id", 400);
 
@@ -66,7 +67,7 @@ export async function PUT(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     const { id } = await params;
     if (!isValidObjectId(id)) return jsonError("Invalid collection id", 400);
 

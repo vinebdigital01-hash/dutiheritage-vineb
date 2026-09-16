@@ -19,13 +19,20 @@ function statusTone(status: string) {
 }
 
 function OrderTimeline({ status }: { status: OrderStatus | string }) {
-  const flow = ORDER_STATUSES.filter((s) => !["Cancelled", "Returned"].includes(s));
+  const flow = ORDER_STATUSES.filter((s) => !["Cancelled", "Returned", "On Hold"].includes(s));
   const currentIdx = flow.indexOf(status as OrderStatus);
 
   if (status === "Cancelled" || status === "Returned") {
     return (
       <p className="mt-4 pt-4 border-t border-[var(--color-border)] text-[12px] text-red-600 font-medium">
         Order {status}
+      </p>
+    );
+  }
+  if (status === "On Hold") {
+    return (
+      <p className="mt-4 pt-4 border-t border-[var(--color-border)] text-[12px] text-amber-700 font-medium">
+        Order on hold
       </p>
     );
   }
@@ -229,6 +236,34 @@ export default function MyOrdersPage() {
                     className="px-6 py-2.5 bg-black text-white text-[12px] font-bold uppercase tracking-widest hover:bg-gray-800 rounded-lg transition-colors flex-1 sm:flex-none"
                   >
                     Buy Again
+                  </button>
+                )}
+                {(order.status === "Delivered" || order.status === "Shipped" || order.status === "In Transit") && (
+                  <button
+                    onClick={async () => {
+                      const reason = window.prompt("Return / exchange reason?");
+                      if (!reason) return;
+                      try {
+                        const headers = await authHeaders();
+                        const res = await fetch("/api/returns", {
+                          method: "POST",
+                          headers: { ...headers, "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            orderId: order.orderId,
+                            reason,
+                            type: "return",
+                          }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.error || "Could not submit return");
+                        alert("Return request submitted. We’ll update you soon.");
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : "Could not submit return");
+                      }
+                    }}
+                    className="px-6 py-2.5 border border-black text-black text-[12px] font-bold uppercase tracking-widest hover:bg-gray-100 rounded-lg transition-colors flex-1 sm:flex-none"
+                  >
+                    Request return
                   </button>
                 )}
               </div>

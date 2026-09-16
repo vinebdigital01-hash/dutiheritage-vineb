@@ -46,8 +46,8 @@ export default function WhatsAppBroadcastPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">Broadcast Message</h1>
-        <p className="text-sm text-neutral-500">Send a bulk message to your customers via WhatsApp.</p>
+        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">Send to many people</h1>
+        <p className="text-sm text-neutral-500">One WhatsApp message to many customers. Not for packing parcels.</p>
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-[var(--color-border)] shadow-sm">

@@ -44,6 +44,8 @@ const ProductSchema = new Schema(
     trackInventory: { type: Boolean, default: false },
     lowStockThreshold: { type: Number, default: 3 },
     stockStatus: { type: String, enum: ["in_stock", "low_stock", "out_of_stock"], default: "in_stock" },
+    hsn: { type: String, default: "6104" },
+    gstRate: { type: Number, default: 5, min: 0, max: 28 },
 
   },
   { timestamps: true }

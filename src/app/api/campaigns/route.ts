@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { Campaign, CustomerGroup } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { SETTINGS_WRITE } from "@/lib/rbac";
 import { resolveGroupMembers } from "@/lib/analytics";
 import { sendEmail, emailLayout } from "@/lib/email";
 import { sendWhatsApp } from "@/lib/whatsapp";
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireMongo();
-    const authUser = await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: SETTINGS_WRITE });
     await connectDB();
 
     const body = await request.json();

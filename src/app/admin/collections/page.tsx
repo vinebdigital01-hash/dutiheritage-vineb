@@ -95,7 +95,7 @@ export default function AdminCollectionsPage() {
       {Toast}
       <PageHeader
         title="Collections"
-        subtitle="Organize products into storefront sections"
+        subtitle="Folders on the store, like Sale or Wedding"
       />
 
       <form

@@ -3,6 +3,8 @@ import { Coupon } from "@/models/Coupon";
 import { connectDB } from "@/lib/mongodb";
 import { Product } from "@/models";
 import { requireAuth } from "@/lib/auth";
+import { CATALOG_WRITE } from "@/lib/rbac";
+import { logAdminAction } from "@/lib/admin-audit";
 import { toProduct } from "@/lib/mappers";
 import { refreshCollectionProductCount } from "@/lib/catalog";
 import {
@@ -93,7 +95,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: CATALOG_WRITE });
     await connectDB();
 
     const body = await request.json();
@@ -139,9 +141,30 @@ export async function POST(request: Request) {
         isPartialCOD: Boolean(body.isPartialCOD),
         partialCODAdvance: Number(body.partialCODAdvance) || 0,
       isActive: body.isActive !== false,
+      trackInventory: Boolean(body.trackInventory),
+      lowStockThreshold: Number(body.lowStockThreshold) || 3,
+      hsn: String(body.hsn || "6104").trim() || "6104",
+      gstRate: Math.min(28, Math.max(0, Number(body.gstRate) || 5)),
+      inventory: Array.isArray(body.inventory)
+        ? body.inventory
+            .map((i: { size?: string; stock?: number; sku?: string }) => ({
+              size: String(i.size || "").trim(),
+              stock: Number(i.stock) || 0,
+              sku: String(i.sku || "").trim(),
+            }))
+            .filter((i: { size: string }) => i.size)
+        : [],
     });
 
     await refreshCollectionProductCount(collectionId);
+    await logAdminAction({
+      request,
+      actor: authUser,
+      action: "create",
+      resource: "product",
+      resourceId: doc._id.toString(),
+      message: name,
+    });
 
     return jsonCreated({ product: toProduct(doc.toObject()) });
   } catch (error) {
