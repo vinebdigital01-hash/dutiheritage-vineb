@@ -221,7 +221,7 @@ export default function CheckoutPage() {
       fetch("/api/checkout/verify-cart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cart }),
+        body: JSON.stringify({ items: cart.map(item => ({ productId: item.id, size: item.selectedSize, quantity: item.quantity })) }),
       })
         .then((r) => r.json())
         .then((data) => {

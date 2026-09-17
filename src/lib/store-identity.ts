@@ -20,7 +20,7 @@ export function getStoreIdentity() {
     supportEmail:
       process.env.NEXT_PUBLIC_STORE_SUPPORT_EMAIL ||
       process.env.STORE_SUPPORT_EMAIL ||
-      "support@dutiheritage.co.in",
+      "supportdutiheritage@gmail.com",
     supportPhone:
       process.env.NEXT_PUBLIC_STORE_SUPPORT_PHONE ||
       process.env.STORE_SUPPORT_PHONE ||

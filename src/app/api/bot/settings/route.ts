@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     // Add any static FAQ/policies text
     const extraContent = {
       faq: "1. How to track my order?\nYou can track your order using the order ID.\n\n2. What is the return policy?\nWe offer a 7-day return policy for unused items.",
-      contactEmail: "support@dutiheritage.com",
+      contactEmail: "supportdutiheritage@gmail.com",
       contactPhone: "+911234567890"
     };
     
