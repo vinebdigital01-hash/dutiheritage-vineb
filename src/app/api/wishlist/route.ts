@@ -1,4 +1,4 @@
-﻿import { connectDB } from "@/lib/mongodb";
+import { connectDB } from "@/lib/mongodb";
 import { Wishlist, Product } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { handleApiError, jsonOk, requireMongo } from "@/lib/api";

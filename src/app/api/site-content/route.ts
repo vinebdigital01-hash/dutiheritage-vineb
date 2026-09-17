@@ -1,4 +1,4 @@
-﻿import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/mongodb";
 import { SiteContent } from "@/models";
 import { requireAuth } from "@/lib/auth";
@@ -58,8 +58,8 @@ async function getOrCreateSiteContent() {
 }
 
 /**
- * GET /api/site-content â€” public
- * PUT /api/site-content â€” admin
+ * GET /api/site-content — public
+ * PUT /api/site-content — admin
  */
 export async function GET() {
   try {

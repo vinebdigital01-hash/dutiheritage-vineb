@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const extraContent = {
       faq: "1. How to track my order?\nYou can track your order using the order ID.\n\n2. What is the return policy?\nWe offer a 7-day return policy for unused items.",
       contactEmail: "supportdutiheritage@gmail.com",
-      contactPhone: "+911234567890"
+      contactPhone: "91-7017194982"
     };
     
     return jsonOk({ settings, content: extraContent });

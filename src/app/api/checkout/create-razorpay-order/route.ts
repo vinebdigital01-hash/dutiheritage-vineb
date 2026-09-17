@@ -1,4 +1,4 @@
-﻿import { placeOrderSchema } from "@/lib/validators";
+import { placeOrderSchema } from "@/lib/validators";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/mongodb";
 import { getRazorpay, isRazorpayConfigured, toPaise, getRazorpayPublicKey } from "@/lib/razorpay";
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
     const amount = totals.amountToPayNow;
     if (!amount || amount < 1) {
-      throw new ApiError("Amount to pay must be at least ₹1");
+      throw new ApiError("Amount to pay must be at least ?1");
     }
 
     const razorpay = getRazorpay();

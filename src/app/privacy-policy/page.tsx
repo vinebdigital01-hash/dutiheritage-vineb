@@ -120,8 +120,8 @@ export default async function PrivacyPolicyPage() {
             For any privacy-related queries, please contact us at:
           </p>
           <ul className="mt-3 space-y-1">
-            <li><strong>Email:</strong> hello@duti-heritage.com</li>
-            <li><strong>Phone:</strong> +91 7017 194982</li>
+            <li><strong>Email:</strong> supportdutiheritage@gmail.com</li>
+            <li><strong>Phone:</strong> 91-7017194982</li>
             <li><strong>Address:</strong> 103, Block D, DLF Express Green M1, IMT Manesar, Gurugram, Haryana — 122052</li>
           </ul>
         </section>

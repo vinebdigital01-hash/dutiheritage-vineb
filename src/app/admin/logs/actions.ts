@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 import { SystemLog } from "@/models";
 import { connectDB } from "@/lib/mongodb";
 import { revalidatePath } from "next/cache";

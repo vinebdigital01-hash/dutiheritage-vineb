@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { markLogAsFixed } from "./actions";
 import { FiCheck } from "react-icons/fi";

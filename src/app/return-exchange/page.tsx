@@ -85,14 +85,14 @@ export default async function ReturnExchangePage() {
             How to Raise an Exchange Request
           </h2>
           <ol className="list-decimal pl-5 space-y-2">
-            <li>WhatsApp us at <strong>+91 7017 194982</strong> or email us at <strong>hello@duti-heritage.com</strong></li>
+            <li>WhatsApp us at <strong>91-7017194982</strong> or email us at <strong>supportdutiheritage@gmail.com</strong></li>
             <li>Share your Order ID and photos/video of the item received</li>
             <li>Our team will review your request within 24-48 business hours</li>
             <li>Once approved, we will arrange pickup and send the replacement</li>
           </ol>
           <p className="mt-4 text-sm">
             For any queries, contact us at{" "}
-            <a href="mailto:hello@duti-heritage.com" className="underline">hello@duti-heritage.com</a>
+            <a href="mailto:supportdutiheritage@gmail.com" className="underline">supportdutiheritage@gmail.com</a>
           </p>
         </section>
       </div>

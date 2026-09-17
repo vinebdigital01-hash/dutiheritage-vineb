@@ -98,8 +98,8 @@ export default async function ShippingPolicyPage() {
           </h2>
           <p>For shipping queries, reach out to us at:</p>
           <ul className="mt-2 space-y-1">
-            <li><strong>Email:</strong> hello@duti-heritage.com</li>
-            <li><strong>Phone:</strong> +91 7017 194982</li>
+            <li><strong>Email:</strong> supportdutiheritage@gmail.com</li>
+            <li><strong>Phone:</strong> 91-7017194982</li>
           </ul>
         </section>
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { Product, UserProfile } from "@/types";
 import { trackMetaEvent } from "@/lib/meta-pixel";

@@ -1,4 +1,4 @@
-﻿import { Schema, model, models, InferSchemaType, Model } from "mongoose";
+import { Schema, model, models, InferSchemaType, Model } from "mongoose";
 
 const SystemLogSchema = new Schema(
   {

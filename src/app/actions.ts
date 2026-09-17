@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 import { connectDB } from "@/lib/mongodb";
 import { Product as ProductModel } from "@/models";
 import { toProduct } from "@/lib/mappers";

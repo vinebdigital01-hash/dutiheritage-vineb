@@ -1,4 +1,4 @@
-﻿import { connectDB } from "./mongodb";
+import { connectDB } from "./mongodb";
 import { SystemLog } from "@/models";
 
 type LogInput = {

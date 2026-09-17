@@ -1,4 +1,4 @@
-﻿import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
+import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
 
 const WishlistSchema = new Schema(
   {

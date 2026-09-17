@@ -1,4 +1,4 @@
-﻿import { connectDB } from "@/lib/mongodb";
+import { connectDB } from "@/lib/mongodb";
 import { Product } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { CATALOG_WRITE } from "@/lib/rbac";

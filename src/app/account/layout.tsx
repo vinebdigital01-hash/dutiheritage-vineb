@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { AccountSidebarWrapper } from "./AccountSidebarWrapper";
 
 export const metadata = {

@@ -1,1 +1,1 @@
-﻿export * from "./TrustBadges";
+export * from "./TrustBadges";

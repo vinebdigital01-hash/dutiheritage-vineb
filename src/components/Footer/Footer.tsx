@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -16,8 +16,8 @@ export const Footer = () => {
   const footer = content?.footer;
 
   const companyName = footer?.companyName || "Duti Heritage";
-  const phone = footer?.phone || "+91 7017 194982";
-  const email = footer?.email || "hello@duti-heritage.com";
+  const phone = footer?.phone || "91-7017194982";
+  const email = footer?.email || "supportdutiheritage@gmail.com";
   const address = footer?.address || "103, Block D, DLF Express Green M1, IMT Manesar, Gurugram, Haryana - 122052";
   const gst = "GSTIN: 06ANFPR1728Q2ZF";
   const copyright = footer?.copyright || ("copy " + new Date().getFullYear() + " Duti Heritage");

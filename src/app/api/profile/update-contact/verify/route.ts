@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { OtpSession } from "@/models/OtpSession";
 import { Customer } from "@/models/Customer";

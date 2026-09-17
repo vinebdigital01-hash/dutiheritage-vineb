@@ -1,4 +1,4 @@
-﻿import { applyRateLimit } from "@/lib/rate-limit";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/mongodb";
 import { Event, Customer, TRACK_EVENTS, type TrackEvent } from "@/models";
 import { verifyIdToken } from "@/lib/auth";
@@ -35,7 +35,7 @@ type TrackBody = {
 };
 
 /**
- * POST /api/track â€” batched frontend analytics (guest or auth).
+ * POST /api/track — batched frontend analytics (guest or auth).
  */
 export async function POST(request: Request) {
   const rateLimitRes = applyRateLimit(request, { limit: 30, windowMs: 60000 });

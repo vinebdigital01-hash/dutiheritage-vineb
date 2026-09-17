@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { State, City } from "country-state-city";
 
 export async function GET(request: Request) {

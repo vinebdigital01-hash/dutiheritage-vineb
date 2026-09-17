@@ -1,4 +1,4 @@
-﻿import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
+import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
 import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
 import { PromoBanner } from "@/components/PromoBanner/PromoBanner";
 import { HomepageHero } from "@/components/HomepageHero/HomepageHero";

@@ -1,4 +1,4 @@
-﻿import { requireMongo, jsonOk, handleApiError, ApiError } from "@/lib/api";
+import { requireMongo, jsonOk, handleApiError, ApiError } from "@/lib/api";
 import { priceCartLines, type CartLineInput } from "@/services/checkout";
 
 export async function POST(request: Request) {

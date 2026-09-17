@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { ShieldCheck, Truck, RefreshCw, BadgeCheck } from "lucide-react";
 
 interface TrustBadgesProps {
