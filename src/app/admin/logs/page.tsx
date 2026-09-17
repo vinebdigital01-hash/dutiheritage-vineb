@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { requireAuth } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import { SystemLog } from "@/models";
@@ -14,7 +14,7 @@ export default function SystemLogsPage() {
         <div>
           <h1 className="text-2xl font-serif font-bold text-gray-900 tracking-wide uppercase">Error log</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Technical errors. For an order, open the order instead � this is not parcel tracking.
+            Technical errors. For an order, open the order instead — this is not parcel tracking.
           </p>
         </div>
       </div>
