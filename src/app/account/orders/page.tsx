@@ -10,6 +10,7 @@ import type { OrderDTO } from "@/lib/mappers";
 import { FiPackage, FiChevronLeft } from "react-icons/fi";
 import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
+import { ActionModal } from "@/components/ActionModal";
 
 function statusTone(status: string) {
   if (status === "Delivered") return "bg-green-100 text-green-800 border-green-200";
@@ -44,9 +45,9 @@ function OrderTimeline({ status }: { status: OrderStatus | string }) {
         const current = i === currentIdx;
         return (
           <span key={step} className="flex items-center gap-2">
-            {i > 0 && <span className="text-gray-300">â†’</span>}
+            {i > 0 && <span className="text-gray-300">→</span>}
             <span className={current ? "text-blue-600 font-bold" : done ? "text-black font-medium" : ""}>
-              {done ? "âœ“ " : ""}{step}
+              {done ? "✓ " : ""}{step}
             </span>
           </span>
         );
@@ -60,6 +61,11 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"All" | "Processing" | "Shipped" | "Delivered" | "Cancelled">("All");
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    type: "return" | "cancel" | "cancel_request" | null;
+    orderId: string | null;
+  }>({ isOpen: false, type: null, orderId: null });
   
   const { addToCart, setIsCartOpen } = useAppContext();
   const router = useRouter();
@@ -175,12 +181,12 @@ export default function MyOrdersPage() {
                   <div>
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Order Placed</p>
                     <p className="text-[13px] font-medium">
-                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "â€”"}
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                     </p>
                   </div>
                   <div>
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Total</p>
-                    <p className="text-[13px] font-medium">â‚¹{order.total.toLocaleString("en-IN")}</p>
+                    <p className="text-[13px] font-medium">₹{order.total.toLocaleString("en-IN")}</p>
                   </div>
                   <div className="hidden sm:block">
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Order #</p>
@@ -207,10 +213,10 @@ export default function MyOrdersPage() {
                       <div className="flex-1 min-w-0 py-1">
                       <Link href={`/products/${item.slug || item.productId}`} className="text-[14px] font-medium hover:underline line-clamp-1">{item.name}</Link>
                       <p className="text-[12px] text-gray-500 mt-1">
-                        Size: {item.size || 'Default'} <span className="mx-2">â€¢</span> Qty: {item.quantity}
+                        Size: {item.size || 'Default'} <span className="mx-2">•</span> Qty: {item.quantity}
                       </p>
                       <p className="text-[13px] font-semibold mt-2">
-                        â‚¹{((item.salePrice ?? item.price)).toLocaleString("en-IN")}
+                        ₹{((item.salePrice ?? item.price)).toLocaleString("en-IN")}
                       </p>
                     </div>
                   </div>
@@ -240,37 +246,103 @@ export default function MyOrdersPage() {
                 )}
                 {(order.status === "Delivered" || order.status === "Shipped" || order.status === "In Transit") && (
                   <button
-                    onClick={async () => {
-                      const reason = window.prompt("Return / exchange reason?");
-                      if (!reason) return;
-                      try {
-                        const headers = await authHeaders();
-                        const res = await fetch("/api/returns", {
-                          method: "POST",
-                          headers: { ...headers, "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            orderId: order.orderId,
-                            reason,
-                            type: "return",
-                          }),
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.error || "Could not submit return");
-                        alert("Return request submitted. We’ll update you soon.");
-                      } catch (err) {
-                        alert(err instanceof Error ? err.message : "Could not submit return");
-                      }
-                    }}
+                    onClick={() => setModalConfig({ isOpen: true, type: "return", orderId: order.orderId })}
                     className="px-6 py-2.5 border border-black text-black text-[12px] font-bold uppercase tracking-widest hover:bg-gray-100 rounded-lg transition-colors flex-1 sm:flex-none"
                   >
                     Request return
                   </button>
+                )}
+                {order.paymentMethod === "cod" && !["Delivered", "Shipped", "In Transit", "Cancelled", "Returned", "On Hold"].includes(order.status) && (
+                  <button
+                    onClick={() => setModalConfig({ isOpen: true, type: "cancel", orderId: order.orderId })}
+                    className="px-6 py-2.5 border border-red-500 text-red-600 text-[12px] font-bold uppercase tracking-widest hover:bg-red-50 rounded-lg transition-colors flex-1 sm:flex-none"
+                  >
+                    Cancel Order
+                  </button>
+                )}
+                {order.paymentMethod !== "cod" && !["Delivered", "Shipped", "In Transit", "Cancelled", "Returned", "On Hold"].includes(order.status) && (
+                  order.cancelRequestState === "requested" ? (
+                    <div className="flex-1 sm:flex-none px-4 py-2 bg-amber-50 text-amber-700 text-[12px] font-bold uppercase tracking-widest rounded-lg border border-amber-200 text-center">
+                      Cancel Request Pending
+                    </div>
+                  ) : order.cancelRequestState === "rejected" ? (
+                    <div className="flex-1 sm:flex-none flex flex-col gap-1 items-end">
+                      <div className="px-4 py-2 bg-red-50 text-red-700 text-[12px] font-bold uppercase tracking-widest rounded-lg border border-red-200 text-center">
+                        Cancel Rejected
+                      </div>
+                      <p className="text-[11px] text-red-600 max-w-[200px] text-right leading-tight">
+                        {order.cancelRejectReason}
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setModalConfig({ isOpen: true, type: "cancel_request", orderId: order.orderId })}
+                      className="px-6 py-2.5 border border-red-500 text-red-600 text-[12px] font-bold uppercase tracking-widest hover:bg-red-50 rounded-lg transition-colors flex-1 sm:flex-none"
+                    >
+                      Cancel Order
+                    </button>
+                  )
                 )}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ActionModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ isOpen: false, type: null, orderId: null })}
+        title={
+          modalConfig.type === "return" ? "Request Return/Exchange" :
+          modalConfig.type === "cancel_request" ? "Cancel Prepaid Order" :
+          "Cancel Order"
+        }
+        description={
+          modalConfig.type === "cancel_request"
+            ? "Prepaid orders require support approval to cancel. Please submit your reason below."
+            : modalConfig.type === "cancel"
+            ? "Are you sure you want to cancel this order?"
+            : undefined
+        }
+        reasonLabel="Reason for request"
+        confirmText={
+          modalConfig.type === "return" ? "Submit Return" :
+          modalConfig.type === "cancel_request" ? "Submit Request" :
+          "Confirm Cancel"
+        }
+        confirmStyle={modalConfig.type === "return" ? "primary" : "danger"}
+        onConfirm={async (reason) => {
+          if (!modalConfig.orderId) return;
+          const headers = await authHeaders();
+          
+          if (modalConfig.type === "return") {
+            const res = await fetch("/api/returns", {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId: modalConfig.orderId,
+                reason,
+                type: "return",
+              }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Could not submit return");
+            // Optionally, we could show a success toast here instead of native alert
+            // For now, the modal handles errors beautifully inside the UI, and reload works fine.
+            window.location.reload();
+          } else {
+            const res = await fetch(`/api/orders/${modalConfig.orderId}/cancel`, {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ reason }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Could not cancel order");
+            window.location.reload();
+          }
+        }}
+      />
     </div>
   );
 }
+

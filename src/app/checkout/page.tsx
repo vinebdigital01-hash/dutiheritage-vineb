@@ -217,6 +217,21 @@ export default function CheckoutPage() {
   useEffect(() => {
     getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
 
+    if (cart.length > 0) {
+      fetch("/api/checkout/verify-cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data && !data.valid) {
+            setCheckoutError(data.error || "Some items in your cart are no longer available. Please clear your cart and try again.");
+          }
+        })
+        .catch(() => {});
+    }
+
     fetch("/api/checkout/config")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -1123,7 +1138,7 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
 
             {/* Desktop Submit Button (Hidden on Mobile due to Sticky Footer) */}
             <div className="hidden lg:block">
-              <button type="submit" disabled={isProcessing} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
+              <button type="submit" disabled={isProcessing || !!checkoutError} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : !!checkoutError ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
                 {isProcessing && (
                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1179,8 +1194,8 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
         <button 
           type="submit" 
           form="checkout-form"
-          disabled={isProcessing} 
-          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
+          disabled={isProcessing || !!checkoutError} 
+          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : !!checkoutError ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
         >
           {isProcessing && (
             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

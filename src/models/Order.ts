@@ -1,4 +1,4 @@
-﻿import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
+import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
 
 export const ORDER_STATUSES = [
   "Confirmation Pending",
@@ -117,6 +117,8 @@ const OrderSchema = new Schema(
     notes: { type: String },
     tags: { type: [String], default: [] },
     statusReason: { type: String },
+    cancelRequestState: { type: String, enum: ["none", "requested", "rejected", "accepted"], default: "none" },
+    cancelRejectReason: { type: String },
     timeline: { type: [TimelineEventSchema], default: [] },
   },
   { timestamps: true }

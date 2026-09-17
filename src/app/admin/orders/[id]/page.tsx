@@ -69,14 +69,16 @@ export default function AdminOrderDetailPage({
     status?: OrderStatus;
     reason?: string;
     timelineNote?: string;
+    cancelRequestState?: "none" | "requested" | "rejected" | "accepted";
+    cancelRejectReason?: string;
   }) => {
     const nextStatus = overrides?.status ?? status;
     const nextReason = (overrides?.reason ?? reason).trim();
-    if ((nextStatus === "Cancelled" || nextStatus === "On Hold") && !nextReason) {
+    if ((nextStatus === "Cancelled" || nextStatus === "On Hold") && !nextReason && !overrides?.cancelRequestState) {
       show("Add a reason to pause or cancel (the customer can be notified)", "error");
       return;
     }
-    if (!window.confirm(`Save this order? Status will be “${nextStatus}”.`)) return;
+    if (!overrides?.cancelRequestState && !window.confirm(`Save this order? Status will be "${nextStatus}".`)) return;
     setSaving(true);
     try {
       const data = await adminFetch<{ order: OrderDTO }>(`/api/orders/${id}`, {
@@ -91,6 +93,8 @@ export default function AdminOrderDetailPage({
             .filter(Boolean),
           trackingInfo: { awb, courier, trackingUrl },
           timelineNote: overrides?.timelineNote ?? (timelineNote.trim() || undefined),
+          cancelRequestState: overrides?.cancelRequestState,
+          cancelRejectReason: overrides?.cancelRejectReason,
         }),
       });
       applyOrder(data.order);
@@ -143,6 +147,38 @@ export default function AdminOrderDetailPage({
           </div>
         }
       />
+
+      {(order as any).cancelRequestState === "requested" && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-amber-800 text-[14px]">Cancellation Request Pending</h3>
+            <p className="text-amber-700 text-[13px] mt-1">
+              Customer has requested to cancel this prepaid order. Reason is logged in the timeline.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                const rejectReason = window.prompt("Reason for declining cancellation?");
+                if (!rejectReason) return;
+                save({ cancelRequestState: "rejected", cancelRejectReason: rejectReason });
+              }}
+              className="px-4 py-2 bg-white text-amber-900 border border-amber-300 rounded hover:bg-amber-100 text-[12px] font-bold"
+            >
+              Decline
+            </button>
+            <button
+              onClick={async () => {
+                if (!window.confirm("Approve cancellation? This will cancel the order immediately.")) return;
+                save({ status: "Cancelled", reason: "Approved customer cancellation request", cancelRequestState: "accepted" });
+              }}
+              className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 text-[12px] font-bold"
+            >
+              Approve & Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-6">
         {canConfirm && (

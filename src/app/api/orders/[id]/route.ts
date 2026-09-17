@@ -119,6 +119,21 @@ export async function PUT(request: Request, { params }: Params) {
       }
     }
 
+    if (body.cancelRequestState !== undefined) {
+      order.cancelRequestState = body.cancelRequestState;
+      if (body.cancelRejectReason !== undefined) {
+        order.cancelRejectReason = body.cancelRejectReason;
+      }
+      if (body.cancelRequestState === "rejected") {
+        appendTimeline(order, {
+          actor,
+          action: "cancel_rejected",
+          message: `Cancellation request declined. Reason: ${body.cancelRejectReason}`,
+          internal: false,
+        });
+      }
+    }
+
     if (body.paymentStatus !== undefined) {
       const allowed = [
         "pending",

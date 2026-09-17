@@ -98,6 +98,8 @@ export type OrderDTO = {
   notes?: string | null;
   tags?: string[];
   statusReason?: string | null;
+  cancelRequestState?: "none" | "requested" | "rejected" | "accepted";
+  cancelRejectReason?: string | null;
   timeline?: Array<{
     at: string;
     actor: string;
@@ -118,50 +120,83 @@ export function toOrder(
   const customer = (doc.customer || {}) as OrderDTO["customer"];
   const tracking = doc.trackingInfo as OrderDTO["trackingInfo"];
   const includeTimeline = opts?.includeTimeline !== false;
-  const includeInternal = opts?.includeInternal !== false;
-  const rawTimeline = (doc.timeline as OrderDTO["timeline"]) || [];
+  const includeInternal = opts?.includeInternal === true;
+
+  const rawTimeline = (Array.isArray(doc.timeline) ? doc.timeline : []) as Array<{
+    at?: string | Date;
+    actor?: string;
+    action?: string;
+    fromStatus?: string;
+    toStatus?: string;
+    message?: string;
+    internal?: boolean;
+  }>;
 
   return {
-    id: doc._id.toString(),
-    orderId: String(doc.orderId ?? ""),
+    id: String(doc._id || doc.id || ""),
+    orderId: String(doc.orderId || ""),
     customerId: doc.customerId
       ? String((doc.customerId as { toString(): string }).toString())
       : null,
-    firebaseUid: (doc.firebaseUid as string | undefined) ?? null,
+    firebaseUid: doc.firebaseUid ? String(doc.firebaseUid) : null,
     customer: {
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      address: customer.address,
-      apartment: customer.apartment,
-      city: customer.city,
-      state: customer.state,
-      pinCode: customer.pinCode,
-      country: customer.country ?? "IN",
+      name: String(customer.name || ""),
+      email: customer.email ? String(customer.email) : undefined,
+      phone: String(customer.phone || ""),
+      address: String(customer.address || ""),
+      apartment: customer.apartment ? String(customer.apartment) : undefined,
+      city: String(customer.city || ""),
+      state: String(customer.state || ""),
+      pinCode: String(customer.pinCode || ""),
+      country: String(customer.country || "IN"),
     },
-    items: (doc.items as OrderDTO["items"]) ?? [],
-    subtotal: Number(doc.subtotal ?? 0),
-    discount: Number(doc.discount ?? 0),
-    shipping: Number(doc.shipping ?? 0),
-    codCharge: Number(doc.codCharge ?? 0),
-    prepaidDiscount: Number(doc.prepaidDiscount ?? 0),
-    total: Number(doc.total ?? 0),
-    paymentMethod: doc.paymentMethod as OrderDTO["paymentMethod"],
-    paymentStatus: String(doc.paymentStatus ?? "pending"),
-    razorpayPaymentId: (doc.razorpayPaymentId as string | undefined) ?? null,
-    refundedAmount: Number(doc.refundedAmount ?? 0),
+    items: Array.isArray(doc.items)
+      ? doc.items.map((i: any) => ({
+          productId: String(i.productId || ""),
+          slug: i.slug ? String(i.slug) : undefined,
+          name: String(i.name || ""),
+          image: i.image ? String(i.image) : undefined,
+          size: i.size ? String(i.size) : undefined,
+          color: i.color ? String(i.color) : undefined,
+          quantity: Number(i.quantity) || 1,
+          price: Number(i.price) || 0,
+          salePrice: i.salePrice != null ? Number(i.salePrice) : undefined,
+          hsn: i.hsn ? String(i.hsn) : undefined,
+          gstRate: i.gstRate != null ? Number(i.gstRate) : undefined,
+        }))
+      : [],
+    subtotal: Number(doc.subtotal) || 0,
+    discount: Number(doc.discount) || 0,
+    shipping: Number(doc.shipping) || 0,
+    codCharge: Number(doc.codCharge) || 0,
+    prepaidDiscount: Number(doc.prepaidDiscount) || 0,
+    total: Number(doc.total) || 0,
+    paymentMethod: String(doc.paymentMethod || "") as OrderDTO["paymentMethod"],
+    paymentStatus: String(doc.paymentStatus || "pending") as OrderDTO["paymentStatus"],
+    razorpayPaymentId: doc.razorpayPaymentId ? String(doc.razorpayPaymentId) : null,
+    refundedAmount: Number(doc.refundedAmount) || 0,
     couponCode: (doc.couponCode as string | undefined) ?? null,
     status: doc.status as OrderStatus,
-    trackingInfo: tracking ?? null,
+    trackingInfo: tracking
+      ? {
+          awb: tracking.awb ? String(tracking.awb) : undefined,
+          courier: tracking.courier ? String(tracking.courier) : undefined,
+          trackingUrl: tracking.trackingUrl ? String(tracking.trackingUrl) : undefined,
+        }
+      : null,
     notes: (doc.notes as string | undefined) ?? null,
-    tags: Array.isArray(doc.tags) ? (doc.tags as string[]) : [],
+    tags: Array.isArray(doc.tags) ? doc.tags.map(String) : [],
     statusReason: (doc.statusReason as string | undefined) ?? null,
+    cancelRequestState: (doc.cancelRequestState as any) || "none",
+    cancelRejectReason: (doc.cancelRejectReason as string | undefined) ?? null,
     timeline: includeTimeline
       ? rawTimeline
           .filter((e) => includeInternal || !e.internal)
           .map((e) => ({
             ...e,
             at: e.at ? new Date(e.at).toISOString() : new Date().toISOString(),
+            actor: e.actor || "system",
+            action: e.action || "unknown",
           }))
       : undefined,
     createdAt: doc.createdAt
