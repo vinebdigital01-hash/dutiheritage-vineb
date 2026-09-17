@@ -280,7 +280,7 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3 min-w-[220px]">
                         <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-neutral-100 border border-[var(--color-border)] shrink-0">
-                          {p.image && (
+                          {(p.image?.startsWith('http') || p.image?.startsWith('/')) && (
                             <Image
                               src={p.image}
                               alt={p.name}

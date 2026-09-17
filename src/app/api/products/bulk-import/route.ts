@@ -129,14 +129,15 @@ export async function POST(req: Request) {
           throw new Error("Missing image URL");
         }
 
-        const price = Number(cell(p, "price"));
-        if (!Number.isFinite(price) || price < 0) {
+        const priceStr = cell(p, "price").replace(/[^\d.]/g, "");
+        const price = Number(priceStr);
+        if (!Number.isFinite(price) || price < 0 || priceStr === "") {
           throw new Error("Price must be a number");
         }
-        const saleRaw = cell(p, "salePrice", "sale_price");
+        const saleRaw = cell(p, "salePrice", "sale_price").replace(/[^\d.]/g, "");
         const salePrice = saleRaw ? Number(saleRaw) : null;
 
-        const stockRaw = cell(p, "stock");
+        const stockRaw = cell(p, "stock").replace(/[^\d.]/g, "");
         const hasStock = stockRaw !== "";
         const stockVal = hasStock ? Math.max(0, Number(stockRaw) || 0) : 0;
         const sizeList = sizes.length ? sizes : ["Free Size"];
