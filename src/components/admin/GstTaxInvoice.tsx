@@ -28,11 +28,6 @@ export function GstTaxInvoice({
             </p>
             <p className="text-[11px] mt-1">
               GSTIN: <span className="font-mono font-medium">{seller.gstin}</span>
-              {inv.sellerPan ? (
-                <>
-                  {" · "}PAN: <span className="font-mono">{inv.sellerPan}</span>
-                </>
-              ) : null}
             </p>
             <p className="text-[11px] text-gray-600">
               State: {seller.state} ({seller.stateCode})
