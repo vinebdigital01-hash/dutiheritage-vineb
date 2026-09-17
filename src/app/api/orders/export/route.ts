@@ -51,6 +51,7 @@ export async function GET(request: Request) {
       "pinCode",
       "paymentMethod",
       "paymentStatus", 
+      "cancelRequestState",
       "total",
       "createdAt"
     ];
@@ -70,8 +71,9 @@ export async function GET(request: Request) {
         `"${o.customer?.city || ""}"`,
         `"${o.customer?.state || ""}"`,
         `"${o.customer?.pinCode || ""}"`,
-        `"${o.paymentMethod || ""}"`,
-        `"${o.paymentStatus || ""}"`,
+        `"${o.paymentMethod}"`,
+        `"${o.paymentStatus}"`,
+        `"${o.cancelRequestState || ""}"`,
         o.total,
         `"${new Date(o.createdAt).toISOString()}"`
       ];

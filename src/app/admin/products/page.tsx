@@ -96,6 +96,7 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
       "id", "name", "slug", "price", "salePrice", "description", 
       "collectionId", "image", "images", "sizes", "colors", "tags", 
       "seoTitle", "seoDescription", "boughtLast7Days", "videoUrls", 
+      "hsn", "gstRate",
       "codAvailable", "isPartialCOD", "partialCODAdvance", "isActive"
     ];
     const rows = products.map(p => {
@@ -120,6 +121,8 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
         escapeStr(p.seoDescription),
         p.boughtLast7Days || 0,
         escapeStr((p.videoUrls || []).join(",")),
+        escapeStr(p.hsn || "6104"),
+        p.gstRate || 5,
         p.codAvailable !== false ? "true" : "false",
         p.isPartialCOD ? "true" : "false",
         p.partialCODAdvance || 0,

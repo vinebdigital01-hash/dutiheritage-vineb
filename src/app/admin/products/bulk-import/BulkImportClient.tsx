@@ -85,6 +85,8 @@ export function BulkImportClient() {
         seoDescription: "Best product in town",
         boughtLast7Days: "12",
         videoUrls: "",
+        hsn: "6104",
+        gstRate: "5",
         codAvailable: "true",
         isActive: "true"
       }
