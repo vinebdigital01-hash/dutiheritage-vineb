@@ -5,6 +5,7 @@ import { handleApiError, jsonOk, jsonError } from "@/lib/api";
 import { getAuth } from "firebase-admin/auth";
 import { STAFF_WRITE } from "@/lib/rbac";
 import { logAdminAction } from "@/lib/admin-audit";
+import { getPublicSiteUrl } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     });
 
     // 3. Generate a Password Reset link which redirects to /admin
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dutiheritage.co.in";
+    const baseUrl = getPublicSiteUrl();
     const resetLink = await fbAuth.generatePasswordResetLink(body.email.toLowerCase(), {
       url: `${baseUrl}/admin/login`
     });

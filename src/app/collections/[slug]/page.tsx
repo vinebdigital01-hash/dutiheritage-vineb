@@ -4,6 +4,7 @@ import { db } from "@/services/db";
 import Link from "next/link";
 import Image from "next/image";
 import { Metadata } from "next";
+import { getBaseUrl } from "@/lib/utils";
 
 export const revalidate = 600;
 
@@ -13,13 +14,6 @@ export async function generateStaticParams() {
     slug: collection.slug,
   }));
 }
-
-const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
-};
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;

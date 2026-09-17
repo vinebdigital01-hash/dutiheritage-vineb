@@ -2,6 +2,7 @@ import { Product, StockMovement } from "@/models";
 import { connectDB } from "@/lib/mongodb";
 import { ApiError } from "@/lib/api";
 import mongoose from "mongoose";
+import { getPublicSiteUrl } from "@/lib/utils";
 
 export type StockLine = {
   productId: string;
@@ -286,7 +287,7 @@ export async function adjustInventory(
       await sendEmail({
         to: emailTo,
         subject: "Low stock alert — Duti Heritage",
-        html: `<p>These items are at or below the low-stock threshold:</p><ul>${alerts.map((a) => `<li>${a}</li>`).join("")}</ul><p><a href="${process.env.NEXT_PUBLIC_SITE_URL || ""}/admin/inventory">Open inventory</a></p>`,
+        html: `<p>These items are at or below the low-stock threshold:</p><ul>${alerts.map((a) => `<li>${a}</li>`).join("")}</ul><p><a href="${getPublicSiteUrl()}/admin/inventory">Open inventory</a></p>`,
         type: "orders",
       });
     }

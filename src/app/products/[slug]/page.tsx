@@ -4,6 +4,7 @@ import { db } from "@/services/db";
 import { Review } from "@/models";
 import { connectDB } from "@/lib/mongodb";
 import { ProductClient } from "./ProductClient";
+import { getBaseUrl } from "@/lib/utils";
 
 export const revalidate = 300;
 
@@ -16,13 +17,6 @@ export async function generateStaticParams() {
 
 type Props = {
   params: Promise<{ slug: string }>;
-};
-
-const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
 };
 
 // Next.js Dynamic Metadata API

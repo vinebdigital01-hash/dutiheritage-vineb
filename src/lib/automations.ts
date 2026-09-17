@@ -7,9 +7,34 @@ import {
 } from "@/models";
 import { sendEmail, emailLayout, isEmailConfigured } from "@/lib/email";
 import { sendWhatsApp, isWhatsAppConfigured } from "@/lib/whatsapp";
+import { getPublicSiteUrl } from "@/lib/utils";
 
-const SITE = () =>
-  process.env.NEXT_PUBLIC_SITE_URL || "https://dutiheritage.co.in";
+const SITE = () => getPublicSiteUrl();
+
+const PAYMENT_LABEL: Record<string, string> = {
+  prepaid: "Prepaid (online)",
+  cod: "Cash on delivery",
+  partial: "Partial (advance + COD)",
+};
+
+function esc(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function rupees(value: unknown) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString("en-IN") : "0";
+}
+
+function lineUnit(item: { price?: number; salePrice?: number | null }) {
+  const sale = Number(item.salePrice);
+  if (Number.isFinite(sale) && sale > 0) return sale;
+  return Number(item.price) || 0;
+}
 
 export async function getAutomationSettings() {
   await connectDB();
@@ -174,7 +199,9 @@ export async function sendWelcome(input: {
       }
       
       // Generate password reset link so they can log in
-      const link = await auth.generatePasswordResetLink(input.email);
+      const link = await auth.generatePasswordResetLink(input.email, {
+        url: `${SITE()}/account`,
+      });
       loginHtml = `<br/><br/>To access your account and track orders, please <a href="${link}">click here to set your password</a>.`;
     } catch (err) {
       console.error("[sendWelcome] Failed to generate auth link", err);
@@ -258,9 +285,14 @@ export async function sendAdminNewOrderAlert(orderId: string) {
   const emails = adminEmails.split(",").map(e => e.trim()).filter(Boolean);
   if (emails.length === 0) return;
 
-  const subject = `🚨 New Order Received: ${orderId} (₹${order.totalAmount})`;
-  const invoiceLink = `${SITE()}/admin/orders/${orderId}/invoice`;
-  const adminOrderLink = `${SITE()}/admin/orders/${orderId}`;
+  const total = Number(order.total ?? order.totalAmount ?? 0);
+  const discount = Number(order.discount ?? order.discountAmount ?? 0);
+  const shipping = Number(order.shipping ?? 0);
+  const customer = order.customer || {};
+  const mongoId = order._id?.toString?.() || orderId;
+  const subject = `New order received: ${orderId} (₹${rupees(total)})`;
+  const invoiceLink = `${SITE()}/admin/orders/${mongoId}/invoice`;
+  const adminOrderLink = `${SITE()}/admin/orders/${mongoId}`;
   
   let itemsHtml = `<table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; border-color: #ddd; font-family: sans-serif; font-size: 14px;">
     <tr style="background: #f9f9f9;">
@@ -269,29 +301,39 @@ export async function sendAdminNewOrderAlert(orderId: string) {
       <th align="right">Price</th>
     </tr>`;
   
-  order.items.forEach((item: any) => {
+  (order.items || []).forEach((item: { name?: string; size?: string; quantity?: number; price?: number; salePrice?: number | null }) => {
+    const qty = Number(item.quantity) || 0;
+    const line = lineUnit(item) * qty;
     itemsHtml += `
       <tr>
-        <td>${item.name} ${item.size ? `(Size: ${item.size})` : ""}</td>
-        <td align="center">${item.quantity}</td>
-        <td align="right">₹${item.price * item.quantity}</td>
+        <td>${esc(item.name)}${item.size ? ` (Size: ${esc(item.size)})` : ""}</td>
+        <td align="center">${qty}</td>
+        <td align="right">₹${rupees(line)}</td>
       </tr>`;
   });
   itemsHtml += `</table>`;
 
-  const couponText = order.discountAmount > 0 
-    ? `<div style="color: #059669; font-weight: bold; margin-top: 10px;">Coupon Applied! Discount: ₹${order.discountAmount}</div>`
+  const couponText = discount > 0 
+    ? `<div style="color: #059669; font-weight: bold; margin-top: 10px;">Coupon${order.couponCode ? ` ${esc(order.couponCode)}` : ""} applied. Discount: ₹${rupees(discount)}</div>`
     : "";
+
+  const addressLine = [
+    customer.address,
+    customer.apartment,
+    [customer.city, customer.state].filter(Boolean).join(", "),
+    customer.pinCode,
+  ].filter(Boolean).join(", ");
 
   const html = emailLayout(subject, `
     <div style="font-family: sans-serif;">
-      <p>A new order has just been placed by <strong>${order.customer.name}</strong>.</p>
+      <p>A new order has just been placed by <strong>${esc(customer.name || "Customer")}</strong>.</p>
       
       <div style="background: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h2 style="margin-top: 0;">Order Summary</h2>
-        <p><strong>Order ID:</strong> ${orderId}<br/>
-        <strong>Payment Method:</strong> ${order.paymentMethod.toUpperCase()}<br/>
-        <strong>Total Amount:</strong> ₹${order.totalAmount}
+        <p><strong>Order ID:</strong> ${esc(orderId)}<br/>
+        <strong>Payment Method:</strong> ${esc(PAYMENT_LABEL[order.paymentMethod] || order.paymentMethod || "—")}<br/>
+        <strong>Total Amount:</strong> ₹${rupees(total)}
+        ${shipping ? `<br/><strong>Shipping:</strong> ₹${rupees(shipping)}` : ""}
         </p>
         
         ${couponText}
@@ -301,15 +343,15 @@ export async function sendAdminNewOrderAlert(orderId: string) {
         
         <h3 style="margin-top: 30px;">Customer Details</h3>
         <p>
-          Name: ${order.customer.name}<br/>
-          Email: ${order.customer.email || "N/A"}<br/>
-          Phone: ${order.customer.phone}<br/>
-          Address: ${order.customer.address}, ${order.customer.city}, ${order.customer.state} - ${order.customer.pinCode}
+          Name: ${esc(customer.name || "—")}<br/>
+          Email: ${esc(customer.email || "N/A")}<br/>
+          Phone: ${esc(customer.phone || "—")}<br/>
+          Address: ${esc(addressLine || "—")}
         </p>
       </div>
 
       <div style="margin-top: 30px;">
-        <a href="${invoiceLink}" style="display: inline-block; background: #1a1a1a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 10px;">📄 View / Print Invoice</a>
+        <a href="${invoiceLink}" style="display: inline-block; background: #1a1a1a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 10px;">View / Print Invoice</a>
         <a href="${adminOrderLink}" style="display: inline-block; border: 1px solid #1a1a1a; color: #1a1a1a; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Manage Order</a>
       </div>
     </div>
@@ -701,24 +743,37 @@ async function buildOrderEmailHtml(
   let itemsHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-family: sans-serif; font-size: 14px; margin-bottom: 30px; border-top: 1px solid #e5e7eb;">`;
   
   if (order.items && order.items.length) {
-    order.items.forEach((item: any) => {
-      const img = item.image ? `<img src="${item.image}" width="60" style="border-radius: 4px; object-fit: cover;" />` : "";
+    order.items.forEach((item: { name?: string; image?: string; quantity?: number; size?: string; price?: number; salePrice?: number | null }) => {
+      const qty = Number(item.quantity) || 0;
+      const line = lineUnit(item) * qty;
+      const img = item.image ? `<img src="${esc(item.image)}" width="60" alt="" style="border-radius: 4px; object-fit: cover;" />` : "";
       itemsHtml += `
         <tr>
           <td width="70" style="padding: 15px 0; border-bottom: 1px solid #e5e7eb;">${img}</td>
           <td style="padding: 15px 10px; border-bottom: 1px solid #e5e7eb;">
-            <div style="font-weight: bold; margin-bottom: 4px;">${item.name}</div>
-            <div style="color: #666; font-size: 12px;">Qty: ${item.quantity} ${item.size ? `| Size: ${item.size}` : ""}</div>
+            <div style="font-weight: bold; margin-bottom: 4px;">${esc(item.name)}</div>
+            <div style="color: #666; font-size: 12px;">Qty: ${qty}${item.size ? ` | Size: ${esc(item.size)}` : ""}</div>
           </td>
-          <td align="right" style="padding: 15px 0; border-bottom: 1px solid #e5e7eb; font-weight: 500;">₹${item.price * item.quantity}</td>
+          <td align="right" style="padding: 15px 0; border-bottom: 1px solid #e5e7eb; font-weight: 500;">₹${rupees(line)}</td>
         </tr>
       `;
     });
   }
   itemsHtml += `</table>`;
 
-  const addr = order.customer.address;
-  const addressHtml = `${addr.firstName || ""} ${addr.lastName || ""}<br/>${addr.address}<br/>${addr.apartment ? addr.apartment + "<br/>" : ""}${addr.city}, ${addr.state} ${addr.pinCode}<br/>${addr.phone}`;
+  const c = order.customer || {};
+  const addressHtml = [
+    esc(c.name),
+    esc(c.address),
+    c.apartment ? esc(c.apartment) : "",
+    esc([c.city, c.state, c.pinCode].filter(Boolean).join(", ")),
+    c.phone ? esc(c.phone) : "",
+  ].filter(Boolean).join("<br/>");
+
+  const subtotal = Number(order.subtotal ?? order.total ?? 0);
+  const shipping = Number(order.shipping ?? 0);
+  const discount = Number(order.discount ?? 0);
+  const total = Number(order.total ?? 0);
 
   return `
     <div style="font-family: Georgia, serif; line-height: 1.6; font-size: 16px;">
@@ -736,21 +791,25 @@ async function buildOrderEmailHtml(
         <tr>
           <td width="50%" valign="top" style="padding-right: 15px; border-right: 1px solid #e5e7eb;">
             <strong style="text-transform: uppercase; font-size: 11px; letter-spacing: 1px; color: #6b7280; display: block; margin-bottom: 8px;">Shipping To</strong>
-            <div style="color: #374151; line-height: 1.5;">${addressHtml}</div>
+            <div style="color: #374151; line-height: 1.5;">${addressHtml || "—"}</div>
           </td>
           <td width="50%" valign="top" align="right" style="padding-left: 15px;">
              <table width="100%" border="0" cellpadding="0" cellspacing="0">
                <tr>
                  <td align="right" style="padding-bottom: 8px; color: #6b7280;">Subtotal:</td>
-                 <td align="right" width="80" style="color: #374151;">₹${order.totalAmount}</td>
+                 <td align="right" width="80" style="color: #374151;">₹${rupees(subtotal)}</td>
                </tr>
+               ${discount > 0 ? `<tr>
+                 <td align="right" style="padding-bottom: 8px; color: #6b7280;">Discount:</td>
+                 <td align="right" width="80" style="color: #059669;">−₹${rupees(discount)}</td>
+               </tr>` : ""}
                <tr>
                  <td align="right" style="padding-bottom: 8px; color: #6b7280;">Shipping:</td>
-                 <td align="right" width="80" style="color: #374151;">₹0</td>
+                 <td align="right" width="80" style="color: #374151;">${shipping > 0 ? `₹${rupees(shipping)}` : "Free"}</td>
                </tr>
                <tr>
                  <td align="right" style="padding-top: 8px; border-top: 1px solid #e5e7eb;"><strong>Total:</strong></td>
-                 <td align="right" width="80" style="padding-top: 8px; border-top: 1px solid #e5e7eb;"><strong>₹${order.totalAmount}</strong></td>
+                 <td align="right" width="80" style="padding-top: 8px; border-top: 1px solid #e5e7eb;"><strong>₹${rupees(total)}</strong></td>
                </tr>
              </table>
           </td>

@@ -9,12 +9,19 @@ import { PageHeader, AdminButton, useToast } from "@/components/admin/ui";
 export function BulkImportClient() {
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<{ imported: number; errors?: string[] } | null>(null);
-  const { show } = useToast();
+  const { show, Toast } = useToast();
   const router = useRouter();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+      show("Save the file as CSV (not Excel .xlsx), then upload again", "error");
+      e.target.value = "";
+      return;
+    }
 
     setUploading(true);
     setResults(null);
@@ -22,16 +29,30 @@ export function BulkImportClient() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      transformHeader: (h) => h.replace(/^\uFEFF/, "").trim(),
+      complete: async (parsed) => {
         try {
+          const rows = (parsed.data as Record<string, unknown>[]).filter((row) =>
+            Object.values(row).some((v) => String(v ?? "").trim())
+          );
+          if (rows.length === 0) {
+            show("The spreadsheet has no product rows", "error");
+            setUploading(false);
+            e.target.value = "";
+            return;
+          }
           const res = await adminFetch<{ imported: number; errors?: string[] }>("/api/products/bulk-import", {
             method: "POST",
-            body: JSON.stringify({ products: results.data }),
+            body: JSON.stringify({ products: rows }),
           });
           
           setResults({ imported: res.imported, errors: res.errors });
-          show(`Successfully imported ${res.imported} products`, "success");
-        } catch (err: any) {
+          if (res.errors?.length) {
+            show(`Imported ${res.imported}. ${res.errors.length} row(s) skipped.`, "error");
+          } else {
+            show(`Imported ${res.imported} products`, "success");
+          }
+        } catch (err: unknown) {
           show(err instanceof AdminApiError ? err.message : "Import failed", "error");
         } finally {
           setUploading(false);
@@ -54,15 +75,16 @@ export function BulkImportClient() {
         salePrice: "1499",
         description: "This is a great product",
         collectionName: "New Arrivals",
-        image: "https://example.com/main.jpg",
-        images: "https://example.com/2.jpg,https://example.com/3.jpg",
+        image: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        images: "",
         sizes: "S,M,L",
         colors: "Red",
         tags: "Trending,Summer",
+        stock: "10",
         seoTitle: "Buy Sample Product",
         seoDescription: "Best product in town",
         boughtLast7Days: "12",
-        videoUrls: "https://youtube.com/watch?v=123",
+        videoUrls: "",
         codAvailable: "true",
         isActive: "true"
       }
@@ -80,6 +102,7 @@ export function BulkImportClient() {
 
   return (
     <div className="max-w-4xl mx-auto py-8">
+      {Toast}
       <PageHeader 
         title="Add many products"
         subtitle="One spreadsheet creates many products. New collections are created if the name is new."
@@ -94,7 +117,7 @@ export function BulkImportClient() {
         <div>
           <h2 className="text-lg font-serif mb-2">1. Download spreadsheet template</h2>
           <p className="text-sm text-neutral-500 mb-4">
-            Use this file so columns match. For more than one size, tag, or image, separate them with commas.
+            Use this file so columns match. Required: name, price, collectionName, image. Separate sizes, tags, or extra images with commas. Same slug updates that product instead of failing.
           </p>
           <AdminButton variant="secondary" onClick={downloadTemplate}>
             Download CSV Template

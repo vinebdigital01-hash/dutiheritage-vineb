@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
     const amount = totals.amountToPayNow;
     if (!amount || amount < 1) {
-      throw new ApiError("amount must be at least ,11");
+      throw new ApiError("Amount to pay must be at least ₹1");
     }
 
     const razorpay = getRazorpay();

@@ -1,5 +1,12 @@
+import { getPublicSiteUrl } from "@/lib/utils";
+
 export function isEmailConfigured(): boolean {
-  return Boolean((process.env.RESEND_API_KEY || process.env.RESEND_AUTH_KEY || process.env.RESEND_ORDERS_KEY || true) && process.env.EMAIL_FROM);
+  const key =
+    process.env.RESEND_API_KEY ||
+    process.env.RESEND_AUTH_KEY ||
+    process.env.RESEND_ORDERS_KEY ||
+    process.env.RESEND_MARKETING_KEY;
+  return Boolean(key && process.env.EMAIL_FROM);
 }
 
 export type SendEmailResult = {
@@ -80,7 +87,7 @@ export async function sendEmail(input: {
 }
 
 export function emailLayout(title: string, bodyHtml: string): string {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://dutiheritage.co.in";
+  const site = getPublicSiteUrl();
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${title}</title></head>

@@ -1,5 +1,5 @@
 import { logSystemEvent } from "./logger";
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 type RateLimitConfig = {
   limit: number;
@@ -8,37 +8,34 @@ type RateLimitConfig = {
 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
-// Cleanup stale entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
+function pruneExpired(now: number) {
+  if (rateLimitMap.size < 500) return;
   for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      rateLimitMap.delete(key);
-    }
+    if (now > value.resetTime) rateLimitMap.delete(key);
   }
-}, 300000);
+}
 
-export function applyRateLimit(req: any, config: RateLimitConfig, identifier: string = "") {
-  const ip = req.headers?.get("x-forwarded-for") || req.ip || "unknown-ip";
+export function applyRateLimit(req: Request, config: RateLimitConfig, identifier: string = "") {
+  const ip = req.headers?.get("x-forwarded-for") || "unknown-ip";
   let pathname = "";
   try {
     pathname = new URL(req.url).pathname;
-  } catch (e) {
+  } catch {
     pathname = req.url || "unknown-path";
   }
-  
+
   const key = `${pathname}_${ip}_${identifier}`;
   const now = Date.now();
+  pruneExpired(now);
 
   const record = rateLimitMap.get(key);
 
   if (!record || now > record.resetTime) {
     rateLimitMap.set(key, { count: 1, resetTime: now + config.windowMs });
-    return null; // Allowed
+    return null;
   }
 
   if (record.count >= config.limit) {
-    
     logSystemEvent({
       level: "warning",
       source: "rate_limiter",
@@ -46,9 +43,12 @@ export function applyRateLimit(req: any, config: RateLimitConfig, identifier: st
       path: pathname,
       ip: ip,
     }).catch(() => {});
-    return NextResponse.json({ error: "Too many requests, please try again later." }, { status: 429 });
+    return NextResponse.json(
+      { error: "Too many requests, please try again later." },
+      { status: 429 }
+    );
   }
 
   record.count += 1;
-  return null; // Allowed
+  return null;
 }

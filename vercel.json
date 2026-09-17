@@ -19,5 +19,27 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/abandoned-carts",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/post-purchase",
+      "schedule": "15 4 * * *"
+    },
+    {
+      "path": "/api/cron/winback",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/wishlist-reminders",
+      "schedule": "45 4 * * *"
+    },
+    {
+      "path": "/api/reports/monthly",
+      "schedule": "0 5 1 * *"
+    }
   ]
 }

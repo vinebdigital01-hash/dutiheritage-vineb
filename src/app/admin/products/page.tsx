@@ -121,6 +121,8 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
         p.boughtLast7Days || 0,
         escapeStr((p.videoUrls || []).join(",")),
         p.codAvailable !== false ? "true" : "false",
+        p.isPartialCOD ? "true" : "false",
+        p.partialCODAdvance || 0,
         p.isActive !== false ? "true" : "false"
       ].join(",");
     });
