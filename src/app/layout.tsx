@@ -18,10 +18,45 @@ const outfit = Outfit({
 
 import { getBaseUrl } from "@/lib/utils";
 import { getStoreSettings } from "@/lib/store-settings";
+import type { SiteContentData } from "@/lib/site-content-shared";
 
 const FALLBACK_TITLE = "Duti Heritage | Premium Fashion";
 const FALLBACK_DESC =
   "Shop the finest premium ethnic wear, pure cotton suits, and luxury nightwear in Delhi NCR, Gurugram, and Manesar. Experience elegance with Duti Heritage.";
+
+function enrichSiteContent(
+  content: SiteContentData,
+  store: Awaited<ReturnType<typeof getStoreSettings>>
+): SiteContentData {
+  const year = new Date().getFullYear();
+  const company =
+    content.footer?.companyName?.trim() || store.legalName || "Duti Heritage";
+  return {
+    ...content,
+    footer: {
+      ...content.footer,
+      companyName: company,
+      phone: content.footer?.phone?.trim() || store.supportPhone || "",
+      email: content.footer?.email?.trim() || store.supportEmail || "",
+      address: content.footer?.address?.trim() || store.address || "",
+      gstin: content.footer?.gstin?.trim() || store.gstin || "",
+      copyright:
+        content.footer?.copyright?.trim() || `© ${year} ${company}`,
+      instagramUrl: content.footer?.instagramUrl?.trim() || "",
+      facebookUrl: content.footer?.facebookUrl?.trim() || "",
+    },
+  };
+}
+
+function sameAsFromContent(content: SiteContentData): string[] {
+  const urls = [
+    content.footer?.instagramUrl,
+    content.footer?.facebookUrl,
+  ]
+    .map((u) => String(u || "").trim())
+    .filter((u) => u.startsWith("http"));
+  return [...new Set(urls)];
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   let title = FALLBACK_TITLE;
@@ -76,8 +111,26 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const siteContent = await getSiteContent();
+  const rawContent = await getSiteContent();
+  let store;
+  try {
+    store = await getStoreSettings();
+  } catch {
+    store = null;
+  }
+  const siteContent = store ? enrichSiteContent(rawContent, store) : rawContent;
   const baseUrl = getBaseUrl();
+  const phone =
+    siteContent.footer?.phone?.replace(/\D/g, "") ||
+    store?.supportPhone?.replace(/\D/g, "") ||
+    "";
+  const tel = phone
+    ? phone.length === 10
+      ? `+91${phone}`
+      : phone.startsWith("91")
+        ? `+${phone}`
+        : `+${phone}`
+    : undefined;
 
   // Organization JSON-LD (shows brand info in Google Knowledge Panel)
   
@@ -85,16 +138,16 @@ export default async function RootLayout({
   const localBusinessJsonLd = {
     "@context": "https://schema.org",
     "@type": "ClothingStore",
-    "name": "Duti Heritage",
+    "name": siteContent.footer?.companyName || "Duti Heritage",
     "image": `${baseUrl}/images/velvet.jpg`,
     "@id": baseUrl,
     "url": baseUrl,
-    "telephone": "+917017194982",
+    ...(tel ? { telephone: tel } : {}),
     "address": {
       "@type": "PostalAddress",
-      "streetAddress": "103, Block D, DLF Express Green M1, IMT",
+      "streetAddress": siteContent.footer?.address || store?.address || "103, Block D, DLF Express Green M1, IMT",
       "addressLocality": "Manesar, Gurugram",
-      "addressRegion": "Haryana",
+      "addressRegion": store?.state || "Haryana",
       "postalCode": "122052",
       "addressCountry": "IN"
     },
@@ -116,14 +169,10 @@ export default async function RootLayout({
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Duti Heritage",
+    name: siteContent.footer?.companyName || "Duti Heritage",
     url: baseUrl,
     logo: `${baseUrl}/images/velvet.jpg`,
-    sameAs: [
-      // Add your social media URLs here when available
-      // "https://www.instagram.com/dutiheritage",
-      // "https://www.facebook.com/dutiheritage",
-    ],
+    sameAs: sameAsFromContent(siteContent),
   };
 
   // WebSite JSON-LD (enables sitelinks searchbox in Google)

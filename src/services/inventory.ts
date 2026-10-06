@@ -162,6 +162,10 @@ export async function setAbsoluteStock(
     } else {
       product.inventory.push({ size, stock: parsedStock, sku: "" });
     }
+    if (!product.sizes.includes(size)) {
+      product.sizes.push(size);
+    }
+    product.trackInventory = true;
     product.stockStatus = computeStockStatus(product);
     await product.save();
     await logInventoryDiff(
@@ -267,6 +271,15 @@ export async function adjustInventory(
     });
     await refreshStatus(product._id.toString());
 
+    if (after?.slug) {
+      try {
+        const { revalidatePath } = await import("next/cache");
+        revalidatePath(`/products/${after.slug}`);
+      } catch {
+        /* non-Next callers */
+      }
+    }
+
     if (!increment && after?.trackInventory) {
       const threshold = after.lowStockThreshold || 3;
       if (row && row.stock <= threshold) {
@@ -279,10 +292,19 @@ export async function adjustInventory(
 
   if (alerts.length > 0) {
     const { sendEmail } = await import("@/lib/email");
-    const emailTo =
-      process.env.SUPER_ADMIN_EMAIL ||
-      process.env.ADMIN_EMAILS?.split(",")[0]?.trim() ||
-      "";
+    const { getStoreSettings } = await import("@/lib/store-settings");
+    let emailTo = "";
+    try {
+      emailTo = String((await getStoreSettings()).supportEmail || "").trim();
+    } catch {
+      emailTo = "";
+    }
+    if (!emailTo) {
+      emailTo =
+        process.env.SUPER_ADMIN_EMAIL ||
+        process.env.ADMIN_EMAILS?.split(",")[0]?.trim() ||
+        "";
+    }
     if (emailTo) {
       await sendEmail({
         to: emailTo,

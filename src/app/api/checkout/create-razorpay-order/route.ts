@@ -81,6 +81,8 @@ export async function POST(request: Request) {
         price: l.salePrice ?? l.price,
         quantity: l.quantity,
       })),
+      customerPhone: body.customer?.phone,
+      customerEmail: body.customer?.email,
     });
 
     const c = body.customer;

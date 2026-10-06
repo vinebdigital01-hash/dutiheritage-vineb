@@ -119,6 +119,31 @@ export async function POST(request: Request) {
     const existing = await Product.findOne({ slug });
     if (existing) throw new ApiError("A product with this slug already exists", 409);
 
+    const sizes = Array.isArray(body.sizes)
+      ? body.sizes.map((s: unknown) => String(s || "").trim()).filter(Boolean)
+      : [];
+    if (sizes.length === 0) {
+      throw new ApiError("Add at least one size so we can track stock");
+    }
+
+    const inventory = Array.isArray(body.inventory)
+      ? body.inventory
+          .map((i: { size?: string; stock?: number; sku?: string }) => ({
+            size: String(i.size || "").trim(),
+            stock: Number(i.stock) || 0,
+            sku: String(i.sku || "").trim(),
+          }))
+          .filter((i: { size: string }) => i.size)
+      : [];
+    const missingSizes = sizes.filter((s: string) => !inventory.some((i: { size: string }) => i.size === s));
+    const inventoryRows =
+      missingSizes.length === 0
+        ? inventory
+        : [
+            ...inventory,
+            ...missingSizes.map((size: string) => ({ size, stock: 0, sku: "" })),
+          ];
+
     const doc = await Product.create({
       name,
       slug,
@@ -128,7 +153,7 @@ export async function POST(request: Request) {
       collectionId,
       image,
       images: body.images ?? [],
-      sizes: body.sizes ?? [],
+      sizes,
       colors: body.colors ?? [],
       tags: body.tags ?? [],
       badge: body.badge,
@@ -138,22 +163,14 @@ export async function POST(request: Request) {
       videoUrls: body.videoUrls ?? [],
       offers: body.offers ?? [],
       codAvailable: body.codAvailable !== false,
-        isPartialCOD: Boolean(body.isPartialCOD),
-        partialCODAdvance: Number(body.partialCODAdvance) || 0,
+      isPartialCOD: Boolean(body.isPartialCOD),
+      partialCODAdvance: Number(body.partialCODAdvance) || 0,
       isActive: body.isActive !== false,
-      trackInventory: Boolean(body.trackInventory),
+      trackInventory: true,
       lowStockThreshold: Number(body.lowStockThreshold) || 3,
       hsn: String(body.hsn || "6104").trim() || "6104",
       gstRate: Math.min(28, Math.max(0, Number(body.gstRate) || 5)),
-      inventory: Array.isArray(body.inventory)
-        ? body.inventory
-            .map((i: { size?: string; stock?: number; sku?: string }) => ({
-              size: String(i.size || "").trim(),
-              stock: Number(i.stock) || 0,
-              sku: String(i.sku || "").trim(),
-            }))
-            .filter((i: { size: string }) => i.size)
-        : [],
+      inventory: inventoryRows,
     });
 
     await refreshCollectionProductCount(collectionId);

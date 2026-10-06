@@ -73,6 +73,13 @@ export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
           >
             ALL PRODUCTS
           </Link>
+          <Link
+            href="/track"
+            className="px-4 py-3 text-base border-b border-[var(--color-surface)]"
+            onClick={onClose}
+          >
+            TRACK ORDER
+          </Link>
           {navLinks.map((link) => (
             <Link
               key={`${link.label}-${link.slug}`}

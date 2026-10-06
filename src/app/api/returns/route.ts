@@ -1,6 +1,6 @@
 import { connectDB } from "@/lib/mongodb";
 import { ReturnRequest, Order } from "@/models";
-import { requireAuth, verifyIdToken, AuthError } from "@/lib/auth";
+import { requireAuth, verifyIdToken, AuthError, getStaffRole } from "@/lib/auth";
 import { OPS_WRITE } from "@/lib/rbac";
 import { logAdminAction } from "@/lib/admin-audit";
 import {
@@ -27,8 +27,8 @@ function serializeReturn(doc: {
     size?: string | null;
     quantity: number;
   }>;
-  refundAmount?: number | null;
-  customerName?: string | null;
+    refundAmount?: number | null;
+    customerName?: string | null;
   customerPhone?: string | null;
   decidedBy?: string | null;
   restockedAt?: Date | null;
@@ -57,17 +57,50 @@ function serializeReturn(doc: {
 export async function GET(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true, roles: OPS_WRITE });
     await connectDB();
 
-    const status = String(new URL(request.url).searchParams.get("status") || "").trim();
-    const filter: Record<string, unknown> = {};
-    if (status) filter.status = status;
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader) throw new AuthError("Authorization required", 401);
 
-    const docs = await ReturnRequest.find(filter).sort({ createdAt: -1 }).limit(100).lean();
+    const authUser = await verifyIdToken(authHeader);
+    const isAdmin = Boolean(await getStaffRole(authUser.email));
+
+    if (isAdmin) {
+      // Staff must still hold OPS_WRITE for the returns inbox
+      await requireAuth(request, { admin: true, roles: OPS_WRITE });
+      const status = String(new URL(request.url).searchParams.get("status") || "").trim();
+      const filter: Record<string, unknown> = {};
+      if (status) filter.status = status;
+
+      const docs = await ReturnRequest.find(filter).sort({ createdAt: -1 }).limit(100).lean();
+      const orderIds = [...new Set(docs.map((d) => d.orderId))];
+      const orders = await Order.find({ orderId: { $in: orderIds } })
+        .select("orderId total refundedAmount paymentMethod")
+        .lean();
+      const byOrder = new Map(orders.map((o) => [String(o.orderId), o]));
+      return jsonOk({
+        returns: docs.map((d) => {
+          const o = byOrder.get(d.orderId);
+          const remaining = o
+            ? Math.max(0, Number(o.total) - Number(o.refundedAmount || 0))
+            : 0;
+          return {
+            ...serializeReturn(d),
+            remainingRefund: remaining,
+            orderTotal: o ? Number(o.total) : 0,
+            paymentMethod: o?.paymentMethod || "",
+          };
+        }),
+        pending: docs.filter((d) => d.status === "requested").length,
+      });
+    }
+
+    const docs = await ReturnRequest.find({ firebaseUid: authUser.uid })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
     return jsonOk({
       returns: docs.map((d) => serializeReturn(d)),
-      pending: docs.filter((d) => d.status === "requested").length,
     });
   } catch (error) {
     return handleApiError(error);
@@ -133,6 +166,20 @@ export async function POST(request: Request) {
       .filter((i: { productId: string; name: string }) => i.productId && i.name);
 
     if (items.length === 0) throw new ApiError("Select at least one item");
+
+    for (const item of items) {
+      const match = (order.items || []).find(
+        (oi) =>
+          String(oi.productId || "") === item.productId &&
+          String(oi.size || "") === item.size
+      );
+      const maxQty = match ? Math.max(1, Number(match.quantity) || 1) : 0;
+      if (!match || item.quantity > maxQty) {
+        throw new ApiError(
+          `Return quantity for ${item.name}${item.size ? ` (${item.size})` : ""} exceeds what was ordered`
+        );
+      }
+    }
 
     const doc = await ReturnRequest.create({
       orderId: order.orderId,

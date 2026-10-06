@@ -16,11 +16,13 @@ export const Footer = () => {
   const footer = content?.footer;
 
   const companyName = footer?.companyName || "Duti Heritage";
-  const phone = footer?.phone || "91-7017194982";
-  const email = footer?.email || "supportdutiheritage@gmail.com";
-  const address = footer?.address || "103, Block D, DLF Express Green M1, IMT Manesar, Gurugram, Haryana - 122052";
-  const gst = "GSTIN: 06ANFPR1728Q2ZF";
-  const copyright = footer?.copyright || ("copy " + new Date().getFullYear() + " Duti Heritage");
+  const phone = footer?.phone || "";
+  const email = footer?.email || "";
+  const address = footer?.address || "";
+  const gstin = footer?.gstin || "";
+  const year = new Date().getFullYear();
+  const copyright =
+    footer?.copyright?.trim() || `© ${year} ${companyName}`;
 
   const [subscribeResult, setSubscribeResult] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,19 +31,22 @@ export const Footer = () => {
     event.preventDefault();
     setIsSubmitting(true);
     setSubscribeResult("");
-    const formData = new FormData(event.currentTarget);
-    formData.append("name", "Newsletter Subscriber");
-    formData.append("access_key", "26f12f2a-a465-46c9-9355-892de2f8117d");
+    const form = event.currentTarget;
+    const emailValue = String(new FormData(form).get("email") || "").trim();
     try {
-      const response = await fetch("https://api.web3forms.com/submit", { method: "POST", body: formData });
-      const data = await response.json();
-      if (data.success) {
-        setSubscribeResult("Thanks for subscribing!");
-        (event.target as HTMLFormElement).reset();
+      const response = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailValue, source: "footer" }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSubscribeResult(data.error || "Something went wrong. Try again.");
       } else {
-        setSubscribeResult("Something went wrong. Try again.");
+        setSubscribeResult(data.message || "Thanks for subscribing!");
+        form.reset();
       }
-    } catch (err) {
+    } catch {
       setSubscribeResult("Connection error. Try again.");
     }
     setIsSubmitting(false);
@@ -55,10 +60,12 @@ export const Footer = () => {
         <div className="flex flex-col text-sm text-[var(--color-text)] space-y-2">
           <h3 className="text-base tracking-[2px] uppercase mb-2">{companyName}</h3>
           <p>Made With Love In India</p>
-          {phone && <p>Call Us @ {phone}</p>}
-          {email && <p>Email @ {email}</p>}
-          {address && <p className="text-[var(--color-text-muted)]">{address}</p>}
-          <p className="text-xs text-[var(--color-text-muted)]">{gst}</p>
+          {phone ? <p>Call Us @ {phone}</p> : null}
+          {email ? <p>Email @ {email}</p> : null}
+          {address ? <p className="text-[var(--color-text-muted)]">{address}</p> : null}
+          {gstin ? (
+            <p className="text-xs text-[var(--color-text-muted)]">GSTIN: {gstin}</p>
+          ) : null}
           <div className="mt-8">
             <form
               className="flex items-center border-b border-[var(--color-text)] max-w-xs pb-2"

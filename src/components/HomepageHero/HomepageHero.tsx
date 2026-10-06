@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { CldImage } from "next-cloudinary";
 import { useMemo, useState } from "react";
 import type { HeroBanner } from "@/lib/site-content-shared";
 import { isHeroBannerLive } from "@/lib/site-content-shared";
+
+const isCloudinary = (src: string) => {
+  if (!src) return false;
+  if (src.includes("res.cloudinary.com")) return true;
+  if (src.startsWith("/") || src.startsWith("http") || src.startsWith("blob:")) return false;
+  return true;
+};
 
 export function HomepageHero({ banners }: { banners: HeroBanner[] }) {
   const live = useMemo(
@@ -15,16 +24,38 @@ export function HomepageHero({ banners }: { banners: HeroBanner[] }) {
 
   const current = live[Math.min(idx, live.length - 1)]!;
   const href = current.href || "#";
+  const imageSrc = current.image;
 
   return (
     <section className="relative w-full bg-neutral-100 mb-8">
       <Link href={href === "#" ? "/" : href} className="block relative aspect-[16/7] min-h-[220px] md:min-h-[360px] overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={current.image}
-          alt={current.headline || "Banner"}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        {isCloudinary(imageSrc) ? (
+          <CldImage
+            src={imageSrc}
+            alt={current.headline || "Banner"}
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        ) : imageSrc.startsWith("/") || imageSrc.startsWith("http") ? (
+          <Image
+            src={imageSrc}
+            alt={current.headline || "Banner"}
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+            unoptimized={imageSrc.startsWith("http") && !imageSrc.includes("res.cloudinary.com")}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageSrc}
+            alt={current.headline || "Banner"}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
         {(current.headline || current.subtext) && (
           <div className="absolute inset-0 bg-black/25 flex flex-col items-center justify-center text-center px-6 text-white">
             {current.headline ? (

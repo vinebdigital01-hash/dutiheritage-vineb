@@ -5,6 +5,7 @@ import { adminFetch, AdminApiError } from '@/lib/admin-api';
 import { PageHeader, AdminButton, useToast } from '@/components/admin/ui';
 import { FiDownload, FiUpload } from 'react-icons/fi';
 import Papa from 'papaparse';
+import { parseSpreadsheetFile, SPREADSHEET_ACCEPT } from '@/lib/spreadsheet-client';
 
 export default function BulkOffersClient() {
   const { show, Toast } = useToast();
@@ -18,17 +19,29 @@ export default function BulkOffersClient() {
       const res = await adminFetch<{ products: any[] }>('/api/products?all=1');
       const products = res.products || [];
       const records: any[] = [];
-      
+
       for (const p of products) {
         if (p.offers && p.offers.length > 0) {
           for (const offer of p.offers) {
-            records.push({ slug: p.slug, name: p.name, offer_title: offer.title || '', offer_description: offer.description || '', offer_code: offer.code || '' });
+            records.push({
+              slug: p.slug,
+              name: p.name,
+              offer_title: offer.title || '',
+              offer_description: offer.description || '',
+              offer_code: offer.code || '',
+            });
           }
         } else {
-          records.push({ slug: p.slug, name: p.name, offer_title: '', offer_description: '', offer_code: '' });
+          records.push({
+            slug: p.slug,
+            name: p.name,
+            offer_title: '',
+            offer_description: '',
+            offer_code: '',
+          });
         }
       }
-      
+
       const csv = Papa.unparse(records);
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -48,51 +61,43 @@ export default function BulkOffersClient() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setUploading(true);
-    
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        try {
-          const productOffers = new Map<string, any[]>();
-          for (const r of results.data as any[]) {
-            const slug = r.slug;
-            if (!slug) continue;
-            
-            const title = (r.offer_title || '').trim();
-            const description = (r.offer_description || '').trim();
-            const code = (r.offer_code || '').trim();
-            
-            if (!productOffers.has(slug)) {
-              productOffers.set(slug, []);
-            }
-            if (title || description || code) {
-              productOffers.get(slug)!.push({ title, description, code });
-            }
-          }
-          
-          const updates = Array.from(productOffers.entries()).map(([slug, offers]) => ({ slug, offers }));
-          
-          const res = await adminFetch<{ updated: number }>('/api/products/bulk-offers/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates }),
-          });
-          show(`Successfully updated offers for ${res.updated} products!`, 'success');
-        } catch (err: any) {
-          show(err.message || 'Upload failed', 'error');
-        } finally {
-          setUploading(false);
-          if (fileRef.current) fileRef.current.value = '';
+    try {
+      const rows = await parseSpreadsheetFile(file);
+      const productOffers = new Map<string, { title: string; description: string; code: string }[]>();
+      for (const r of rows) {
+        const slug = r.slug;
+        if (!slug) continue;
+
+        const title = (r.offer_title || '').trim();
+        const description = (r.offer_description || '').trim();
+        const code = (r.offer_code || '').trim();
+
+        if (!productOffers.has(slug)) {
+          productOffers.set(slug, []);
         }
-      },
-      error: (err) => {
-        show(`CSV Parse Error: ${err.message}`, 'error');
-        setUploading(false);
+        if (title || description || code) {
+          productOffers.get(slug)!.push({ title, description, code });
+        }
       }
-    });
+
+      const updates = Array.from(productOffers.entries()).map(([slug, offers]) => ({
+        slug,
+        offers,
+      }));
+
+      const res = await adminFetch<{ updated: number }>('/api/products/bulk-offers/import', {
+        method: 'POST',
+        body: JSON.stringify({ updates }),
+      });
+      show(`Successfully updated offers for ${res.updated} products!`, 'success');
+    } catch (err: unknown) {
+      show(err instanceof Error ? err.message : 'Upload failed', 'error');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   return (
@@ -100,39 +105,41 @@ export default function BulkOffersClient() {
       {Toast}
       <PageHeader
         title="Offers on many products"
-        subtitle="Download the spreadsheet, fill offer text, upload to update many products at once."
+        subtitle="Download the spreadsheet, fill offer text, upload Excel or CSV to update many products at once."
         actions={
-          <Link href='/admin/products'>
-            <AdminButton variant='secondary'>Back to products</AdminButton>
+          <Link href="/admin/products">
+            <AdminButton variant="secondary">Back to products</AdminButton>
           </Link>
         }
       />
-      <div className='max-w-2xl bg-white border border-[var(--color-border)] rounded-xl p-6'>
-        <div className='mb-8 pb-8 border-b border-[var(--color-border)]'>
-          <h2 className='text-base font-semibold mb-2'>1. Download spreadsheet</h2>
-          <p className='text-[13px] text-neutral-500 mb-4'>
-            Get a CSV file containing all your current products. The file includes columns for <strong>offer_title</strong>, <strong>offer_description</strong>, and <strong>offer_code</strong>. If you leave these blank for a product, its offers will be cleared. If you want multiple offers for the same product, just duplicate the row for that product!
+      <div className="max-w-2xl bg-white border border-[var(--color-border)] rounded-xl p-6">
+        <div className="mb-8 pb-8 border-b border-[var(--color-border)]">
+          <h2 className="text-base font-semibold mb-2">1. Download spreadsheet</h2>
+          <p className="text-[13px] text-neutral-500 mb-4">
+            Get a CSV of your products with <strong>offer_title</strong>,{' '}
+            <strong>offer_description</strong>, and <strong>offer_code</strong>. Blank offers clear
+            that product. Duplicate a row for multiple offers.
           </p>
           <AdminButton onClick={handleDownload} disabled={downloading}>
-            <FiDownload className='inline-block mr-2' />
+            <FiDownload className="inline-block mr-2" />
             {downloading ? 'Preparing…' : 'Download spreadsheet template'}
           </AdminButton>
         </div>
         <div>
-          <h2 className='text-base font-semibold mb-2'>2. Upload Completed CSV</h2>
-          <p className='text-[13px] text-neutral-500 mb-4'>
-            Upload the edited CSV file here. The system will match products by their <strong>slug</strong>.
+          <h2 className="text-base font-semibold mb-2">2. Upload spreadsheet</h2>
+          <p className="text-[13px] text-neutral-500 mb-4">
+            Upload .xlsx or .csv. Products are matched by <strong>slug</strong>.
           </p>
           <input
-            type='file'
-            accept='.csv'
-            className='hidden'
+            type="file"
+            accept={SPREADSHEET_ACCEPT}
+            className="hidden"
             ref={fileRef}
             onChange={handleUpload}
           />
           <AdminButton onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <FiUpload className='inline-block mr-2' />
-            {uploading ? 'Processing CSV...' : 'Upload CSV'}
+            <FiUpload className="inline-block mr-2" />
+            {uploading ? 'Processing…' : 'Upload spreadsheet'}
           </AdminButton>
         </div>
       </div>

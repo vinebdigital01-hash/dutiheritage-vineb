@@ -87,8 +87,9 @@ export default async function ShippingPolicyPage() {
             Order Tracking
           </h2>
           <p>
-            Once your order is dispatched, you will receive a tracking number via SMS/WhatsApp/email.
-            You can use this to track your shipment on the courier partner&apos;s website.
+            Once your order is dispatched, we add the courier tracking number. Check status anytime
+            on our <a href="/track" className="underline">Track order</a> page with your order number
+            and phone, or on the courier website.
           </p>
         </section>
 

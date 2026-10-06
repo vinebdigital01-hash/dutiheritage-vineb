@@ -1,5 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
-import { Coupon } from "@/models";
+import { Coupon, Order } from "@/models";
 import { ApiError } from "@/lib/api";
 
 export type CouponDTO = {
@@ -73,12 +73,44 @@ export function toPublicCoupon(doc: LeanCoupon): PublicCouponDTO {
   };
 }
 
+export function parseCouponLimit(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return undefined;
+  return Math.floor(n);
+}
+
+async function countCustomerCouponUses(input: {
+  code: string;
+  phone?: string;
+  email?: string;
+  firebaseUid?: string;
+}): Promise<number> {
+  const or: Record<string, string>[] = [];
+  const phone = input.phone?.replace(/\D/g, "");
+  if (phone && phone.length >= 10) {
+    or.push({ "customer.phone": input.phone!.trim() });
+  }
+  const email = input.email?.trim().toLowerCase();
+  if (email) or.push({ "customer.email": email });
+  if (input.firebaseUid) or.push({ firebaseUid: input.firebaseUid });
+  if (or.length === 0) return 0;
+  return Order.countDocuments({
+    couponCode: input.code,
+    status: { $ne: "Cancelled" },
+    $or: or,
+  });
+}
+
 export async function validateCouponCode(input: {
   code: string;
   subtotal: number;
   productIds?: string[];
   collectionIds?: string[];
   items?: Array<{ productId: string; collectionId?: string; price: number; quantity: number; }>;
+  customerPhone?: string;
+  customerEmail?: string;
+  firebaseUid?: string;
 }): Promise<{
   code: string;
   discountType: "PERCENT" | "FLAT" | "BUY_X_PERCENT" | "BUY_X_GET_Y_FREE";
@@ -104,6 +136,25 @@ export async function validateCouponCode(input: {
     (coupon.usedCount ?? 0) >= coupon.usageLimit
   ) {
     throw new ApiError("This coupon has reached its usage limit", 400);
+  }
+
+  if (coupon.perUserLimit != null && coupon.perUserLimit > 0) {
+    const hasWho = Boolean(
+      input.customerPhone?.trim() ||
+        input.customerEmail?.trim() ||
+        input.firebaseUid
+    );
+    if (hasWho) {
+      const used = await countCustomerCouponUses({
+        code: coupon.code,
+        phone: input.customerPhone,
+        email: input.customerEmail,
+        firebaseUid: input.firebaseUid,
+      });
+      if (used >= coupon.perUserLimit) {
+        throw new ApiError("You have already used this coupon the allowed number of times", 400);
+      }
+    }
   }
 
   const minOrder = coupon.minOrderAmount ?? 0;

@@ -1,105 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FiCpu, FiUser, FiActivity } from "react-icons/fi";
+import { adminFetch } from "@/lib/admin-api";
 
-type LogEntry = {
+type Log = {
   id: string;
   phone: string;
-  direction: "inbound" | "outbound" | "admin";
-  sentBy: "user" | "bot" | "admin";
+  sentBy?: string;
+  direction?: string;
   body: string;
   createdAt: string;
 };
 
 export default function WhatsAppLogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // In a real app, you might have a dedicated endpoint for logs.
-    // For this example, we'll fetch sessions and their messages, or just mock it if an endpoint isn't ready.
-    // Let's assume we can fetch all messages with a logs=true query parameter, or we mock it.
-    const fetchLogs = async () => {
-      try {
-        const res = await fetch("/api/bot/chat?logs=true");
-        if (res.ok) {
-          const data = await res.json();
-          // Assuming the API returns a 'logs' array if logs=true
-          if (data.logs) {
-            setLogs(data.logs);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching logs:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLogs();
+    adminFetch<{ logs: Log[] }>("/api/bot/logs")
+      .then((d) => setLogs(d.logs || []))
+      .catch(() => setError("Could not load logs. Sign in again if you were logged out."));
   }, []);
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">WhatsApp send log</h1>
-        <p className="text-sm text-neutral-500">Technical send history. Day-to-day replies are on WhatsApp chats.</p>
-      </div>
-
-      <div className="bg-white border border-[var(--color-border)] rounded-xl shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-sm text-neutral-500">Loading logs...</div>
-        ) : logs.length === 0 ? (
-          <div className="p-12 text-center flex flex-col items-center">
-            <FiActivity size={48} className="text-neutral-300 mb-4" />
-            <p className="text-neutral-500">No activity logs found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#f8f9fa] border-b border-[var(--color-border)] text-xs uppercase tracking-[1px] text-neutral-500">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Timestamp</th>
-                  <th className="px-6 py-4 font-medium">Phone / User</th>
-                  <th className="px-6 py-4 font-medium">Actor</th>
-                  <th className="px-6 py-4 font-medium">Message</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-neutral-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-neutral-500">
-                      {new Date(log.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium">
-                      {log.phone}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {log.sentBy === "bot" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
-                          <FiCpu size={12} /> Bot
-                        </span>
-                      ) : log.sentBy === "admin" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-medium">
-                          <FiUser size={12} /> Admin
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-medium">
-                          <FiUser size={12} /> User
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-neutral-700 max-w-md truncate">
-                      {log.body}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <h1 className="font-serif text-2xl mb-2">WhatsApp logs</h1>
+      <p className="text-[13px] text-neutral-500 mb-8">
+        Last 100 saved messages. This uses your admin sign-in, not a public URL.
+      </p>
+      {error && <p className="text-[13px] text-[#8B3A2A] mb-4">{error}</p>}
+      {logs.length === 0 && !error ? (
+        <p className="text-[13px] text-neutral-500">No messages saved yet.</p>
+      ) : (
+        <div className="border border-neutral-200 divide-y divide-neutral-100">
+          {logs.map((l) => (
+            <div key={l.id} className="p-4 flex gap-4 text-[13px]">
+              <span className="text-neutral-400 w-40 shrink-0">
+                {l.createdAt ? new Date(l.createdAt).toLocaleString("en-IN") : "—"}
+              </span>
+              <span className="font-medium w-28 shrink-0">{l.phone}</span>
+              <span className="text-neutral-500 w-20 shrink-0">
+                {l.sentBy || l.direction || "—"}
+              </span>
+              <span className="flex-1">{l.body || "—"}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

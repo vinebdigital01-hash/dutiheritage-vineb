@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { adminFetch } from "@/lib/admin-api";
-import { PageHeader, AdminButton, Badge, EmptyState } from "@/components/admin/ui";
+import { useCallback, useEffect, useState } from "react";
+import { adminFetch, AdminApiError, downloadAdminFile } from "@/lib/admin-api";
+import {
+  PageHeader,
+  AdminButton,
+  AdminInput,
+  Badge,
+  EmptyState,
+  useToast,
+} from "@/components/admin/ui";
 
 type AlertRow = {
   id: string;
@@ -29,28 +35,62 @@ type Movement = {
   createdAt?: string;
 };
 
+type StockRow = {
+  productId: string;
+  name: string;
+  size: string;
+  sku: string;
+  stock: number;
+  trackInventory: boolean;
+};
+
 export default function AdminInventoryPage() {
+  const { show, Toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [lowCount, setLowCount] = useState(0);
   const [outCount, setOutCount] = useState(0);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [rows, setRows] = useState<StockRow[]>([]);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [qInput, setQInput] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
+
+  const loadLists = useCallback(async () => {
+    const [alertRes, moveRes] = await Promise.all([
+      adminFetch<{ alerts: AlertRow[]; lowCount: number; outCount: number }>(
+        "/api/inventory/alerts"
+      ),
+      adminFetch<{ movements: Movement[] }>("/api/inventory/movements?limit=40"),
+    ]);
+    setAlerts(alertRes.alerts || []);
+    setLowCount(alertRes.lowCount || 0);
+    setOutCount(alertRes.outCount || 0);
+    setMovements(moveRes.movements || []);
+  }, []);
+
+  const loadStock = useCallback(async () => {
+    const params = new URLSearchParams({ page: String(page), limit: "30" });
+    if (q) params.set("q", q);
+    const data = await adminFetch<{
+      rows: StockRow[];
+      totalPages: number;
+    }>(`/api/inventory/stock?${params}`);
+    setRows(data.rows || []);
+    setTotalPages(data.totalPages || 1);
+    setDraft({});
+  }, [page, q]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [alertRes, moveRes] = await Promise.all([
-          adminFetch<{ alerts: AlertRow[]; lowCount: number; outCount: number }>(
-            "/api/inventory/alerts"
-          ),
-          adminFetch<{ movements: Movement[] }>("/api/inventory/movements?limit=40"),
-        ]);
-        if (cancelled) return;
-        setAlerts(alertRes.alerts || []);
-        setLowCount(alertRes.lowCount || 0);
-        setOutCount(alertRes.outCount || 0);
-        setMovements(moveRes.movements || []);
+        await Promise.all([loadLists(), loadStock()]);
       } catch (e) {
         console.error("[inventory]", e);
       } finally {
@@ -60,17 +100,67 @@ export default function AdminInventoryPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadLists, loadStock]);
+
+  const rowKey = (r: { productId: string; size: string }) => `${r.productId}:${r.size}`;
+
+  const saveQty = async (productId: string, size: string, stock: number) => {
+    const key = `${productId}:${size}`;
+    setBusyKey(key);
+    try {
+      await adminFetch("/api/inventory/stock", {
+        method: "POST",
+        body: JSON.stringify({ productId, size, stock }),
+      });
+      show(`Saved ${size} → ${stock}`);
+      await Promise.all([loadLists(), loadStock()]);
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : "Could not save quantity", "error");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const uploadCsv = async () => {
+    if (!csvFile) {
+      show("Choose the spreadsheet first", "error");
+      return;
+    }
+    setCsvBusy(true);
+    try {
+      const { parseSpreadsheetFile } = await import("@/lib/spreadsheet-client");
+      const rows = await parseSpreadsheetFile(csvFile);
+      const data = await adminFetch<{ updatedCount: number }>("/api/inventory/stock", {
+        method: "POST",
+        body: JSON.stringify({ items: rows }),
+      });
+      show(`Updated ${data.updatedCount} sizes`);
+      setCsvFile(null);
+      await Promise.all([loadLists(), loadStock()]);
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : e instanceof Error ? e.message : "Upload failed", "error");
+    } finally {
+      setCsvBusy(false);
+    }
+  };
 
   return (
     <div>
+      {Toast}
       <PageHeader
         title="Stock"
-        subtitle="Which sizes are running out or already sold out"
+        subtitle="Type a new quantity for a size here. You do not need to open Products."
         actions={
-          <Link href="/admin/products/bulk-inventory">
-            <AdminButton variant="secondary">Download stock spreadsheet</AdminButton>
-          </Link>
+          <AdminButton
+            variant="secondary"
+            onClick={() =>
+              downloadAdminFile("/api/inventory/export", "inventory.csv").catch((e) =>
+                show(e instanceof Error ? e.message : "Download failed", "error")
+              )
+            }
+          >
+            Download spreadsheet
+          </AdminButton>
         }
       />
 
@@ -94,13 +184,139 @@ export default function AdminInventoryPage() {
           </div>
 
           <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--color-border)] space-y-3">
+              <h2 className="text-[13px] tracking-[2px] uppercase font-medium">
+                Set quantity
+              </h2>
+              <p className="text-[12px] text-neutral-500 normal-case tracking-normal">
+                Search a product, type the new qty, Save. Stock history is kept below. This is not a courier pickup.
+              </p>
+              <form
+                className="flex flex-wrap gap-2 items-end"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setPage(1);
+                  setQ(qInput.trim());
+                }}
+              >
+                <div className="min-w-[200px] flex-1">
+                  <AdminInput
+                    label="Find product"
+                    value={qInput}
+                    onChange={(e) => setQInput(e.target.value)}
+                    placeholder="Name"
+                  />
+                </div>
+                <AdminButton type="submit" variant="secondary">
+                  Search
+                </AdminButton>
+              </form>
+            </div>
+            {rows.length === 0 ? (
+              <EmptyState
+                title="No sizes to count"
+                description="Add sizes when creating a product. New products track stock on."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[13px]">
+                  <thead>
+                    <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
+                      <th className="px-5 py-3">Product</th>
+                      <th className="px-5 py-3">Size</th>
+                      <th className="px-5 py-3">Now</th>
+                      <th className="px-5 py-3">New qty</th>
+                      <th className="px-5 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {rows.map((r) => {
+                      const key = rowKey(r);
+                      const value = draft[key] ?? String(r.stock);
+                      return (
+                        <tr key={key} className="hover:bg-neutral-50/80">
+                          <td className="px-5 py-3 font-medium">
+                            {r.name}
+                            {!r.trackInventory ? (
+                              <span className="block text-[11px] font-normal text-neutral-400">
+                                Tracking will turn on when you save
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-5 py-3">{r.size}</td>
+                          <td className="px-5 py-3">{r.stock}</td>
+                          <td className="px-5 py-3 w-28">
+                            <input
+                              type="number"
+                              min={0}
+                              className="w-full border border-[var(--color-border)] rounded-lg px-2 py-1.5 text-[13px]"
+                              value={value}
+                              onChange={(e) =>
+                                setDraft((d) => ({ ...d, [key]: e.target.value }))
+                              }
+                            />
+                          </td>
+                          <td className="px-5 py-3">
+                            <AdminButton
+                              disabled={busyKey === key}
+                              onClick={() => saveQty(r.productId, r.size, Number(value))}
+                            >
+                              {busyKey === key ? "Saving…" : "Save"}
+                            </AdminButton>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {totalPages > 1 && (
+              <div className="px-5 py-3 flex gap-2 border-t border-[var(--color-border)]">
+                <AdminButton
+                  variant="secondary"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </AdminButton>
+                <AdminButton
+                  variant="secondary"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </AdminButton>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 space-y-3 max-w-lg">
+            <h2 className="text-[13px] tracking-[2px] uppercase font-medium">
+              Or upload the spreadsheet
+            </h2>
+            <p className="text-[12px] text-neutral-500">
+              Download, change the stock column, upload as Excel (.xlsx) or CSV. Do not change productId or size.
+            </p>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+              className="block text-[13px] text-neutral-600"
+            />
+            <AdminButton onClick={uploadCsv} disabled={!csvFile || csvBusy}>
+              {csvBusy ? "Uploading…" : "Upload spreadsheet"}
+            </AdminButton>
+          </div>
+
+          <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--color-border)]">
               <h2 className="text-[13px] tracking-[2px] uppercase font-medium">Alerts</h2>
             </div>
             {alerts.length === 0 ? (
               <EmptyState
                 title="All tracked sizes have enough stock"
-                description="Turn on Track stock on a product so checkout cannot oversell."
+                description="Set quantity above so checkout cannot oversell."
               />
             ) : (
               <div className="overflow-x-auto">
@@ -116,15 +332,8 @@ export default function AdminInventoryPage() {
                   </thead>
                   <tbody className="divide-y divide-[var(--color-border)]">
                     {alerts.map((a) => (
-                      <tr key={`${a.id}-${a.size}`} className="hover:bg-neutral-50/80">
-                        <td className="px-5 py-3">
-                          <Link
-                            href={`/admin/products/${a.id}/edit`}
-                            className="hover:underline font-medium"
-                          >
-                            {a.name}
-                          </Link>
-                        </td>
+                      <tr key={`${a.id}-${a.size}`}>
+                        <td className="px-5 py-3 font-medium">{a.name}</td>
                         <td className="px-5 py-3">{a.size || "—"}</td>
                         <td className="px-5 py-3 font-mono text-[12px]">{a.sku || "—"}</td>
                         <td className="px-5 py-3 font-medium">{a.stock}</td>
@@ -149,8 +358,7 @@ export default function AdminInventoryPage() {
             </div>
             {movements.length === 0 ? (
               <p className="px-5 py-8 text-[13px] text-neutral-500">
-                No movements yet. They appear after checkout, cancel, return, CSV, or admin
-                stock edits.
+                No movements yet. They appear after checkout, cancel, return, CSV, or qty saves here.
               </p>
             ) : (
               <div className="overflow-x-auto">

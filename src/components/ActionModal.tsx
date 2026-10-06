@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 type ActionModalProps = {
@@ -13,6 +13,7 @@ type ActionModalProps = {
   reasonLabel?: string;
   confirmText?: string;
   confirmStyle?: "danger" | "primary";
+  extra?: ReactNode;
 };
 
 export function ActionModal({
@@ -25,10 +26,19 @@ export function ActionModal({
   reasonLabel = "Reason",
   confirmText = "Confirm",
   confirmStyle = "primary",
+  extra,
 }: ActionModalProps) {
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setReason("");
+      setError("");
+      setLoading(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -66,7 +76,9 @@ export function ActionModal({
         
         <div className="p-5 flex flex-col gap-4">
           {description && <p className="text-[14px] text-gray-600">{description}</p>}
-          
+
+          {extra}
+
           {requireReason && (
             <div className="flex flex-col gap-1.5">
               <label className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">

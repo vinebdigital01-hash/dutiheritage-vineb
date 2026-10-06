@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { adminFetch, AdminApiError } from "@/lib/admin-api";
 import { PageHeader, AdminButton, Badge, EmptyState, useToast } from "@/components/admin/ui";
+import { ActionModal } from "@/components/ActionModal";
 
 type ReturnRow = {
   id: string;
@@ -16,9 +17,16 @@ type ReturnRow = {
   customerName: string;
   customerPhone: string;
   refundAmount: number;
+  remainingRefund?: number;
+  paymentMethod?: string;
   items: Array<{ name: string; size?: string; quantity: number }>;
   createdAt?: string;
 };
+
+type ModalKind =
+  | { kind: "reject"; id: string }
+  | { kind: "refund"; row: ReturnRow }
+  | null;
 
 export default function AdminReturnsPage() {
   const { show, Toast } = useToast();
@@ -26,6 +34,10 @@ export default function AdminReturnsPage() {
   const [rows, setRows] = useState<ReturnRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [modal, setModal] = useState<ModalKind>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [manualConfirmed, setManualConfirmed] = useState(false);
+  const [refundWithoutRestock, setRefundWithoutRestock] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -52,21 +64,29 @@ export default function AdminReturnsPage() {
         method: "PATCH",
         body: JSON.stringify({ action, ...extra }),
       });
-      show(`${action} saved`);
+      show(
+        action === "restock"
+          ? "Stock put back. Order status was not changed."
+          : `${action} saved`
+      );
       await load();
     } catch (e) {
       show(e instanceof AdminApiError ? e.message : "Failed", "error");
+      throw e;
     } finally {
       setBusy(null);
     }
   };
+
+  const remaining = (row: ReturnRow) =>
+    Math.max(0, Number(row.remainingRefund ?? 0));
 
   return (
     <div>
       {Toast}
       <PageHeader
         title="Returns"
-        subtitle="Customer wants the item back — approve, put stock back, then refund if needed"
+        subtitle="Approve first. Restock puts the size back on the shelf. Refund uses what is still left on the order — not the full total twice."
       />
       <div className="flex flex-wrap gap-2 mb-6">
         {["", "requested", "approved", "rejected", "restocked"].map((s) => (
@@ -97,7 +117,8 @@ export default function AdminReturnsPage() {
                     {row.orderId}
                   </Link>
                   <p className="text-[13px] text-neutral-500">
-                    {row.customerName} · {row.customerPhone} · {row.source} {row.type}
+                    {row.customerName} · {row.customerPhone} · {row.source} ·{" "}
+                    {row.type === "exchange" ? "exchange (swap)" : "return (item coming back)"}
                   </p>
                 </div>
                 <Badge tone={row.status === "requested" ? "warning" : row.status === "rejected" ? "danger" : "success"}>
@@ -113,8 +134,11 @@ export default function AdminReturnsPage() {
                 ))}
               </ul>
               {row.refundAmount > 0 ? (
-                <p className="text-[13px] mb-3">Refunded ₹{row.refundAmount.toLocaleString("en-IN")}</p>
+                <p className="text-[13px] mb-3">Already given back on this request: ₹{row.refundAmount.toLocaleString("en-IN")}</p>
               ) : null}
+              <p className="text-[12px] text-neutral-500 mb-3">
+                Still left on the order: ₹{remaining(row).toLocaleString("en-IN")}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {row.status === "requested" && (
                   <>
@@ -127,10 +151,7 @@ export default function AdminReturnsPage() {
                     <AdminButton
                       variant="danger"
                       disabled={!!busy}
-                      onClick={() => {
-                        const reason = window.prompt("Why are you rejecting this return?");
-                        if (reason) void act(row.id, "reject", { reason });
-                      }}
+                      onClick={() => setModal({ kind: "reject", id: row.id })}
                     >
                       Reject
                     </AdminButton>
@@ -151,11 +172,10 @@ export default function AdminReturnsPage() {
                       variant="secondary"
                       disabled={!!busy}
                       onClick={() => {
-                        const amount = window.prompt("How much to give back (₹)? Leave empty for the remaining total.");
-                        const reason = window.prompt("Why money back?", row.reason) || row.reason;
-                        const payload: Record<string, unknown> = { reason };
-                        if (amount && Number(amount) > 0) payload.amount = Number(amount);
-                        void act(row.id, "refund", payload);
+                        setRefundAmount(String(remaining(row)));
+                        setManualConfirmed(false);
+                        setRefundWithoutRestock(false);
+                        setModal({ kind: "refund", row });
                       }}
                     >
                       Refund
@@ -164,12 +184,102 @@ export default function AdminReturnsPage() {
                 )}
               </div>
               <p className="text-[12px] text-neutral-500 mt-2">
-                Approve = yes. Restock = that size can sell again. Refund = give money back.
+                {row.type === "exchange"
+                  ? "Exchange: restock is still allowed so that size can sell again. We do not rename the order."
+                  : "Return: restock is a separate step from refund. We do not set the order to Returned for you."}{" "}
+                Refund amount starts at what is still left. COD is a status note, not a bank transfer.
               </p>
             </div>
           ))}
         </div>
       )}
+
+      <ActionModal
+        isOpen={modal?.kind === "reject"}
+        onClose={() => setModal(null)}
+        title="Reject this return"
+        description="The customer can see this reason."
+        reasonLabel="Why reject"
+        confirmText="Reject"
+        confirmStyle="danger"
+        onConfirm={async (reason) => {
+          if (modal?.kind !== "reject") return;
+          await act(modal.id, "reject", { reason });
+        }}
+      />
+
+      <ActionModal
+        isOpen={modal?.kind === "refund"}
+        onClose={() => setModal(null)}
+        title="Give money back"
+        description={
+          modal?.kind === "refund"
+            ? `Default is ₹${remaining(modal.row).toLocaleString("en-IN")} still left on ${modal.row.orderId} — not the full order again.`
+            : undefined
+        }
+        reasonLabel="Why money back"
+        confirmText="Refund"
+        confirmStyle="danger"
+        extra={
+          modal?.kind === "refund" ? (
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
+                  Amount (₹)
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full border border-gray-200 rounded-lg p-3 text-[14px] outline-none focus:ring-2 focus:ring-black"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                />
+              </label>
+              {modal.row.status === "approved" && (
+                <label className="flex items-start gap-2 text-[13px] text-neutral-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={refundWithoutRestock}
+                    onChange={(e) => setRefundWithoutRestock(e.target.checked)}
+                  />
+                  <span>
+                    Refund without restock yet — I know the size is not back on the shelf.
+                  </span>
+                </label>
+              )}
+              {modal.row.paymentMethod !== "cod" && (
+                <label className="flex items-start gap-2 text-[13px] text-neutral-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={manualConfirmed}
+                    onChange={(e) => setManualConfirmed(e.target.checked)}
+                  />
+                  <span>
+                    I already paid them outside Razorpay (cash / UPI / bank), or this is a COD note.
+                  </span>
+                </label>
+              )}
+            </div>
+          ) : null
+        }
+        onConfirm={async (reason) => {
+          if (modal?.kind !== "refund") return;
+          const row = modal.row;
+          const left = remaining(row);
+          const amount = refundAmount === "" ? left : Number(refundAmount);
+          if (row.status === "approved" && !refundWithoutRestock) {
+            throw new Error("Tick “refund without restock” or put stock back first.");
+          }
+          await act(row.id, "refund", {
+            reason: reason || row.reason,
+            amount,
+            manualConfirmed: row.paymentMethod === "cod" ? false : manualConfirmed,
+            refundWithoutRestock: row.status === "approved" ? refundWithoutRestock : false,
+          });
+        }}
+      />
     </div>
   );
 }

@@ -45,6 +45,20 @@ export type Product = {
   gstRate?: number;
 };
 
+export type SavedAddress = {
+  id: string;
+  label: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  phone?: string;
+  country?: string;
+};
+
 export type UserProfile = {
   phone?: string;
   address?: string;
@@ -53,4 +67,6 @@ export type UserProfile = {
   state?: string;
   pinCode?: string;
   country?: string;
+  addresses?: SavedAddress[];
+  deleteRequestedAt?: string | null;
 };

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useTransition } from "react";
 import Image from "next/image";
 import { CldImage } from "next-cloudinary";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { searchProducts, getTopCollections } from "@/app/actions";
@@ -16,6 +17,7 @@ const isCloudinary = (src: string) => {
 
 export const SearchDrawer = () => {
   const { isSearchOpen, setIsSearchOpen } = useAppContext();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [suggestedCollections, setSuggestedCollections] = useState<Collection[]>([]);
@@ -78,6 +80,13 @@ export const SearchDrawer = () => {
               className="flex-1 bg-transparent border-none outline-none text-[14px]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim()) {
+                  e.preventDefault();
+                  setIsSearchOpen(false);
+                  router.push(`/collections/all?q=${encodeURIComponent(searchQuery.trim())}`);
+                }
+              }}
               autoFocus
             />
             {searchQuery && (
@@ -123,9 +132,10 @@ export const SearchDrawer = () => {
             </div>
           ) : results.length === 0 ? (
             <div className="text-center py-12 text-[var(--color-text-muted)]">
-              <p className="text-[14px]">No products match your search.</p>
+              <p className="text-[14px]">No products match.</p>
             </div>
           ) : (
+            <>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {results.slice(0, 12).map((product) => (
                 <Link
@@ -135,29 +145,45 @@ export const SearchDrawer = () => {
                   className="group flex flex-col items-center text-center"
                 >
                   <div className="relative w-full aspect-[3/4] bg-gray-50 mb-3 overflow-hidden">
-                    {isCloudinary(product.image) ? (
-                      <CldImage
-                        src={product.image}
-                        alt={product.name}
-                        fill
-                        sizes="(max-width: 768px) 33vw, 20vw"
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                    {product.image?.trim() ? (
+                      isCloudinary(product.image) ? (
+                        <CldImage
+                          src={product.image}
+                          alt={product.name}
+                          fill
+                          sizes="(max-width: 768px) 33vw, 20vw"
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <Image
+                          src={product.image}
+                          alt={product.name}
+                          fill
+                          sizes="(max-width: 768px) 33vw, 20vw"
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      )
                     ) : (
-                      <Image
-                        src={product.image}
-                        alt={product.name}
-                        fill
-                        sizes="(max-width: 768px) 33vw, 20vw"
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-neutral-400 text-xs">
+                        No image
+                      </div>
                     )}
                   </div>
                   <h4 className="text-[11px] tracking-[1px] uppercase truncate w-full">{product.name}</h4>
-                  <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Rs. {product.price.toLocaleString("en-IN")}</p>
+                  <p className="text-[12px] text-[var(--color-text-muted)] mt-1">Rs. {(product.salePrice || product.price).toLocaleString("en-IN")}</p>
                 </Link>
               ))}
             </div>
+            <div className="text-center mt-8">
+              <Link
+                href={`/collections/all?q=${encodeURIComponent(searchQuery.trim())}`}
+                onClick={() => setIsSearchOpen(false)}
+                className="text-[12px] tracking-[2px] uppercase underline underline-offset-4"
+              >
+                See all results
+              </Link>
+            </div>
+            </>
           )}
         </div>
       </div>

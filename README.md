@@ -165,9 +165,17 @@ Same features as A–E. Staff-facing words are now plain language on every `/adm
 
 **Done when:** a new Manager understands every `/admin` screen in seconds. Same buttons/features; plain language only. Courier APIs and 2FA stay out.
 
+### Phase H — Make admin production-level — **plan only (H0 done)**
+
+Plan + todos: **[ADMIN_PRODUCTION_README.md](./ADMIN_PRODUCTION_README.md)**.
+
+Honest WhatsApp/refunds, Manager restock, Home totals, coupon expiry, return refunds, Excel import. **Do not start code until H1 is approved.**
+
+**Done when:** staff cannot see a fake success; Managers can fix stock; Home and coupons can be trusted.
+
 ---
 
-## Later (after F, not this roadmap)
+## Later (after H, not this roadmap)
 
 - Duplicate-order / COD fraud rules
 - DPDP data download + delete queue
@@ -200,9 +208,11 @@ Same features as A–E. Staff-facing words are now plain language on every `/adm
 
 | File | Purpose |
 |------|---------|
-| This README | Production overview + admin phases A–E (done) and F (planned) |
+| This README | Production overview + admin phases A–F (done) and H (planned) |
 | [ADMIN_README.md](./ADMIN_README.md) | **How to use every `/admin` page** (staff handbook) |
 | [ADMIN_EASE_README.md](./ADMIN_EASE_README.md) | **Phase F:** F1–F7 done |
+| [ADMIN_PRODUCTION_README.md](./ADMIN_PRODUCTION_README.md) | **Phase H:** H0 done — wait for H1 |
+| [STOREFRONT_PRODUCTION_README.md](./STOREFRONT_PRODUCTION_README.md) | **Phase G:** G1–G7 done |
 | [TESTING.md](./TESTING.md) | Test suite status and requirements |
 | [HANDOFF_README.md](./HANDOFF_README.md) | Historical frontend handoff (older; prefer this README for current ops) |
 | `.env.example` | Env template |

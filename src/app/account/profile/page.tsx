@@ -6,7 +6,7 @@ import { FiChevronLeft } from "react-icons/fi";
 import { authHeaders } from "@/lib/checkout-client";
 
 export default function ProfileSettingsPage() {
-  const { user, userProfile } = useAppContext();
+  const { user, userProfile, setUserProfile } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -71,9 +71,11 @@ export default function ProfileSettingsPage() {
         headers,
         body: JSON.stringify({ name: formData.name }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error("Failed to save profile");
-      setSuccess("Profile updated successfully. Refreshing...");
-      setTimeout(() => window.location.reload(), 1500);
+      if (data.profile) setUserProfile(data.profile);
+      setSuccess("Profile updated.");
+      setLoading(false);
     } catch (err: any) {
       setError(err.message || "Something went wrong");
       setLoading(false);
@@ -103,9 +105,9 @@ export default function ProfileSettingsPage() {
         });
       }
 
-      setSuccess("Contact updated successfully. Refreshing...");
+      setSuccess("Contact updated.");
       setOtpModal(null);
-      setTimeout(() => window.location.reload(), 1500);
+      setLoading(false);
     } catch (err: any) {
       setError(err.message || "Invalid OTP");
       setLoading(false);
@@ -186,6 +188,110 @@ export default function ProfileSettingsPage() {
           </button>
         </form>
       </div>
+
+      <PrivacyRequests />
+    </div>
+  );
+}
+
+function PrivacyRequests() {
+  const { userProfile, setUserProfile } = useAppContext();
+  const [busy, setBusy] = useState<"export" | "delete" | null>(null);
+  const [note, setNote] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const downloadData = async () => {
+    setBusy("export");
+    setErr("");
+    setMsg("");
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/account/data-export", { method: "POST", headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not export data");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `duti-heritage-my-data.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg("Download started.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not export data");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const requestDelete = async () => {
+    if (!window.confirm("Ask us to delete your account? Staff will finish this by hand. Orders already placed stay in our records.")) {
+      return;
+    }
+    setBusy("delete");
+    setErr("");
+    setMsg("");
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/account/delete-request", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ note }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not submit request");
+      if (data.profile) setUserProfile(data.profile);
+      setMsg(data.message || "Request submitted.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not submit request");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="max-w-[600px] mt-10 border border-[var(--color-border)] rounded-xl p-6 md:p-8">
+      <h2 className="text-[14px] font-bold uppercase tracking-wider mb-2">Your data</h2>
+      <p className="text-[13px] text-gray-600 mb-4">
+        Download a copy of your profile, orders, and wishlist, or ask us to delete your account.
+        Staff complete deletion by hand — we do not wipe orders automatically.
+      </p>
+      {msg ? <p className="text-[13px] text-green-700 mb-3">{msg}</p> : null}
+      {err ? <p className="text-[13px] text-red-600 mb-3">{err}</p> : null}
+      {userProfile?.deleteRequestedAt ? (
+        <p className="text-[13px] text-amber-800 mb-4">
+          Delete request received on{" "}
+          {new Date(userProfile.deleteRequestedAt).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+          . We will write when it is done.
+        </p>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => void downloadData()}
+        disabled={busy !== null}
+        className="w-full mb-3 border border-black py-3 text-[12px] font-bold uppercase tracking-widest rounded hover:bg-gray-50 disabled:opacity-50"
+      >
+        {busy === "export" ? "Preparing…" : "Download my data"}
+      </button>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Optional note for staff"
+        className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] mb-3 min-h-[72px]"
+      />
+      <button
+        type="button"
+        onClick={() => void requestDelete()}
+        disabled={busy !== null || Boolean(userProfile?.deleteRequestedAt)}
+        className="w-full border border-red-200 text-red-700 bg-red-50 py-3 text-[12px] font-bold uppercase tracking-widest rounded disabled:opacity-50"
+      >
+        {busy === "delete" ? "Submitting…" : "Request account deletion"}
+      </button>
     </div>
   );
 }

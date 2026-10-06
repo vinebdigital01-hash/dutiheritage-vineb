@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth";
+import { OPS_WRITE } from "@/lib/rbac";
 import { Product } from "@/models";
 import { connectDB } from "@/lib/mongodb";
 import { handleApiError, jsonOk, ApiError, requireMongo } from "@/lib/api";
@@ -7,7 +8,7 @@ import { setAbsoluteStock } from "@/services/inventory";
 export async function GET(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true });
+    await requireAuth(request, { admin: true, roles: OPS_WRITE });
     await connectDB();
 
     const products = await Product.find({ trackInventory: true }).lean();
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireMongo();
-    const authUser = await requireAuth(request, { admin: true });
+    const authUser = await requireAuth(request, { admin: true, roles: OPS_WRITE });
     await connectDB();
 
     const body = await request.json();

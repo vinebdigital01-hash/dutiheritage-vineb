@@ -26,6 +26,7 @@ export * from './SystemLog';
 export { ChatMessage, type ChatMessageDocument } from "./ChatMessage";
 export { ChatSession, type ChatSessionDocument } from "./ChatSession";
 export { StockMovement, type StockMovementDocument } from "./StockMovement";
+export { StockNotify, type StockNotifyDocument } from "./StockNotify";
 export { StoreSettings, type StoreSettingsDocument } from "./StoreSettings";
 export { AdminAudit, type AdminAuditDocument } from "./AdminAudit";
 export {

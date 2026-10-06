@@ -15,6 +15,7 @@ export default function RecentlyViewedPage() {
           <FiChevronLeft className="text-xl" />
         </Link>
         <h1 className="text-2xl md:text-3xl font-serif tracking-[2px] uppercase">Recently Viewed</h1>
+        <p className="text-[12px] text-gray-500 hidden md:block">This device</p>
       </div>
 
       {recentlyViewed.length === 0 ? (
@@ -23,7 +24,9 @@ export default function RecentlyViewedPage() {
             <FiClock className="text-2xl text-purple-400" />
           </div>
           <h3 className="text-lg font-serif mb-2">No history yet</h3>
-          <p className="text-[13px] text-gray-500 mb-6 max-w-sm">Products you browse will automatically appear here so you can easily find them again.</p>
+          <p className="text-[13px] text-gray-500 mb-6 max-w-sm">
+            Saved on this device. When you are logged in, the same list shows here so you can pick up where you left off.
+          </p>
           <Link href="/collections/all" className="px-8 py-3 bg-black text-white text-[12px] font-bold uppercase tracking-widest hover:bg-gray-800 rounded-lg transition-colors">
             Start Browsing
           </Link>

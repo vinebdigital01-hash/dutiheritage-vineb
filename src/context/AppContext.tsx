@@ -6,7 +6,7 @@ import { trackEvent } from "@/lib/track-client";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { syncAuthToBackend } from "@/lib/auth-client";
-import { syncCartToServer } from "@/lib/cart-client";
+import { maxPurchasableQty, qtyOfProductSizeInCart } from "@/lib/cart-stock";
 
 export interface CartItem extends Product {
   cartItemId: string; // unique ID for cart (id + size)
@@ -38,6 +38,7 @@ interface AppContextType {
   isInitialized: boolean;
   wishlist: string[];
   toggleWishlist: (productId: string) => Promise<void>;
+  setUserProfile: (profile: UserProfile | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,11 +62,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const savedCart = localStorage.getItem("duti-heritage_cart");
       const savedRecentlyViewed = localStorage.getItem("duti-heritage_recently_viewed");
+      const savedWishlist = localStorage.getItem("duti-heritage_wishlist");
       
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (savedCart) setCart(JSON.parse(savedCart));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (savedRecentlyViewed) setRecentlyViewed(JSON.parse(savedRecentlyViewed));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (savedWishlist) {
+        const ids = JSON.parse(savedWishlist);
+        if (Array.isArray(ids)) setWishlist(ids.filter((id: unknown) => typeof id === "string"));
+      }
     } catch {}
     setIsInitialized(true);
 
@@ -80,6 +87,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         const token = await firebaseUser.getIdToken();
+        let guestIds: string[] = [];
+        try {
+          const raw = localStorage.getItem("duti-heritage_wishlist");
+          const parsed = raw ? JSON.parse(raw) : [];
+          if (Array.isArray(parsed)) guestIds = parsed.filter((id: unknown) => typeof id === "string");
+        } catch {}
+
         const [synced, wRes] = await Promise.all([
           syncAuthToBackend(firebaseUser),
           fetch("/api/wishlist", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null)
@@ -90,9 +104,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setIsFrozen(synced.isFrozen || false);
         setAdminRole(synced.adminRole || null);
 
+        let serverIds: string[] = [];
         if (wRes && wRes.ok) {
           const wData = await wRes.json();
-          setWishlist(wData.wishlists?.map((w: any) => w.productId) || []);
+          serverIds = wData.wishlists?.map((w: { productId?: string }) => String(w.productId || "")).filter(Boolean) || [];
+        }
+        const merged = Array.from(new Set([...guestIds, ...serverIds]));
+        setWishlist(merged);
+        const toAdd = guestIds.filter((id) => !serverIds.includes(id));
+        if (toAdd.length > 0) {
+          await fetch("/api/wishlist/merge", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ productIds: toAdd }),
+          }).catch(() => null);
         }
       } else {
         setUser(null);
@@ -139,9 +167,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {}
   }, [recentlyViewed, isInitialized]);
 
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem("duti-heritage_wishlist", JSON.stringify(wishlist));
+    } catch {}
+  }, [wishlist, isInitialized]);
+
   const addToCart = React.useCallback((product: Product, size: string, color?: string) => {
     setCart((prev) => {
       const cartItemId = color ? `${product.id}-${size}-${color}` : `${product.id}-${size}`;
+      const max = maxPurchasableQty(product, size);
+      const used = qtyOfProductSizeInCart(prev, product.id, size);
+      if (max !== null && used >= max) {
+        return prev;
+      }
       const existing = prev.find((item) => item.cartItemId === cartItemId);
       if (existing) {
         return prev.map((item) =>
@@ -172,11 +212,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const updateQuantity = React.useCallback((cartItemId: string, delta: number) => {
     setCart((prev) => prev.map((item) => {
-      if (item.cartItemId === cartItemId) {
-        const newQty = item.quantity + delta;
-        return { ...item, quantity: Math.max(1, newQty) }; // minimum qty is 1
+      if (item.cartItemId !== cartItemId) return item;
+      const newQty = item.quantity + delta;
+      if (newQty < 1) return item;
+      if (delta > 0) {
+        const max = maxPurchasableQty(item, item.selectedSize);
+        const used = qtyOfProductSizeInCart(prev, item.id, item.selectedSize);
+        if (max !== null && used >= max) return item;
       }
-      return item;
+      return { ...item, quantity: newQty };
     }));
   }, []);
 
@@ -196,34 +240,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   
   const toggleWishlist = React.useCallback(async (productId: string) => {
-    if (!user) {
-      alert('Please login to save to your wishlist.');
-      return;
-    }
-    
-    // Optimistic UI update
-    setWishlist(prev => 
-      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+    setWishlist((prev) =>
+      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
     );
 
+    if (!auth.currentUser) return;
+
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      await fetch('/api/wishlist', {
-        method: 'POST',
+      const token = await auth.currentUser.getIdToken();
+      await fetch("/api/wishlist", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ productId })
+        body: JSON.stringify({ productId }),
       });
-    } catch(e) {
-      console.error('Failed to toggle wishlist', e);
-      // Revert optimistic update
-      setWishlist(prev => 
-        prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+    } catch (e) {
+      console.error("Failed to toggle wishlist", e);
+      setWishlist((prev) =>
+        prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
       );
     }
-  }, [user]);
+  }, []);
 
   const login = React.useCallback((_email: string) => {
     // Handled by account UI via Firebase; AppContext syncs on onAuthStateChanged.
@@ -261,6 +300,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     isInitialized,
     wishlist,
     toggleWishlist,
+    setUserProfile,
   }), [
     cart, addToCart, removeFromCart, updateQuantity, clearCart,
     isCartOpen, isSearchOpen, recentlyViewed, addRecentlyViewed,

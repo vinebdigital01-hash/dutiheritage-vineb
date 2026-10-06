@@ -89,6 +89,7 @@ export async function POST(req: Request) {
     await connectDB();
     const body = await req.json();
     const products = Array.isArray(body?.products) ? body.products : [];
+    const onDuplicate = body?.onDuplicate === "update" ? "update" : "skip";
 
     if (products.length === 0) {
       return jsonError("No products in the spreadsheet");
@@ -98,6 +99,8 @@ export async function POST(req: Request) {
     }
 
     const imported: ReturnType<typeof toProduct>[] = [];
+    const updated: ReturnType<typeof toProduct>[] = [];
+    const skipped: string[] = [];
     const errors: string[] = [];
     const touchedCollections = new Set<string>();
     const actor = authUser.email || authUser.uid || "admin";
@@ -126,7 +129,8 @@ export async function POST(req: Request) {
         const videoUrls = splitList(cell(p, "videoUrls", "videos"));
         let mainImage = cell(p, "image") || images[0] || "";
         if (!mainImage) {
-          mainImage = "https://res.cloudinary.com/demo/image/upload/v1727096000/placeholder.png"; // Placeholder so it doesn't crash
+          mainImage =
+            "https://res.cloudinary.com/demo/image/upload/v1727096000/placeholder.png";
         }
 
         const priceStr = cell(p, "price").replace(/[^\d.]/g, "");
@@ -173,13 +177,17 @@ export async function POST(req: Request) {
 
         const existing = await ProductModel.findOne({ slug: newSlug });
         if (existing) {
+          if (onDuplicate === "skip") {
+            skipped.push(newSlug);
+            continue;
+          }
           Object.assign(existing, payload);
           if (hasStock || !existing.inventory?.length) {
             existing.set("inventory", inventory);
             existing.trackInventory = true;
           }
           await existing.save();
-          imported.push(toProduct(existing.toObject() as never));
+          updated.push(toProduct(existing.toObject() as never));
         } else {
           const doc = await ProductModel.create({
             ...payload,
@@ -209,12 +217,14 @@ export async function POST(req: Request) {
       actor: authUser,
       action: "bulk_import",
       resource: "product",
-      message: `Imported ${imported.length} products`,
+      message: `Created ${imported.length}, updated ${updated.length}, skipped ${skipped.length} (${onDuplicate})`,
     }).catch(() => {});
 
     return jsonOk({
       success: true,
       imported: imported.length,
+      updated: updated.length,
+      skipped: skipped.length,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {

@@ -1,8 +1,19 @@
 import { requireAuth } from "@/lib/auth";
 import { generateMonthlyReport } from "@/lib/report-generator";
-import { handleApiError, jsonOk } from "@/lib/api";
+import { getStoreSettings } from "@/lib/store-settings";
+import { handleApiError, jsonOk, ApiError } from "@/lib/api";
 
-const SUPER_ADMIN_EMAIL = "liveproject072@gmail.com";
+async function defaultReportEmail(): Promise<string> {
+  const store = await getStoreSettings();
+  const fromStore = String(store.supportEmail || "").trim();
+  if (fromStore && !fromStore.includes("liveproject072")) return fromStore;
+  const fromEnv =
+    process.env.ADMIN_EMAILS?.split(",")[0]?.trim() ||
+    process.env.SUPER_ADMIN_EMAIL?.trim() ||
+    "";
+  if (fromEnv) return fromEnv;
+  return fromStore || "";
+}
 
 export async function GET(request: Request) {
   try {
@@ -16,8 +27,16 @@ export async function GET(request: Request) {
       await requireAuth(request, { admin: true });
     }
 
-    const res = await generateMonthlyReport(SUPER_ADMIN_EMAIL);
-    return jsonOk({ success: true, res });
+    const email = await defaultReportEmail();
+    if (!email) {
+      throw new ApiError(
+        "No report inbox set. Add support email in Settings, or set ADMIN_EMAILS.",
+        400
+      );
+    }
+
+    const res = await generateMonthlyReport(email);
+    return jsonOk({ success: true, email, res });
   } catch (error) {
     return handleApiError(error);
   }
@@ -26,11 +45,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await requireAuth(request, { admin: true });
-    const body = await request.json();
-    const email = body.email || SUPER_ADMIN_EMAIL;
+    const body = await request.json().catch(() => ({}));
+    const email = String(body.email || "").trim() || (await defaultReportEmail());
+    if (!email) {
+      throw new ApiError(
+        "No report inbox set. Add support email in Settings, or type an email here.",
+        400
+      );
+    }
 
     const res = await generateMonthlyReport(email);
-    return jsonOk({ success: true, res });
+    return jsonOk({ success: true, email, res });
   } catch (error) {
     return handleApiError(error);
   }

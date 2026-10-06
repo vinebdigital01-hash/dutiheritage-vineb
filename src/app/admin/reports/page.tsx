@@ -1,31 +1,50 @@
 "use client";
-import React, { useState } from "react";
-import { PageHeader, AdminButton } from "@/components/admin/ui";
+import React, { useEffect, useState } from "react";
+import { PageHeader } from "@/components/admin/ui";
 import { adminFetch } from "@/lib/admin-api";
-import { FiMail, FiDownload, FiCheckCircle } from "react-icons/fi";
+import { FiMail, FiCheckCircle } from "react-icons/fi";
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [targetEmail, setTargetEmail] = useState("liveproject072@gmail.com");
+  const [targetEmail, setTargetEmail] = useState("");
+  const [defaultHint, setDefaultHint] = useState("Loading store inbox…");
+
+  useEffect(() => {
+    adminFetch<{ settings?: { supportEmail?: string } }>("/api/settings/store")
+      .then((res) => {
+        const email = String(res.settings?.supportEmail || "").trim();
+        if (email) {
+          setTargetEmail(email);
+          setDefaultHint("From Settings → support email");
+        } else {
+          setDefaultHint("Add support email in Settings, or type one here");
+        }
+      })
+      .catch(() => {
+        setDefaultHint("Could not load Settings. Type the store inbox email.");
+      });
+  }, []);
 
   const handleGenerateReport = async () => {
     setLoading(true);
     setSuccessMsg("");
     setErrorMsg("");
     try {
-      const res = await adminFetch<any>("/api/reports/monthly", {
+      const res = await adminFetch<{ success?: boolean; email?: string }>("/api/reports/monthly", {
         method: "POST",
-        body: JSON.stringify({ email: targetEmail })
+        body: JSON.stringify({ email: targetEmail.trim() || undefined }),
       });
       if (res.success) {
-        setSuccessMsg(`Report successfully generated and emailed to ${targetEmail}`);
+        setSuccessMsg(
+          `Report emailed to ${res.email || targetEmail || "the store inbox"}`
+        );
       } else {
         setErrorMsg("Failed to generate report.");
       }
-    } catch (e: any) {
-      setErrorMsg(e.message || "Failed to generate report.");
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : "Failed to generate report.");
     } finally {
       setLoading(false);
     }
@@ -35,24 +54,28 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Email reports"
-        subtitle="Send a monthly summary to the store inbox"
+        subtitle="Send a monthly summary to the store inbox — not a leftover personal Gmail"
       />
-      
+
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-6 shadow-sm max-w-2xl">
-        <h2 className="text-lg font-bold mb-4">Monthly Store Report</h2>
+        <h2 className="text-lg font-bold mb-4">Monthly store report</h2>
         <p className="text-sm text-neutral-500 mb-6">
-          This report includes a summary of revenue, orders, inventory alerts, and abandoned carts over the last 30 days. It is automatically sent to the super admin on the 1st of every month via cron, but you can manually trigger it here.
+          Revenue, orders, stock alerts, and abandoned carts for the last 30 days. Cron uses the same default inbox on the 1st of the month.
         </p>
 
         <div className="flex flex-col gap-4 mb-6">
           <div>
-            <label className="block text-[13px] font-bold text-gray-700 tracking-[1px] uppercase mb-2">Recipient Email</label>
-            <input 
-              type="email" 
+            <label className="block text-[13px] font-bold text-gray-700 tracking-[1px] uppercase mb-2">
+              Recipient email
+            </label>
+            <input
+              type="email"
               value={targetEmail}
               onChange={(e) => setTargetEmail(e.target.value)}
+              placeholder="support@yourshop.com"
               className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-[14px] font-medium outline-none focus:border-gray-900 focus:bg-white transition-colors"
             />
+            <p className="text-[12px] text-neutral-500 mt-2">{defaultHint}</p>
           </div>
         </div>
 
@@ -60,9 +83,19 @@ export default function ReportsPage() {
           <button
             onClick={handleGenerateReport}
             disabled={loading}
-            className={`flex items-center gap-2 py-3 px-6 rounded-xl text-[13px] font-bold tracking-[1px] uppercase transition-colors ${loading ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-black'}`}
+            className={`flex items-center gap-2 py-3 px-6 rounded-xl text-[13px] font-bold tracking-[1px] uppercase transition-colors ${
+              loading
+                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                : "bg-gray-900 text-white hover:bg-black"
+            }`}
           >
-            {loading ? "Generating..." : <><FiMail size={16}/> Email Report</>}
+            {loading ? (
+              "Generating..."
+            ) : (
+              <>
+                <FiMail size={16} /> Email report
+              </>
+            )}
           </button>
         </div>
 

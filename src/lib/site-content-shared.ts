@@ -27,6 +27,9 @@ export type SiteContentData = {
     email?: string;
     address?: string;
     copyright?: string;
+    gstin?: string;
+    instagramUrl?: string;
+    facebookUrl?: string;
   };
 };
 
@@ -58,6 +61,8 @@ export const DEFAULT_HEADER_NAV: NavLink[] = [
 ];
 
 export const POLICY_LINKS = [
+  { href: "/about", label: "About" },
+  { href: "/track", label: "Track order" },
   { href: "/privacy-policy", label: "Privacy Policy" },
   { href: "/return-exchange", label: "Return/Exchange Policy" },
   { href: "/terms-conditions", label: "Terms & Conditions" },

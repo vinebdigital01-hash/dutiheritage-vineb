@@ -88,22 +88,58 @@ export async function sendEmail(input: {
 
 export function emailLayout(title: string, bodyHtml: string): string {
   const site = getPublicSiteUrl();
+  const year = new Date().getFullYear();
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${title}</title></head>
-<body style="margin:0;padding:0;background:#f7f5f2;font-family:Georgia,serif;color:#1a1a1a;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e8e4de;padding:32px;">
-        <tr><td style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#888;padding-bottom:16px;">Duti Heritage</td></tr>
-        <tr><td style="font-size:22px;letter-spacing:1px;padding-bottom:16px;">${title}</td></tr>
-        <tr><td style="font-size:15px;line-height:1.6;color:#333;">${bodyHtml}</td></tr>
-        <tr><td style="padding-top:28px;font-size:12px;color:#999;">
-          <a href="${site}" style="color:#1a1a1a;">Shop now</a> ·
-          <a href="${site}/account" style="color:#1a1a1a;">Your account</a>
-        </td></tr>
-      </table>
-    </td></tr>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;color:#000000;-webkit-text-size-adjust:100%;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e0e0e0;">
+          <tr>
+            <td style="padding:28px 32px 20px;border-bottom:1px solid #e0e0e0;text-align:center;">
+              <a href="${site}" style="text-decoration:none;color:#000000;">
+                <span style="font-family:'Times New Roman',Times,Georgia,serif;font-size:20px;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Duti Heritage</span>
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 20px;font-family:'Times New Roman',Times,Georgia,serif;font-size:22px;font-weight:400;letter-spacing:2px;text-transform:uppercase;line-height:1.3;color:#000000;">${title}</h1>
+              <div style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:15px;font-weight:300;line-height:1.65;color:#333333;">
+                ${bodyHtml}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 32px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#111111;">
+                    <a href="${site}" style="display:inline-block;padding:14px 28px;font-family:Outfit,Helvetica,Arial,sans-serif;font-size:12px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#ffffff;">Shop now</a>
+                  </td>
+                  <td width="12"></td>
+                  <td style="border:1px solid #000000;">
+                    <a href="${site}/account" style="display:inline-block;padding:13px 24px;font-family:Outfit,Helvetica,Arial,sans-serif;font-size:12px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;">Your account</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px;background:#f5f5f5;border-top:1px solid #e0e0e0;text-align:center;">
+              <p style="margin:0 0 6px;font-family:Outfit,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6b6b6b;">Made with love in India</p>
+              <p style="margin:0;font-family:Outfit,Helvetica,Arial,sans-serif;font-size:12px;color:#6b6b6b;">© ${year} Duti Heritage · <a href="${site}" style="color:#000000;text-decoration:underline;">dutiheritage.co.in</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>`;

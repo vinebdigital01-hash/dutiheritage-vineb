@@ -1,10 +1,11 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { CldImage } from "next-cloudinary";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
-import { getCatalogProducts } from "@/app/actions";
+import { getCrossSellProducts } from "@/app/actions";
+import { maxPurchasableQty, qtyOfProductSizeInCart } from "@/lib/cart-stock";
 import { Product } from "@/types";
 
 const isCloudinary = (src: string) => {
@@ -28,15 +29,24 @@ export const CartDrawer = () => {
   const router = useRouter();
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
   const [isNavigating, setIsNavigating] = useState(false);
-  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [crossSell, setCrossSell] = useState<{ title: string; products: Product[] }>({
+    title: "Recommended",
+    products: [],
+  });
   const [settings, setSettings] = useState<{ freeShippingAbove: number, flatShippingFee: number } | null>(null);
 
   useEffect(() => {
-    if (isCartOpen && catalog.length === 0) {
-      getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
-      fetch('/api/checkout/config').then(res => res.json()).then(setSettings).catch(() => {});
-    }
-  }, [isCartOpen, catalog.length]);
+    if (!isCartOpen) return;
+    fetch("/api/checkout/config").then((res) => res.json()).then(setSettings).catch(() => {});
+    getCrossSellProducts({
+      excludeIds: cart.map((i) => i.id),
+      collectionIds: [...new Set(cart.map((i) => i.collectionId))],
+      wishlistIds: wishlist || [],
+      limit: 3,
+    })
+      .then(setCrossSell)
+      .catch(() => setCrossSell({ title: "Recommended", products: [] }));
+  }, [isCartOpen, cart, wishlist]);
 
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   
@@ -44,27 +54,7 @@ export const CartDrawer = () => {
   const isFreeShipping = cartTotal >= FREE_SHIPPING_ABOVE;
   const amountForFreeShipping = FREE_SHIPPING_ABOVE - cartTotal;
 
-  const { title: crossSellTitle, products: crossSellProducts } = useMemo(() => {
-    if (catalog.length === 0) return { title: "Recommended", products: [] };
-    const cartIds = new Set(cart.map(item => item.id));
-    
-    // 1. Wishlist priority
-    const wishlistItems = catalog.filter(p => wishlist?.includes(p.id) && !cartIds.has(p.id));
-    if (wishlistItems.length > 0) {
-      return { title: "From Your Wishlist", products: wishlistItems.slice(0, 3) };
-    }
-
-    if (cart.length === 0) return { title: "Recommended", products: [] };
-    
-    const cartCollectionIds = new Set(cart.map(item => item.collectionId));
-    const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 4);
-    
-    if (related.length < 3) {
-      const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 3 - related.length);
-      related.push(...extra);
-    }
-    return { title: "People Also Bought", products: related.slice(0, 3) };
-  }, [cart, catalog, wishlist]);
+  const { title: crossSellTitle, products: crossSellProducts } = crossSell;
 
   const handleAddCrossSell = (product: Product) => {
     addToCart(product, product.sizes?.[0] || "Free Size");
@@ -159,7 +149,12 @@ export const CartDrawer = () => {
                             <span className="text-[12px] text-gray-700 font-medium min-w-[12px] text-center">{item.quantity}</span>
                             <button 
                               onClick={() => updateQuantity(item.cartItemId, 1)}
-                              className="text-gray-500 hover:text-black px-1"
+                              disabled={(() => {
+                                const max = maxPurchasableQty(item, item.selectedSize);
+                                const used = qtyOfProductSizeInCart(cart, item.id, item.selectedSize);
+                                return max !== null && used >= max;
+                              })()}
+                              className="text-gray-500 hover:text-black px-1 disabled:opacity-30"
                             >
                               +
                             </button>

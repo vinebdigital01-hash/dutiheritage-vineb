@@ -24,6 +24,9 @@ type SiteContent = {
     email?: string;
     address?: string;
     copyright?: string;
+    gstin?: string;
+    instagramUrl?: string;
+    facebookUrl?: string;
   };
 };
 
@@ -368,6 +371,36 @@ export default function AdminContentPage() {
               setContent((c) => ({
                 ...c,
                 footer: { ...c.footer, copyright: e.target.value },
+              }))
+            }
+          />
+          <AdminInput
+            label="Footer GSTIN"
+            value={content.footer?.gstin || ""}
+            onChange={(e) =>
+              setContent((c) => ({
+                ...c,
+                footer: { ...c.footer, gstin: e.target.value },
+              }))
+            }
+          />
+          <AdminInput
+            label="Instagram URL"
+            value={content.footer?.instagramUrl || ""}
+            onChange={(e) =>
+              setContent((c) => ({
+                ...c,
+                footer: { ...c.footer, instagramUrl: e.target.value },
+              }))
+            }
+          />
+          <AdminInput
+            label="Facebook URL"
+            value={content.footer?.facebookUrl || ""}
+            onChange={(e) =>
+              setContent((c) => ({
+                ...c,
+                footer: { ...c.footer, facebookUrl: e.target.value },
               }))
             }
           />

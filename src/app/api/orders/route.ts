@@ -1,5 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
-import { Order, ORDER_STATUSES } from "@/models";
+import { Order, ReturnRequest, ORDER_STATUSES } from "@/models";
 import { verifyIdToken, AuthError, getStaffRole } from "@/lib/auth";
 import { toOrder } from "@/lib/mappers";
 import {
@@ -15,7 +15,7 @@ import { buildAdminOrderFilter, parsePageParams } from "@/lib/order-workspace";
 /**
  * GET /api/orders
  *  - Admin: paginated list (?q=&status=&paymentMethod=&city=&from=&to=&page=&limit=)
- *  - User: own orders (Bearer token)
+ *  - User: own orders (Bearer token), with latest returnRequest when present
  *
  * POST /api/orders
  *  - Create order (guest OK; attach firebaseUid if Bearer present)
@@ -62,8 +62,36 @@ export async function GET(request: Request) {
       Order.countDocuments(filter),
     ]);
 
+    let returnByOrder = new Map<
+      string,
+      { status: string; type?: string; rejectReason?: string | null }
+    >();
+
+    if (!admin && docs.length > 0) {
+      const orderIds = docs.map((d) => String(d.orderId || "")).filter(Boolean);
+      const returns = await ReturnRequest.find({ orderId: { $in: orderIds } })
+        .sort({ createdAt: -1 })
+        .lean();
+      for (const r of returns) {
+        const oid = String(r.orderId || "");
+        if (!oid || returnByOrder.has(oid)) continue;
+        returnByOrder.set(oid, {
+          status: String(r.status || "requested"),
+          type: r.type ? String(r.type) : "return",
+          rejectReason: r.rejectReason ? String(r.rejectReason) : null,
+        });
+      }
+    }
+
     return jsonOk({
-      orders: docs.map((d) => toOrder(d, { includeTimeline: false })),
+      orders: docs.map((d) => {
+        const order = toOrder(d, { includeTimeline: false });
+        if (admin) return order;
+        return {
+          ...order,
+          returnRequest: returnByOrder.get(order.orderId) || null,
+        };
+      }),
       count: docs.length,
       total,
       page,

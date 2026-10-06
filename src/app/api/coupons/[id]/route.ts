@@ -2,7 +2,8 @@ import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { CATALOG_WRITE } from "@/lib/rbac";
-import { toCoupon } from "@/lib/coupons";
+import { toCoupon, parseCouponLimit } from "@/lib/coupons";
+import { endOfIstCalendarDay } from "@/lib/india-time";
 import {
   handleApiError,
   jsonOk,
@@ -47,17 +48,38 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.targetIds !== undefined) coupon.targetIds = body.targetIds;
     if (body.minQuantity !== undefined) coupon.minQuantity = Number(body.minQuantity) || 0;
     if (body.freeQuantity !== undefined) coupon.freeQuantity = Number(body.freeQuantity) || 0;
-    if (body.usageLimit !== undefined) coupon.usageLimit = body.usageLimit;
-    if (body.perUserLimit !== undefined) coupon.perUserLimit = body.perUserLimit;
+    if (body.usageLimit !== undefined) {
+      coupon.usageLimit = parseCouponLimit(body.usageLimit);
+    }
+    if (body.perUserLimit !== undefined) {
+      coupon.perUserLimit = parseCouponLimit(body.perUserLimit);
+    }
     if (body.minOrderAmount !== undefined) {
       coupon.minOrderAmount = Number(body.minOrderAmount) || 0;
     }
     if (body.active !== undefined) coupon.active = Boolean(body.active);
     if (body.expiresAt !== undefined) {
-      coupon.expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
+      coupon.expiresAt = endOfIstCalendarDay(body.expiresAt);
     }
 
     await coupon.save();
+
+    const unset: Record<string, 1> = {};
+    if (body.usageLimit !== undefined && parseCouponLimit(body.usageLimit) === undefined) {
+      unset.usageLimit = 1;
+    }
+    if (body.perUserLimit !== undefined && parseCouponLimit(body.perUserLimit) === undefined) {
+      unset.perUserLimit = 1;
+    }
+    if (body.expiresAt !== undefined && !endOfIstCalendarDay(body.expiresAt)) {
+      unset.expiresAt = 1;
+    }
+    if (Object.keys(unset).length > 0) {
+      await Coupon.updateOne({ _id: coupon._id }, { $unset: unset });
+      const fresh = await Coupon.findById(coupon._id);
+      if (fresh) return jsonOk({ coupon: toCoupon(fresh.toObject()) });
+    }
+
     return jsonOk({ coupon: toCoupon(coupon.toObject()) });
   } catch (error) {
     return handleApiError(error);

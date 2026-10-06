@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -9,12 +9,15 @@ import Image from "next/image";
 import { CldImage } from "next-cloudinary";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
-import { getCatalogProducts } from "@/app/actions";
+import { getCrossSellProducts } from "@/app/actions";
+import { LAST_ORDER_STORAGE_KEY } from "@/lib/guest-order";
+import { maxPurchasableQty, qtyOfProductSizeInCart } from "@/lib/cart-stock";
 import { authHeaders, openRazorpayCheckout } from "@/lib/checkout-client";
 import { syncCartToServer } from "@/lib/cart-client";
 import { trackEvent } from "@/lib/track-client";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { Product } from "@/types";
+import type { SavedAddress } from "@/types";
 import type { CheckoutSettings } from "@/services/checkout";
 import type { PublicCouponDTO } from "@/lib/coupons";
 import { auth } from "@/lib/firebase";
@@ -103,23 +106,45 @@ export default function CheckoutPage() {
   const [codAvailable, setCodAvailable] = useState<boolean | null>(null);
   const [codChecking, setCodChecking] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [cartIssues, setCartIssues] = useState<Array<{ type: string; message: string }>>([]);
   const [razorpayEnabled, setRazorpayEnabled] = useState(false);
   const [prepaidEnabled, setPrepaidEnabled] = useState(true);
-  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [crossSell, setCrossSell] = useState<{ title: string; products: Product[] }>({
+    title: "",
+    products: [],
+  });
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<CheckoutSettings>(FALLBACK_SETTINGS);
   const [availableCoupons, setAvailableCoupons] = useState<PublicCouponDTO[]>([]);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [autoApplyTrigger, setAutoApplyTrigger] = useState<string | null>(null);
 
-  // FOMO / Urgency States
-  const [timeLeft, setTimeLeft] = useState(600); // 10 mins
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
-  const [liveViewers, setLiveViewers] = useState(14);
 
   const [formData, setFormData] = useState({
     email: "", country: "India", firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: ""
   });
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  const applySavedAddress = (addr: SavedAddress) => {
+    const matchedState =
+      indianStates.find((s) => s.name === addr.state || s.isoCode === addr.state)?.name ||
+      addr.state ||
+      "";
+    setSelectedAddressId(addr.id);
+    setFormData((prev) => ({
+      ...prev,
+      firstName: addr.firstName || prev.firstName,
+      lastName: addr.lastName || prev.lastName,
+      address: addr.address || "",
+      apartment: addr.apartment || "",
+      city: addr.city || "",
+      state: matchedState,
+      pinCode: addr.pinCode || "",
+      phone: addr.phone || prev.phone,
+      country: addr.country === "IN" ? "India" : addr.country || prev.country,
+    }));
+  };
 
   const [indianStates, setIndianStates] = useState<{name: string; isoCode: string}[]>([]);
   const [indianCities, setIndianCities] = useState<{name: string}[]>([]);
@@ -215,23 +240,6 @@ export default function CheckoutPage() {
   };
 
   useEffect(() => {
-    getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
-
-    if (cart.length > 0) {
-      fetch("/api/checkout/verify-cart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cart.map(item => ({ productId: item.id, size: item.selectedSize, quantity: item.quantity })) }),
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data && !data.valid) {
-            setCheckoutError(data.error || "Some items in your cart are no longer available. Please clear your cart and try again.");
-          }
-        })
-        .catch(() => {});
-    }
-
     fetch("/api/checkout/config")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -261,22 +269,75 @@ export default function CheckoutPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (cart.length === 0) {
+      setCartIssues([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      fetch("/api/checkout/verify-cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cart.map((item) => ({
+            productId: item.id,
+            size: item.selectedSize,
+            quantity: item.quantity,
+            color: item.selectedColor,
+            unitPrice: item.salePrice || item.price,
+          })),
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          setCartIssues(Array.isArray(data.issues) ? data.issues : []);
+        })
+        .catch(() => {});
+    }, 400);
+    return () => clearTimeout(t);
+  }, [cart, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized || cart.length === 0) {
+      setCrossSell({ title: "", products: [] });
+      return;
+    }
+    getCrossSellProducts({
+      excludeIds: cart.map((i) => i.id),
+      collectionIds: [...new Set(cart.map((i) => i.collectionId))],
+      wishlistIds: wishlist || [],
+      limit: 4,
+    })
+      .then((r) =>
+        setCrossSell({
+          title: r.title === "People Also Bought" ? "Complete Your Look" : r.title,
+          products: r.products,
+        })
+      )
+      .catch(() => setCrossSell({ title: "", products: [] }));
+  }, [cart, wishlist, isInitialized]);
+
   // Pre-fill from user profile
   useEffect(() => {
     if (user) {
-      setFormData(prev => ({
+      const saved = userProfile?.addresses || [];
+      const primary =
+        saved.find((a) => a.label.toLowerCase() === "home") || saved[0];
+      setFormData((prev) => ({
         ...prev,
         email: user.email || prev.email,
-        firstName: user.name?.split(" ")[0] || prev.firstName,
-        lastName: user.name?.split(" ").slice(1).join(" ") || prev.lastName,
-        phone: user.phone || userProfile?.phone || prev.phone,
-        address: userProfile?.address || prev.address,
-        apartment: userProfile?.apartment || prev.apartment,
-        city: userProfile?.city || prev.city,
-        state: userProfile?.state || prev.state,
-        pinCode: userProfile?.pinCode || prev.pinCode,
-        country: userProfile?.country || prev.country
+        firstName: primary?.firstName || user.name?.split(" ")[0] || prev.firstName,
+        lastName: primary?.lastName || user.name?.split(" ").slice(1).join(" ") || prev.lastName,
+        phone: primary?.phone || user.phone || userProfile?.phone || prev.phone,
+        address: primary?.address || userProfile?.address || prev.address,
+        apartment: primary?.apartment || userProfile?.apartment || prev.apartment,
+        city: primary?.city || userProfile?.city || prev.city,
+        state: primary?.state || userProfile?.state || prev.state,
+        pinCode: primary?.pinCode || userProfile?.pinCode || prev.pinCode,
+        country: userProfile?.country || prev.country,
       }));
+      if (primary) setSelectedAddressId(primary.id);
     }
   }, [user, userProfile]);
 
@@ -324,25 +385,6 @@ export default function CheckoutPage() {
     formData.pinCode,
     formData.phone,
   ]);
-
-  // Countdown timer for FOMO banner
-  useEffect(() => {
-    if (timeLeft <= 0) return;
-    const interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    return () => clearInterval(interval);
-  }, [timeLeft]);
-
-  // Live viewers simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveViewers(prev => prev + (Math.random() > 0.5 ? 1 : -1));
-    }, 8000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   // Check COD availability when pincode/city changes
   useEffect(() => {
@@ -396,14 +438,17 @@ export default function CheckoutPage() {
   const isPartialCodRequired = productAdvanceAmount > 0;
   
   React.useEffect(() => {
+    const onlineOk = prepaidEnabled && razorpayEnabled;
     if (isFinalCodAvailable === false && (paymentMethod === "cod" || paymentMethod === "partial")) {
-      if (prepaidEnabled) setPaymentMethod("prepaid");
-    } else if (isPartialCodRequired && paymentMethod === "cod") {
+      if (onlineOk) setPaymentMethod("prepaid");
+    } else if (isPartialCodRequired && paymentMethod === "cod" && razorpayEnabled) {
       setPaymentMethod("partial");
-    } else if (!prepaidEnabled && paymentMethod === "prepaid") {
+    } else if (!onlineOk && paymentMethod === "prepaid") {
+      if (isFinalCodAvailable !== false) setPaymentMethod("cod");
+    } else if (!razorpayEnabled && paymentMethod === "partial") {
       if (isFinalCodAvailable !== false) setPaymentMethod("cod");
     }
-  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod, prepaidEnabled]);
+  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod, prepaidEnabled, razorpayEnabled]);
 
   const codCharge = paymentMethod === "cod" ? settings.codExtraCharge : 0;
   const prepaidDiscount =
@@ -425,25 +470,8 @@ export default function CheckoutPage() {
   const payOnDeliveryAmount = paymentMethod === "partial" ? total - advanceAmount : 0;
   const amountToPayNow = paymentMethod === "partial" ? advanceAmount : (paymentMethod === "cod" ? 0 : total);
 
-  // ---- CROSS-SELL PRODUCTS ----
-  const { title: crossSellTitle, products: crossSellProducts } = useMemo(() => {
-    if (catalog.length === 0) return { title: "Complete Your Look", products: [] };
-    const cartIds = new Set(cart.map(item => item.id));
-    
-    // 1. Wishlist Priority
-    const wishlistItems = catalog.filter(p => wishlist?.includes(p.id) && !cartIds.has(p.id));
-    if (wishlistItems.length > 0) {
-      return { title: "From Your Wishlist", products: wishlistItems.slice(0, 4) };
-    }
-
-    const cartCollectionIds = new Set(cart.map(item => item.collectionId));
-    const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 6);
-    if (related.length < 4) {
-      const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 4 - related.length);
-      related.push(...extra);
-    }
-    return { title: "Complete Your Look", products: related.slice(0, 4) };
-  }, [cart, catalog, wishlist]);
+  const { title: crossSellTitle, products: crossSellProducts } = crossSell;
+  const cartBlocked = cartIssues.some((i) => i.type !== "price_changed");
 
   // ---- HANDLERS ----
   
@@ -523,6 +551,12 @@ export default function CheckoutPage() {
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (cartBlocked) {
+      setCheckoutError("Fix the items in your cart before placing the order.");
+      setIsProcessing(false);
+      return;
+    }
+
     if ((paymentMethod === "cod" || paymentMethod === "partial") && !phoneVerified) {
       setCheckoutError("Please verify your phone number with OTP before placing COD order.");
       setIsProcessing(false);
@@ -549,7 +583,7 @@ export default function CheckoutPage() {
         productId: item.id,
         quantity: item.quantity,
         size: item.selectedSize,
-        color: item.colors?.[0],
+        color: item.selectedColor,
       }));
 
       let razorpay:
@@ -605,8 +639,9 @@ export default function CheckoutPage() {
 
         razorpay = payment;
       } else if (needsOnlinePay && !razorpayEnabled) {
-        // Dev fallback when Razorpay keys are missing
-        console.warn("[checkout] Razorpay not configured — placing unpaid prepaid/partial order (dev)");
+        throw new Error(
+          "Online payment is not available right now. Please choose Cash on Delivery, or try again later."
+        );
       }
 
       const placeRes = await fetch("/api/checkout/place-order", {
@@ -631,7 +666,6 @@ export default function CheckoutPage() {
           couponCode: discountApplied?.code || null,
           saveToProfile: Boolean(user && saveToProfile),
           razorpay,
-          allowUnpaidDev: needsOnlinePay && !razorpayEnabled,
         }),
       });
 
@@ -658,6 +692,17 @@ export default function CheckoutPage() {
       });
 
       clearCart();
+      try {
+        sessionStorage.setItem(
+          LAST_ORDER_STORAGE_KEY,
+          JSON.stringify({
+            order: placeData.order,
+            phone: formData.phone,
+            amountPaidNow: placeData.amountPaidNow,
+            payOnDelivery: placeData.payOnDelivery,
+          })
+        );
+      } catch {}
       router.push(`/checkout/success?orderId=${encodeURIComponent(orderId)}`);
     } catch (err) {
       const message =
@@ -691,15 +736,6 @@ export default function CheckoutPage() {
   const OrderSummaryContent = (
     <div className="flex flex-col w-full h-full">
 
-      {/* FOMO Live Viewers */}
-      <div className="mb-4 flex items-center gap-2 text-[12px] text-red-600 font-medium bg-red-50 py-2 px-3 rounded">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-        </span>
-        {liveViewers} people are viewing items in your cart
-      </div>
-
       {/* Cart Items */}
       <div className="flex flex-col gap-4 mb-6">
         {cart.map((item) => (
@@ -718,7 +754,11 @@ export default function CheckoutPage() {
                 <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5">
                   <button onClick={() => updateQuantity(item.cartItemId, -1)} disabled={item.quantity <= 1} className="text-[10px] text-gray-500 hover:text-black disabled:opacity-30 px-1">-</button>
                   <span className="text-[11px] text-gray-700 font-medium min-w-[12px] text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-[10px] text-gray-500 hover:text-black px-1">+</button>
+                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={(() => {
+                    const max = maxPurchasableQty(item, item.selectedSize);
+                    const used = qtyOfProductSizeInCart(cart, item.id, item.selectedSize);
+                    return max !== null && used >= max;
+                  })()} className="text-[10px] text-gray-500 hover:text-black disabled:opacity-30 px-1">+</button>
                 </div>
                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-[10px] text-gray-400 hover:text-red-600 underline">Remove</button>
               </div>
@@ -900,20 +940,6 @@ export default function CheckoutPage() {
   return (
     <main className="w-full min-h-screen bg-[var(--color-bg)] pb-24 lg:pb-0">
       
-      {/* 🚨 FOMO BANNER - TOP */}
-      {timeLeft > 0 ? (
-        <div className="bg-red-600 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
-          <span className="animate-bounce">🔥</span> 
-          High demand! Your cart is reserved for 
-          <span className="bg-white text-red-600 px-2 py-0.5 rounded ml-1">{timeString}</span>
-        </div>
-      ) : (
-        <div className="bg-amber-500 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
-          <span>⏳</span> 
-          Your reservation has expired! Complete checkout now before items sell out.
-        </div>
-      )}
-
       <div className="max-w-[1200px] mx-auto flex flex-col lg:flex-row min-h-screen">
 
         {/* ============================================ */}
@@ -981,6 +1007,25 @@ export default function CheckoutPage() {
             {/* Delivery */}
             <section>
               <h2 className="text-xl font-serif tracking-wide font-bold mb-4">Delivery Address</h2>
+              {(userProfile?.addresses || []).length > 0 ? (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(userProfile?.addresses || []).map((addr) => (
+                    <button
+                      key={addr.id}
+                      type="button"
+                      onClick={() => applySavedAddress(addr)}
+                      className={`px-4 py-2 text-[12px] font-bold uppercase tracking-widest rounded-lg border ${
+                        selectedAddressId === addr.id
+                          ? "bg-black text-white border-black"
+                          : "bg-white text-black border-gray-300 hover:border-black"
+                      }`}
+                    >
+                      {addr.label}
+                      {addr.pinCode ? ` · ${addr.pinCode}` : ""}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="flex flex-col gap-3.5">
                 <select aria-label="Country" name="country" value={formData.country} onChange={handleInputChange} className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm">
                   <option>India</option>
@@ -1124,6 +1169,21 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
               </div>
             )}
 
+            {cartIssues.some((i) => i.type !== "price_changed") && (
+              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-[13px] rounded-lg space-y-1">
+                {cartIssues.filter((i) => i.type !== "price_changed").map((issue, i) => (
+                  <p key={`block-${i}`}>{issue.message}</p>
+                ))}
+              </div>
+            )}
+            {cartIssues.some((i) => i.type === "price_changed") && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-[13px] rounded-lg space-y-1">
+                {cartIssues.filter((i) => i.type === "price_changed").map((issue, i) => (
+                  <p key={`price-${i}`}>{issue.message}</p>
+                ))}
+              </div>
+            )}
+
             {checkoutError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-[13px] rounded-lg">
                 {checkoutError}
@@ -1132,13 +1192,13 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
 
             {!razorpayEnabled && paymentMethod !== "cod" && (
               <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-2 rounded">
-                Razorpay keys are not configured — prepaid/partial will place a pending order (dev mode). COD works fully.
+                Online payment is not available right now. Please use Cash on Delivery.
               </p>
             )}
 
             {/* Desktop Submit Button (Hidden on Mobile due to Sticky Footer) */}
             <div className="hidden lg:block">
-              <button type="submit" disabled={isProcessing || !!checkoutError} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : !!checkoutError ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
+              <button type="submit" disabled={isProcessing || cartBlocked} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : cartBlocked ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
                 {isProcessing && (
                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1194,8 +1254,8 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
         <button 
           type="submit" 
           form="checkout-form"
-          disabled={isProcessing || !!checkoutError} 
-          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : !!checkoutError ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
+          disabled={isProcessing || cartBlocked} 
+          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : cartBlocked ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
         >
           {isProcessing && (
             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

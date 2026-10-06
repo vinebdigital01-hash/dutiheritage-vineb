@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/ui";
 import { ORDER_STATUSES } from "@/lib/admin-constants";
 import type { OrderDTO } from "@/lib/mappers";
+import { ActionModal } from "@/components/ActionModal";
 
 type ListResponse = {
   orders: OrderDTO[];
@@ -46,6 +47,10 @@ export default function AdminOrdersPage() {
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [statusModal, setStatusModal] = useState<{
+    order: OrderDTO;
+    next: "On Hold" | "Cancelled";
+  } | null>(null);
 
   const [uploading, setUploading] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -84,24 +89,7 @@ export default function AdminOrdersPage() {
     setQ(qInput);
   };
 
-  const quickStatus = async (order: OrderDTO, next: string) => {
-    let reason = "";
-    if (next === "Cancelled" || next === "On Hold") {
-      const typed = window.prompt(
-        next === "Cancelled"
-          ? "Why are you cancelling this order? Required — the customer can be notified."
-          : "Why are you pausing this order? Required — the customer can be notified."
-      );
-      if (typed == null) return;
-      reason = typed.trim();
-      if (!reason) {
-        show("Please type a reason", "error");
-        return;
-      }
-    } else if (!window.confirm(`Confirm order ${order.orderId}?`)) {
-      return;
-    }
-
+  const applyQuickStatus = async (order: OrderDTO, next: string, reason = "") => {
     setBusyId(order.orderId);
     try {
       await adminFetch(`/api/orders/${order.orderId}`, {
@@ -111,9 +99,26 @@ export default function AdminOrdersPage() {
       show(`${order.orderId} → ${next}`);
       await load();
     } catch (e) {
-      show(e instanceof AdminApiError ? e.message : "Update failed", "error");
+      const msg = e instanceof AdminApiError ? e.message : "Update failed";
+      show(msg, "error");
+      throw new Error(msg);
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const quickStatus = async (order: OrderDTO, next: string) => {
+    if (next === "Cancelled" || next === "On Hold") {
+      setStatusModal({ order, next });
+      return;
+    }
+    if (!window.confirm(`Confirm order ${order.orderId}?`)) {
+      return;
+    }
+    try {
+      await applyQuickStatus(order, next);
+    } catch {
+      /* toast already shown */
     }
   };
 
@@ -570,6 +575,23 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       )}
+      <ActionModal
+        isOpen={Boolean(statusModal)}
+        onClose={() => setStatusModal(null)}
+        title={statusModal?.next === "On Hold" ? "Pause this order" : "Cancel this order"}
+        description={
+          statusModal
+            ? `${statusModal.order.orderId} — the customer can be notified.`
+            : undefined
+        }
+        reasonLabel={statusModal?.next === "On Hold" ? "Why pause" : "Why cancel"}
+        confirmText={statusModal?.next === "On Hold" ? "Pause" : "Cancel order"}
+        confirmStyle={statusModal?.next === "Cancelled" ? "danger" : "primary"}
+        onConfirm={async (reason) => {
+          if (!statusModal) return;
+          await applyQuickStatus(statusModal.order, statusModal.next, reason);
+        }}
+      />
     </div>
   );
 }

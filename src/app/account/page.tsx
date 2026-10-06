@@ -27,6 +27,7 @@ import {
 } from "firebase/auth";
 import { checkEmailExists } from "@/lib/auth-client";
 import { AccountOrders } from "@/components/AccountOrders";
+import { ProductCard } from "@/components/ProductCard/ProductCard";
 
 declare global {
   interface Window {
@@ -53,7 +54,7 @@ const getCleanErrorMessage = (err: any) => {
 };
 
 export default function AccountPage() {
-  const { user, authLoading, logout } = useAppContext();
+  const { user, authLoading, logout, recentlyViewed } = useAppContext();
   
   // View States
   const [authMode, setAuthMode] = useState<"email" | "phone">("email");
@@ -339,6 +340,22 @@ export default function AccountPage() {
             </Link>
           ))}
         </div>
+
+        {recentlyViewed.length > 0 ? (
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[14px] font-bold tracking-[2px] uppercase">Recently viewed</h2>
+              <Link href="/account/recently-viewed" className="text-[12px] text-blue-600 font-medium hover:underline">
+                View all →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {recentlyViewed.slice(0, 4).map((product, index) => (
+                <ProductCard key={product.id} product={product} index={index} />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* Recent Orders Preview */}
         <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden">

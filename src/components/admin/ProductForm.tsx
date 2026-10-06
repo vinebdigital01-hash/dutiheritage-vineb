@@ -69,7 +69,7 @@ const emptyForm = (): FormState => ({
     partialCODAdvance: "0",
     isActive: true,
   offers: [],
-  trackInventory: false,
+  trackInventory: true,
   lowStockThreshold: "3",
   inventory: [],
   hsn: "6104",
@@ -309,6 +309,22 @@ export function ProductForm({ productId }: { productId?: string }) {
         throw new Error("Name, image, and collection are required");
       }
       if (Number.isNaN(payload.price)) throw new Error("Valid price required");
+      if (!isEdit) {
+        if (!form.sizes.length) {
+          throw new Error("Add at least one size so we can track stock");
+        }
+        payload.trackInventory = true;
+        payload.inventory = form.sizes.map((size) => {
+          const existing = form.inventory.find((i) => i.size === size);
+          return {
+            size,
+            stock: Number(existing?.stock) || 0,
+            sku: (existing?.sku || "").trim(),
+          };
+        });
+      } else if (form.trackInventory && !form.sizes.length) {
+        throw new Error("Add at least one size, or turn off Track stock");
+      }
 
       if (isEdit && productId) {
         await adminFetch(`/api/products/${productId}`, {
@@ -369,7 +385,7 @@ export function ProductForm({ productId }: { productId?: string }) {
                 Track stock
               </p>
               <p className="text-[12px] text-neutral-500">
-                Track how many of each size you have. If this is off, the product never shows as sold out.
+                New products save with tracking on. Type how many of each size. If this is off, the product never shows as sold out.
               </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -859,7 +875,7 @@ export function ProductForm({ productId }: { productId?: string }) {
                 Track stock
               </p>
               <p className="text-[12px] text-neutral-500">
-                Track how many of each size you have. If this is off, the product never shows as sold out.
+                New products save with tracking on. Type how many of each size. If this is off, the product never shows as sold out.
               </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">

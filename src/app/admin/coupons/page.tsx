@@ -12,6 +12,7 @@ import {
   useToast,
 } from "@/components/admin/ui";
 import type { CouponDTO } from "@/lib/coupons";
+import { istYmd } from "@/lib/india-time";
 import type { Product, Collection } from "@/types";
 
 type PickItem = { id: string; name: string; hint?: string; image?: string };
@@ -171,6 +172,21 @@ function PickMany({
   );
 }
 
+const emptyForm = () => ({
+  code: "",
+  discountType: "PERCENT" as "PERCENT" | "FLAT" | "BUY_X_PERCENT" | "BUY_X_GET_Y_FREE",
+  discountValue: "",
+  minOrderAmount: "0",
+  minQuantity: "2",
+  freeQuantity: "1",
+  scope: "ALL_PRODUCTS" as "ALL_PRODUCTS" | "SPECIFIC_PRODUCTS" | "SPECIFIC_CATEGORY",
+  targetIds: [] as string[],
+  expiresAt: "",
+  usageLimit: "",
+  perUserLimit: "",
+  active: true,
+});
+
 export default function AdminCouponsPage() {
   const { show, Toast } = useToast();
   const [coupons, setCoupons] = useState<CouponDTO[]>([]);
@@ -178,16 +194,8 @@ export default function AdminCouponsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    code: "",
-    discountType: "PERCENT" as "PERCENT" | "FLAT" | "BUY_X_PERCENT" | "BUY_X_GET_Y_FREE",
-    discountValue: "",
-    minOrderAmount: "0",
-    minQuantity: "2",
-    freeQuantity: "1",
-    scope: "ALL_PRODUCTS" as "ALL_PRODUCTS" | "SPECIFIC_PRODUCTS" | "SPECIFIC_CATEGORY",
-    targetIds: [] as string[]
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyForm);
 
   const load = async () => {
     setLoading(true);
@@ -227,54 +235,63 @@ export default function AdminCouponsPage() {
       );
       return;
     }
-    if (!window.confirm("Are you sure you want to create this coupon?")) return;
+    if (!window.confirm(editingId ? "Save changes to this code?" : "Are you sure you want to create this coupon?")) return;
     setSaving(true);
     try {
-      await adminFetch("/api/coupons", {
-        method: "POST",
-        body: JSON.stringify({
-          code: form.code,
-          discountType: form.discountType,
-          discountValue: Number(form.discountValue) || 0,
-          minOrderAmount: Number(form.minOrderAmount) || 0,
-          minQuantity: Number(form.minQuantity) || 0,
-          freeQuantity: Number(form.freeQuantity) || 0,
-          scope: form.scope,
-          targetIds: form.targetIds,
-          active: true,
-        }),
-      });
-      setForm({
-        code: "",
-        discountType: "PERCENT",
-        discountValue: "",
-        minOrderAmount: "0",
-        minQuantity: "2",
-        freeQuantity: "1",
-        scope: "ALL_PRODUCTS",
-        targetIds: []
-      });
-      show("Coupon created");
+      const payload = {
+        code: form.code,
+        discountType: form.discountType,
+        discountValue: Number(form.discountValue) || 0,
+        minOrderAmount: Number(form.minOrderAmount) || 0,
+        minQuantity: Number(form.minQuantity) || 0,
+        freeQuantity: Number(form.freeQuantity) || 0,
+        scope: form.scope,
+        targetIds: form.targetIds,
+        active: form.active,
+        expiresAt: form.expiresAt || null,
+        usageLimit: form.usageLimit === "" ? null : Number(form.usageLimit),
+        perUserLimit: form.perUserLimit === "" ? null : Number(form.perUserLimit),
+      };
+      if (editingId) {
+        await adminFetch(`/api/coupons/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        show("Coupon updated");
+      } else {
+        await adminFetch("/api/coupons", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        show("Coupon created");
+      }
+      setEditingId(null);
+      setForm(emptyForm());
       await load();
     } catch (err) {
-      show(err instanceof AdminApiError ? err.message : "Create failed", "error");
+      show(err instanceof AdminApiError ? err.message : "Save failed", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleActive = async (c: CouponDTO) => {
-    if (!window.confirm(`Are you sure you want to ${c.active ? "disable" : "enable"} this coupon?`)) return;
-    try {
-      await adminFetch(`/api/coupons/${c.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ active: !c.active }),
-      });
-      show(c.active ? "Coupon disabled" : "Coupon enabled");
-      await load();
-    } catch (err) {
-      show(err instanceof AdminApiError ? err.message : "Update failed", "error");
-    }
+  const startEdit = (c: CouponDTO) => {
+    setEditingId(c.id);
+    setForm({
+      code: c.code,
+      discountType: c.discountType,
+      discountValue: String(c.discountValue ?? ""),
+      minOrderAmount: String(c.minOrderAmount ?? 0),
+      minQuantity: String(c.minQuantity ?? 2),
+      freeQuantity: String(c.freeQuantity ?? 1),
+      scope: c.scope,
+      targetIds: c.targetIds || [],
+      expiresAt: istYmd(c.expiresAt || null),
+      usageLimit: c.usageLimit != null ? String(c.usageLimit) : "",
+      perUserLimit: c.perUserLimit != null ? String(c.perUserLimit) : "",
+      active: c.active,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const deleteCoupon = async (c: CouponDTO) => {
@@ -291,11 +308,11 @@ export default function AdminCouponsPage() {
   return (
     <div>
       {Toast}
-      <PageHeader title="Discount codes" subtitle="Codes customers type at checkout. Turn Active off to stop a code." />
+      <PageHeader title="Discount codes" subtitle="Codes customers type at checkout. Expiry is midnight India time. Edit a code instead of deleting it." />
 
       <form onSubmit={create} className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-8 shadow-sm space-y-4">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-          <AdminInput label="Code *" required value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="DIWALI50" />
+          <AdminInput label="Code *" required value={form.code} disabled={Boolean(editingId)} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="DIWALI50" />
           <AdminSelect label="Discount Type" value={form.discountType} onChange={(e) => setForm((f) => ({ ...f, discountType: e.target.value as any }))}>
             <option value="PERCENT">Percent Off (%)</option>
             <option value="FLAT">{`Flat Off (\u20B9)`}</option>
@@ -374,9 +391,55 @@ export default function AdminCouponsPage() {
           )}
         </div>
         
-        <div className="flex justify-end pt-2">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <AdminInput
+            label="Expires (IST midnight)"
+            type="date"
+            value={form.expiresAt}
+            onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
+          />
+          <AdminInput
+            label="Total uses (blank = no cap)"
+            type="number"
+            min={1}
+            value={form.usageLimit}
+            onChange={(e) => setForm((f) => ({ ...f, usageLimit: e.target.value }))}
+            placeholder="e.g. 100"
+          />
+          <AdminInput
+            label="Uses per customer (blank = no cap)"
+            type="number"
+            min={1}
+            value={form.perUserLimit}
+            onChange={(e) => setForm((f) => ({ ...f, perUserLimit: e.target.value }))}
+            placeholder="e.g. 1"
+          />
+          <label className="flex items-center gap-2 text-[13px] text-neutral-700 cursor-pointer pb-2">
+            <input
+              type="checkbox"
+              className="accent-black w-4 h-4"
+              checked={form.active}
+              onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+            />
+            Code is on
+          </label>
+        </div>
+        
+        <div className="flex justify-end gap-2 pt-2">
+          {editingId && (
+            <AdminButton
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setEditingId(null);
+                setForm(emptyForm());
+              }}
+            >
+              Cancel edit
+            </AdminButton>
+          )}
           <AdminButton type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Create Coupon"}
+            {saving ? "Saving..." : editingId ? "Save changes" : "Create Coupon"}
           </AdminButton>
         </div>
       </form>
@@ -396,6 +459,7 @@ export default function AdminCouponsPage() {
                   <th className="p-4 border-b border-neutral-100 font-medium">Scope</th>
                   <th className="p-4 border-b border-neutral-100 font-medium">Min Order</th>
                   <th className="p-4 border-b border-neutral-100 font-medium">Uses</th>
+                  <th className="p-4 border-b border-neutral-100 font-medium">Expires</th>
                   <th className="p-4 border-b border-neutral-100 font-medium">Status</th>
                   <th className="p-4 border-b border-neutral-100 font-medium text-right">Actions</th>
                 </tr>
@@ -420,7 +484,14 @@ export default function AdminCouponsPage() {
                     <td className="p-4">
                       {c.minOrderAmount > 0 ? `\u20B9${c.minOrderAmount}` : "-"}
                     </td>
-                    <td className="p-4 text-neutral-500">{c.usedCount}</td>
+                    <td className="p-4 text-neutral-500">
+                      {c.usedCount}
+                      {c.usageLimit != null ? ` / ${c.usageLimit}` : ""}
+                      {c.perUserLimit != null ? ` · ${c.perUserLimit}/customer` : ""}
+                    </td>
+                    <td className="p-4 text-neutral-500">
+                      {c.expiresAt ? istYmd(c.expiresAt) : "—"}
+                    </td>
                     <td className="p-4">
                       <Badge tone={c.active ? "success" : "neutral"}>
                         {c.active ? "Active" : "Disabled"}
@@ -428,10 +499,10 @@ export default function AdminCouponsPage() {
                     </td>
                     <td className="p-4 text-right">
                       <button
-                        onClick={() => toggleActive(c)}
+                        onClick={() => startEdit(c)}
                         className="text-[12px] font-medium text-[#111] hover:underline mr-4"
                       >
-                        {c.active ? "Stop code" : "Start code"}
+                        Edit
                       </button>
                       <button
                         onClick={() => deleteCoupon(c)}

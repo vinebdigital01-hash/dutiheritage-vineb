@@ -1,75 +1,88 @@
-import { getRazorpay, isRazorpayConfigured, toPaise } from "@/lib/razorpay";
+import { Order, type OrderDocument } from "@/models/Order";
+import { isRazorpayConfigured, getRazorpay, toPaise } from "@/lib/razorpay";
 import { appendTimeline } from "@/lib/order-workspace";
 import { logAdminAction } from "@/lib/admin-audit";
 import { ApiError } from "@/lib/api";
 import type { AuthUser } from "@/lib/auth";
-import type { OrderDocument } from "@/models/Order";
-import type { StaffRole } from "@/models/Staff";
 
-type OrderRecord = OrderDocument & {
-  set: (path: string, val: unknown) => void;
-  markModified: (path: string) => void;
-  save: () => Promise<unknown>;
-};
+export type RefundChannel = "razorpay" | "manual" | "cod_note";
 
-export async function refundOrder(input: {
-  order: OrderRecord;
+export async function refundOrder(opts: {
+  order: OrderDocument;
   amount: number;
   reason: string;
-  actor: (AuthUser & { role?: StaffRole | null }) | null;
+  actor: AuthUser;
   request: Request;
+  /** Staff confirm money was sent outside Razorpay (cash / UPI / bank). */
+  manualConfirmed?: boolean;
 }) {
-  const { order, reason, actor, request } = input;
-  const amount = Math.round(Number(input.amount) * 100) / 100;
+  const { order, reason, actor, request, manualConfirmed } = opts;
+  const amount = Number(opts.amount);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new ApiError("Refund amount must be greater than 0");
   }
-
   const already = Number(order.refundedAmount || 0);
-  const remaining = Math.round((Number(order.total) - already) * 100) / 100;
-  if (amount > remaining + 0.009) {
-    throw new ApiError(`Refund exceeds remaining ₹${remaining.toLocaleString("en-IN")}`);
+  const remaining = Number(order.total) - already;
+  if (amount > remaining + 0.01) {
+    throw new ApiError(`Cannot refund more than ₹${remaining.toFixed(0)} remaining`);
   }
 
-  let razorpayRefundId = "";
-  const prepaid =
-    order.paymentMethod === "prepaid" || order.paymentMethod === "partial";
-  if (prepaid && order.razorpayPaymentId && isRazorpayConfigured()) {
+  const paidOnline = Boolean(order.razorpayPaymentId);
+  const collectedMoney =
+    paidOnline ||
+    order.paymentStatus === "paid" ||
+    order.paymentStatus === "partially_paid";
+  let channel: RefundChannel;
+  let razorpayRefundId: string | undefined;
+
+  if (paidOnline && isRazorpayConfigured() && !manualConfirmed) {
     const rzp = getRazorpay();
-    if (!rzp) throw new ApiError("Razorpay is not configured", 503);
-    try {
-      const refund = await rzp.payments.refund(order.razorpayPaymentId, {
-        amount: toPaise(amount),
-        notes: { orderId: order.orderId, reason: reason.slice(0, 100) },
-      });
-      razorpayRefundId = (refund as { id?: string }).id || "";
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Razorpay refund failed";
-      throw new ApiError(msg, 502);
+    const refund = await rzp.payments.refund(order.razorpayPaymentId as string, {
+      amount: toPaise(amount),
+      notes: { orderId: order.orderId, reason },
+    });
+    razorpayRefundId = refund.id;
+    channel = "razorpay";
+  } else if (collectedMoney) {
+    if (!manualConfirmed) {
+      throw new ApiError(
+        paidOnline && !isRazorpayConfigured()
+          ? "This order has a Razorpay payment id, but Razorpay keys are not on the server. We will not mark it refunded unless you confirm the money was already sent outside Razorpay (cash, UPI, or bank)."
+          : "We will not mark this paid order refunded unless Razorpay can pay them, or you confirm you already paid them outside Razorpay."
+      );
     }
+    channel = "manual";
+  } else {
+    channel = "cod_note";
   }
 
-  order.refundedAmount = already + amount;
-  const entry = {
+  const nextRefunded = already + amount;
+  order.refundedAmount = nextRefunded;
+  order.paymentStatus =
+    nextRefunded >= Number(order.total) - 0.01 ? "refunded" : "partially_paid";
+  if (!Array.isArray(order.refunds)) order.refunds = [];
+  order.refunds.push({
     amount,
     reason,
-    actor: actor?.email || actor?.uid || "admin",
+    actor: actor.email || actor.uid,
     razorpayRefundId,
+    channel,
     at: new Date(),
-  };
-  const prev = Array.isArray(order.refunds) ? [...order.refunds] : [];
-  order.set("refunds", [...prev, entry]);
+  } as OrderDocument["refunds"][number]);
+  order.markModified("refunds");
 
-  if (order.refundedAmount >= Number(order.total) - 0.009) {
-    order.paymentStatus = "refunded";
-  }
+  const channelNote =
+    channel === "razorpay"
+      ? "via Razorpay"
+      : channel === "manual"
+        ? "manual (outside Razorpay — not a Razorpay transfer)"
+        : "COD / unpaid note — this is not a bank transfer";
 
-  const channel = prepaid && razorpayRefundId ? "Razorpay" : "COD / manual";
   appendTimeline(order, {
-    actor: actor?.email || actor?.uid || "admin",
+    actor: actor.email || actor.uid,
     action: "refund",
-    message: `Refunded ₹${amount.toLocaleString("en-IN")} via ${channel}${reason ? ` — ${reason}` : ""}`,
-    internal: false,
+    message: `₹${amount} ${channelNote}${reason ? ` — ${reason}` : ""}`,
+    internal: true,
   });
   order.markModified("timeline");
   await order.save();
@@ -80,8 +93,26 @@ export async function refundOrder(input: {
     action: "refund",
     resource: "order",
     resourceId: order.orderId,
-    message: `₹${amount} ${channel}`,
+    message: `₹${amount} ${channel} ${reason}`.trim(),
   });
 
-  return { razorpayRefundId, refundedAmount: order.refundedAmount };
+  return {
+    order,
+    refundedAmount: nextRefunded,
+    channel,
+    razorpayRefundId: razorpayRefundId || null,
+  };
+}
+
+export async function refundOrderById(opts: {
+  orderId: string;
+  amount: number;
+  reason: string;
+  actor: AuthUser;
+  request: Request;
+  manualConfirmed?: boolean;
+}) {
+  const order = await Order.findOne({ orderId: opts.orderId });
+  if (!order) throw new ApiError("Order not found", 404);
+  return refundOrder({ ...opts, order });
 }

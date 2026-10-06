@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/ui";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/admin-constants";
 import type { OrderDTO } from "@/lib/mappers";
+import { ActionModal } from "@/components/ActionModal";
 
 export default function AdminOrderDetailPage({
   params,
@@ -36,6 +37,11 @@ export default function AdminOrderDetailPage({
   const [tagInput, setTagInput] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
+  const [refundManual, setRefundManual] = useState(false);
+  const [dialog, setDialog] = useState<
+    null | "hold" | "cancel" | "decline" | "file" | "refund" | "approve-cancel"
+  >(null);
+  const [fileType, setFileType] = useState<"return" | "exchange">("return");
 
   const applyOrder = (next: OrderDTO) => {
     setOrder(next);
@@ -71,14 +77,22 @@ export default function AdminOrderDetailPage({
     timelineNote?: string;
     cancelRequestState?: "none" | "requested" | "rejected" | "accepted";
     cancelRejectReason?: string;
+    fromModal?: boolean;
   }) => {
     const nextStatus = overrides?.status ?? status;
     const nextReason = (overrides?.reason ?? reason).trim();
-    if ((nextStatus === "Cancelled" || nextStatus === "On Hold") && !nextReason && !overrides?.cancelRequestState) {
-      show("Add a reason to pause or cancel (the customer can be notified)", "error");
+    if (
+      (nextStatus === "Cancelled" || nextStatus === "On Hold") &&
+      !overrides?.fromModal &&
+      !overrides?.cancelRequestState
+    ) {
+      setDialog(nextStatus === "On Hold" ? "hold" : "cancel");
       return;
     }
-    if (!overrides?.cancelRequestState && !window.confirm(`Save this order? Status will be "${nextStatus}".`)) return;
+    if ((nextStatus === "Cancelled" || nextStatus === "On Hold") && !nextReason && !overrides?.cancelRequestState) {
+      show("A reason is required to pause or cancel", "error");
+      return;
+    }
     setSaving(true);
     try {
       const data = await adminFetch<{ order: OrderDTO }>(`/api/orders/${id}`, {
@@ -101,7 +115,9 @@ export default function AdminOrderDetailPage({
       setTimelineNote("");
       show("Order updated — customer can be notified on confirm, pause, cancel, or ship");
     } catch (e) {
-      show(e instanceof AdminApiError ? e.message : "Update failed", "error");
+      const msg = e instanceof AdminApiError ? e.message : "Update failed";
+      show(msg, "error");
+      if (overrides?.fromModal) throw new Error(msg);
     } finally {
       setSaving(false);
     }
@@ -158,20 +174,13 @@ export default function AdminOrderDetailPage({
           </div>
           <div className="flex gap-2">
             <button
-              onClick={async () => {
-                const rejectReason = window.prompt("Reason for declining cancellation?");
-                if (!rejectReason) return;
-                save({ cancelRequestState: "rejected", cancelRejectReason: rejectReason });
-              }}
+              onClick={() => setDialog("decline")}
               className="px-4 py-2 bg-white text-amber-900 border border-amber-300 rounded hover:bg-amber-100 text-[12px] font-bold"
             >
               Decline
             </button>
             <button
-              onClick={async () => {
-                if (!window.confirm("Approve cancellation? This will cancel the order immediately.")) return;
-                save({ status: "Cancelled", reason: "Approved customer cancellation request", cancelRequestState: "accepted" });
-              }}
+              onClick={() => setDialog("approve-cancel")}
               className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 text-[12px] font-bold"
             >
               Approve & Cancel
@@ -404,26 +413,9 @@ export default function AdminOrderDetailPage({
               variant="secondary"
               className="w-full"
               disabled={saving}
-              onClick={async () => {
-                const reason = window.prompt("Why is this a return or exchange?");
-                if (!reason) return;
-                const type =
-                  window.confirm("OK = return (item coming back). Cancel = exchange.")
-                    ? "return"
-                    : "exchange";
-                try {
-                  await adminFetch("/api/returns", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      orderId: order.orderId,
-                      reason,
-                      type,
-                    }),
-                  });
-                  show("Sent to the Returns list");
-                } catch (e) {
-                  show(e instanceof AdminApiError ? e.message : "Could not file return", "error");
-                }
+              onClick={() => {
+                setFileType("return");
+                setDialog("file");
               }}
             >
               Send to Returns list
@@ -437,6 +429,35 @@ export default function AdminOrderDetailPage({
                 ? ` (already ₹${order.refundedAmount.toLocaleString("en-IN")})`
                 : ""}
             </p>
+            {order.paymentMethod === "cod" ||
+            (order.paymentStatus !== "paid" &&
+              order.paymentStatus !== "partially_paid" &&
+              !order.razorpayPaymentId) ? (
+              <p className="text-[12px] text-neutral-600 normal-case tracking-normal bg-neutral-50 border border-neutral-200 p-3">
+                This is COD or unpaid. Saving here is a <strong>status note</strong> only — it does not send money to a bank or UPI.
+              </p>
+            ) : (
+              <p className="text-[12px] text-neutral-600 normal-case tracking-normal bg-neutral-50 border border-neutral-200 p-3">
+                Prepaid: we call Razorpay when a payment id and keys exist. Tick the box below only if you already paid them in cash, UPI, or bank (not Razorpay).
+              </p>
+            )}
+            {(order.refunds || []).length > 0 && (
+              <ul className="text-[12px] text-neutral-600 space-y-1">
+                {(order.refunds || []).map((r, i) => (
+                  <li key={i}>
+                    ₹{r.amount.toLocaleString("en-IN")}{" "}
+                    {r.channel === "razorpay"
+                      ? "via Razorpay"
+                      : r.channel === "manual"
+                        ? "outside Razorpay (manual)"
+                        : r.channel === "cod_note"
+                          ? "COD note (not a bank transfer)"
+                          : ""}
+                    {r.reason ? ` — ${r.reason}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
             <AdminInput
               label="Amount to give back (₹)"
               value={refundAmount}
@@ -449,40 +470,27 @@ export default function AdminOrderDetailPage({
               onChange={(e) => setRefundReason(e.target.value)}
               placeholder="Customer returned / partial refund"
             />
+            {order.paymentMethod !== "cod" && (
+              <label className="flex items-start gap-2 text-[13px] text-neutral-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={refundManual}
+                  onChange={(e) => setRefundManual(e.target.checked)}
+                />
+                <span>I paid them outside Razorpay (cash / UPI / bank). Do not call Razorpay.</span>
+              </label>
+            )}
             <AdminButton
               variant="danger"
               className="w-full"
               disabled={saving}
-              onClick={async () => {
-                const remaining = order.total - (order.refundedAmount || 0);
-                const amount = Number(refundAmount || remaining);
+              onClick={() => {
                 if (!refundReason.trim()) {
                   show("Please type why money is going back", "error");
                   return;
                 }
-                if (!window.confirm(`Give back ₹${amount} on ${order.orderId}?`)) return;
-                setSaving(true);
-                try {
-                  const data = await adminFetch<{ order: OrderDTO }>(
-                    `/api/orders/${order.orderId}/refund`,
-                    {
-                      method: "POST",
-                      body: JSON.stringify({ amount, reason: refundReason.trim() }),
-                    }
-                  );
-                  applyOrder(data.order);
-                  setRefundAmount("");
-                  setRefundReason("");
-                  show(
-                    order.paymentMethod === "cod"
-                      ? "COD marked as money given back"
-                      : "Money back processed"
-                  );
-                } catch (e) {
-                  show(e instanceof AdminApiError ? e.message : "Refund failed", "error");
-                } finally {
-                  setSaving(false);
-                }
+                setDialog("refund");
               }}
             >
               Give money back
@@ -490,6 +498,127 @@ export default function AdminOrderDetailPage({
           </div>
         </section>
       </div>
+
+      <ActionModal
+        isOpen={dialog === "hold" || dialog === "cancel"}
+        onClose={() => setDialog(null)}
+        title={dialog === "hold" ? "Pause this order" : "Cancel this order"}
+        description="The customer can be notified. This is required."
+        reasonLabel={dialog === "hold" ? "Why pause" : "Why cancel"}
+        confirmText={dialog === "hold" ? "Pause order" : "Cancel order"}
+        confirmStyle={dialog === "cancel" ? "danger" : "primary"}
+        onConfirm={async (typed) => {
+          await save({
+            status: dialog === "hold" ? "On Hold" : "Cancelled",
+            reason: typed,
+            fromModal: true,
+          });
+        }}
+      />
+      <ActionModal
+        isOpen={dialog === "decline"}
+        onClose={() => setDialog(null)}
+        title="Decline cancellation"
+        reasonLabel="Why decline"
+        confirmText="Decline"
+        confirmStyle="danger"
+        onConfirm={async (typed) => {
+          await save({ cancelRequestState: "rejected", cancelRejectReason: typed });
+        }}
+      />
+      <ActionModal
+        isOpen={dialog === "approve-cancel"}
+        onClose={() => setDialog(null)}
+        title="Approve cancellation"
+        description="This will cancel the order now."
+        requireReason={false}
+        confirmText="Cancel order"
+        confirmStyle="danger"
+        onConfirm={async () => {
+          await save({
+            status: "Cancelled",
+            reason: "Approved customer cancellation request",
+            cancelRequestState: "accepted",
+            fromModal: true,
+          });
+        }}
+      />
+      <ActionModal
+        isOpen={dialog === "file"}
+        onClose={() => setDialog(null)}
+        title="Send to Returns list"
+        description="Return = item coming back. Exchange = swap. Restock is still allowed for both. We do not rename the order from here."
+        reasonLabel="Why"
+        confirmText="Send to Returns"
+        extra={
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
+              Kind
+            </span>
+            <select
+              className="border border-gray-200 rounded-lg p-3 text-[14px]"
+              value={fileType}
+              onChange={(e) => setFileType(e.target.value as "return" | "exchange")}
+            >
+              <option value="return">Return (item coming back)</option>
+              <option value="exchange">Exchange (swap)</option>
+            </select>
+          </label>
+        }
+        onConfirm={async (typed) => {
+          await adminFetch("/api/returns", {
+            method: "POST",
+            body: JSON.stringify({
+              orderId: order.orderId,
+              reason: typed,
+              type: fileType,
+            }),
+          });
+          show("Sent to the Returns list");
+        }}
+      />
+      <ActionModal
+        isOpen={dialog === "refund"}
+        onClose={() => setDialog(null)}
+        title="Give money back"
+        description={`Amount ₹${Number(refundAmount || order.total - (order.refundedAmount || 0)).toLocaleString("en-IN")} of ₹${(order.total - (order.refundedAmount || 0)).toLocaleString("en-IN")} still left.`}
+        requireReason={false}
+        confirmText="Give money back"
+        confirmStyle="danger"
+        onConfirm={async () => {
+          const remaining = order.total - (order.refundedAmount || 0);
+          const amount = Number(refundAmount || remaining);
+          setSaving(true);
+          try {
+            const data = await adminFetch<{ order: OrderDTO; channel?: string }>(
+              `/api/orders/${order.orderId}/refund`,
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  amount,
+                  reason: refundReason.trim(),
+                  manualConfirmed: refundManual,
+                }),
+              }
+            );
+            applyOrder(data.order);
+            setRefundAmount("");
+            setRefundReason("");
+            setRefundManual(false);
+            show(
+              data.channel === "razorpay"
+                ? "Razorpay refund sent"
+                : data.channel === "manual"
+                  ? "Recorded as paid outside Razorpay (not a Razorpay transfer)"
+                  : "COD/unpaid note saved — not a bank transfer"
+            );
+          } catch (e) {
+            throw e instanceof Error ? e : new Error("Refund failed");
+          } finally {
+            setSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }

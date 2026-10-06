@@ -534,22 +534,17 @@ export async function sendOrderCancelled(input: {
   const name = input.name || "there";
   const subject = `Order ${input.orderId} Cancelled`;
   
-  // Create a simpler cancelled email template
   const bodyHtml = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
-      <h2 style="font-size: 24px; font-weight: normal; margin-bottom: 24px;">Order Cancelled</h2>
-      <p style="font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
-        Hi ${name},<br/><br/>
-        We're writing to let you know that your order <strong>${input.orderId}</strong> has been cancelled.
-      </p>
-      <p style="font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
-        If you have already paid for this order, the refund process will be initiated shortly and the amount (₹${input.total}) will reflect in your original payment method within 5-7 business days.
-      </p>
-      <p style="font-size: 16px; line-height: 1.5; margin-bottom: 32px;">
-        If you did not request this cancellation or have any questions, please reply to this email or contact our support team.
-      </p>
-      <a href="${SITE()}" style="display: inline-block; background-color: #1a1a1a; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; font-size: 12px; border-radius: 4px;">Return to Store</a>
-    </div>
+    <p style="margin:0 0 20px;">
+      Hi ${name},<br/><br/>
+      We're writing to let you know that your order <strong>${input.orderId}</strong> has been cancelled.
+    </p>
+    <p style="margin:0 0 20px;">
+      If you have already paid for this order, the refund will be started shortly. The amount (₹${input.total}) usually returns to your original payment method within 5–7 business days.
+    </p>
+    <p style="margin:0;">
+      If you did not ask for this cancellation, reply to this email or write to support.
+    </p>
   `;
 
   const text = `Order ${input.orderId} cancelled. If prepaid, refund will be processed in 5-7 days.`;
@@ -716,45 +711,45 @@ async function buildOrderEmailHtml(
   const steps = ["Confirmed", "Shipped", "Delivered"];
   const currentIndex = steps.indexOf(highlightStep);
 
-  let trackerHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 30px 0;"><tr>`;
+  let trackerHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 28px 0;"><tr>`;
   steps.forEach((step, idx) => {
     const isCompleted = idx <= currentIndex;
     const isCurrent = idx === currentIndex;
-    const color = isCompleted ? "#059669" : "#e5e7eb";
-    const textColor = isCompleted ? "#064e3b" : "#9ca3af";
-    const icon = isCompleted ? "✔" : "○";
-    const weight = isCurrent ? "bold" : "normal";
+    const color = isCompleted ? "#111111" : "#e0e0e0";
+    const textColor = isCompleted ? "#000000" : "#6b6b6b";
+    const icon = isCompleted ? "●" : "○";
+    const weight = isCurrent ? "600" : "400";
     
     trackerHtml += `
-      <td align="center" style="font-family: sans-serif; font-size: 11px; width: 33.33%;">
-        <div style="font-size: 24px; margin-bottom: 8px; color: ${color};">${icon}</div>
-        <div style="font-weight: ${weight}; text-transform: uppercase; letter-spacing: 1px; color: ${textColor};">${step}</div>
+      <td align="center" style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:11px;width:33.33%;">
+        <div style="font-size:18px;margin-bottom:8px;color:${color};line-height:1;">${icon}</div>
+        <div style="font-weight:${weight};text-transform:uppercase;letter-spacing:1.5px;color:${textColor};">${step}</div>
       </td>`;
   });
   trackerHtml += `</tr></table>`;
 
   const nextStepHtml = nextStepText 
-    ? `<div style="background: #f7f5f2; padding: 16px; border-left: 4px solid #d4af37; font-family: sans-serif; font-size: 14px; margin-bottom: 30px; line-height: 1.5;">
-        <strong style="text-transform: uppercase; font-size: 11px; letter-spacing: 1px; color: #666; display: block; margin-bottom: 4px;">Next Step</strong>
+    ? `<div style="background:#f5f5f5;padding:16px 18px;border-left:3px solid #111111;font-family:Outfit,Helvetica,Arial,sans-serif;font-size:14px;font-weight:300;margin-bottom:28px;line-height:1.55;color:#333333;">
+        <strong style="text-transform:uppercase;font-size:11px;letter-spacing:2px;color:#6b6b6b;display:block;margin-bottom:6px;font-weight:500;">Next step</strong>
         ${nextStepText}
        </div>` 
     : "";
 
-  let itemsHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-family: sans-serif; font-size: 14px; margin-bottom: 30px; border-top: 1px solid #e5e7eb;">`;
+  let itemsHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:14px;margin-bottom:24px;border-top:1px solid #e0e0e0;">`;
   
   if (order.items && order.items.length) {
     order.items.forEach((item: { name?: string; image?: string; quantity?: number; size?: string; price?: number; salePrice?: number | null }) => {
       const qty = Number(item.quantity) || 0;
       const line = lineUnit(item) * qty;
-      const img = item.image ? `<img src="${esc(item.image)}" width="60" alt="" style="border-radius: 4px; object-fit: cover;" />` : "";
+      const img = item.image ? `<img src="${esc(item.image)}" width="60" height="80" alt="" style="object-fit:cover;display:block;background:#f5f5f5;" />` : "";
       itemsHtml += `
         <tr>
-          <td width="70" style="padding: 15px 0; border-bottom: 1px solid #e5e7eb;">${img}</td>
-          <td style="padding: 15px 10px; border-bottom: 1px solid #e5e7eb;">
-            <div style="font-weight: bold; margin-bottom: 4px;">${esc(item.name)}</div>
-            <div style="color: #666; font-size: 12px;">Qty: ${qty}${item.size ? ` | Size: ${esc(item.size)}` : ""}</div>
+          <td width="70" style="padding:16px 0;border-bottom:1px solid #e0e0e0;vertical-align:top;">${img}</td>
+          <td style="padding:16px 12px;border-bottom:1px solid #e0e0e0;vertical-align:top;">
+            <div style="font-family:'Times New Roman',Times,Georgia,serif;font-size:15px;letter-spacing:0.5px;margin-bottom:4px;color:#000000;">${esc(item.name)}</div>
+            <div style="color:#6b6b6b;font-size:12px;font-weight:300;">Qty: ${qty}${item.size ? ` · Size: ${esc(item.size)}` : ""}</div>
           </td>
-          <td align="right" style="padding: 15px 0; border-bottom: 1px solid #e5e7eb; font-weight: 500;">₹${rupees(line)}</td>
+          <td align="right" style="padding:16px 0;border-bottom:1px solid #e0e0e0;vertical-align:top;font-weight:500;color:#000000;">₹${rupees(line)}</td>
         </tr>
       `;
     });
@@ -776,40 +771,44 @@ async function buildOrderEmailHtml(
   const total = Number(order.total ?? 0);
 
   return `
-    <div style="font-family: Georgia, serif; line-height: 1.6; font-size: 16px;">
+    <div style="font-family:Outfit,Helvetica,Arial,sans-serif;font-weight:300;line-height:1.65;font-size:15px;color:#333333;">
       ${introText}
     </div>
     
     ${trackerHtml}
     ${nextStepHtml}
     
-    <div style="background: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
-      <h3 style="font-family: sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 15px 0; color: #374151;">Order Summary</h3>
-      ${itemsHtml}
+    <div style="background:#ffffff;padding:0;border:1px solid #e0e0e0;">
+      <div style="padding:18px 20px;border-bottom:1px solid #e0e0e0;">
+        <h3 style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:2px;margin:0;color:#6b6b6b;">Order summary</h3>
+      </div>
+      <div style="padding:0 20px;">
+        ${itemsHtml}
+      </div>
       
-      <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-family: sans-serif; font-size: 14px;">
+      <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:14px;border-top:1px solid #e0e0e0;">
         <tr>
-          <td width="50%" valign="top" style="padding-right: 15px; border-right: 1px solid #e5e7eb;">
-            <strong style="text-transform: uppercase; font-size: 11px; letter-spacing: 1px; color: #6b7280; display: block; margin-bottom: 8px;">Shipping To</strong>
-            <div style="color: #374151; line-height: 1.5;">${addressHtml || "—"}</div>
+          <td width="50%" valign="top" style="padding:18px 20px;border-right:1px solid #e0e0e0;">
+            <strong style="text-transform:uppercase;font-size:11px;letter-spacing:2px;color:#6b6b6b;display:block;margin-bottom:8px;font-weight:500;">Shipping to</strong>
+            <div style="color:#333333;line-height:1.55;font-weight:300;">${addressHtml || "—"}</div>
           </td>
-          <td width="50%" valign="top" align="right" style="padding-left: 15px;">
+          <td width="50%" valign="top" style="padding:18px 20px;">
              <table width="100%" border="0" cellpadding="0" cellspacing="0">
                <tr>
-                 <td align="right" style="padding-bottom: 8px; color: #6b7280;">Subtotal:</td>
-                 <td align="right" width="80" style="color: #374151;">₹${rupees(subtotal)}</td>
+                 <td align="right" style="padding-bottom:8px;color:#6b6b6b;font-weight:300;">Subtotal</td>
+                 <td align="right" width="80" style="color:#000000;">₹${rupees(subtotal)}</td>
                </tr>
                ${discount > 0 ? `<tr>
-                 <td align="right" style="padding-bottom: 8px; color: #6b7280;">Discount:</td>
-                 <td align="right" width="80" style="color: #059669;">−₹${rupees(discount)}</td>
+                 <td align="right" style="padding-bottom:8px;color:#6b6b6b;font-weight:300;">Discount</td>
+                 <td align="right" width="80" style="color:#000000;">−₹${rupees(discount)}</td>
                </tr>` : ""}
                <tr>
-                 <td align="right" style="padding-bottom: 8px; color: #6b7280;">Shipping:</td>
-                 <td align="right" width="80" style="color: #374151;">${shipping > 0 ? `₹${rupees(shipping)}` : "Free"}</td>
+                 <td align="right" style="padding-bottom:8px;color:#6b6b6b;font-weight:300;">Shipping</td>
+                 <td align="right" width="80" style="color:#000000;">${shipping > 0 ? `₹${rupees(shipping)}` : "Free"}</td>
                </tr>
                <tr>
-                 <td align="right" style="padding-top: 8px; border-top: 1px solid #e5e7eb;"><strong>Total:</strong></td>
-                 <td align="right" width="80" style="padding-top: 8px; border-top: 1px solid #e5e7eb;"><strong>₹${rupees(total)}</strong></td>
+                 <td align="right" style="padding-top:10px;border-top:1px solid #e0e0e0;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:12px;">Total</td>
+                 <td align="right" width="80" style="padding-top:10px;border-top:1px solid #e0e0e0;font-weight:600;">₹${rupees(total)}</td>
                </tr>
              </table>
           </td>

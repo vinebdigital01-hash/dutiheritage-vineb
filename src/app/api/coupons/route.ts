@@ -2,7 +2,8 @@ import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { CATALOG_WRITE } from "@/lib/rbac";
-import { toCoupon, toPublicCoupon } from "@/lib/coupons";
+import { toCoupon, toPublicCoupon, parseCouponLimit } from "@/lib/coupons";
+import { endOfIstCalendarDay } from "@/lib/india-time";
 import {
   handleApiError,
   jsonOk,
@@ -79,12 +80,12 @@ export async function POST(request: Request) {
       freeQuantity,
       scope: body.scope || "ALL_PRODUCTS",
       targetIds: body.targetIds ?? [],
-      usageLimit: body.usageLimit,
-      perUserLimit: body.perUserLimit,
+      usageLimit: parseCouponLimit(body.usageLimit),
+      perUserLimit: parseCouponLimit(body.perUserLimit),
       minOrderAmount: body.minOrderAmount ?? 0,
       usedCount: 0,
       active: body.active !== false,
-      expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
+      expiresAt: endOfIstCalendarDay(body.expiresAt),
     });
 
     return jsonCreated({ coupon: toCoupon(doc.toObject()) });

@@ -37,6 +37,9 @@ const FooterSchema = new Schema(
     email: { type: String, default: "" },
     address: { type: String, default: "" },
     copyright: { type: String, default: "" },
+    gstin: { type: String, default: "" },
+    instagramUrl: { type: String, default: "" },
+    facebookUrl: { type: String, default: "" },
   },
   { _id: false }
 );

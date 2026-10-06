@@ -62,15 +62,15 @@ export async function PATCH(request: Request, { params }: Params) {
         doc.decidedBy = actor;
 
         const order = await Order.findOne({ orderId: doc.orderId });
-        if (order && order.status !== "Returned") {
-          const prev = order.status;
-          order.status = "Returned";
+        if (order) {
+          const kind = doc.type === "exchange" ? "exchange" : "return";
           appendTimeline(order, {
             actor,
-            action: "status",
-            fromStatus: prev,
-            toStatus: "Returned",
-            message: "Return restocked",
+            action: "restock",
+            message:
+              kind === "exchange"
+                ? "Exchange: stock put back. Order status was not changed — update it yourself when the swap is done."
+                : "Return: stock put back. Set the order to Returned when the return is finished — we do not rename it automatically.",
             internal: false,
           });
           order.markModified("timeline");
@@ -80,19 +80,30 @@ export async function PATCH(request: Request, { params }: Params) {
     } else if (action === "refund") {
       const order = await Order.findOne({ orderId: doc.orderId });
       if (!order) return jsonError("Order not found", 404);
-      const amount = body.amount !== undefined ? Number(body.amount) : Number(order.total);
+      const amount =
+        body.amount !== undefined && body.amount !== null && body.amount !== ""
+          ? Number(body.amount)
+          : Number(order.total) - Number(order.refundedAmount || 0);
+      if (doc.status === "requested") {
+        throw new ApiError("Approve this return before giving money back");
+      }
+      if (doc.status !== "approved" && doc.status !== "restocked") {
+        throw new ApiError("Only approved or restocked returns can be refunded");
+      }
+      if (doc.status === "approved" && !body.refundWithoutRestock) {
+        throw new ApiError(
+          "Put stock back first, or confirm you are refunding without restock yet."
+        );
+      }
       const result = await refundOrder({
         order,
         amount,
         reason: String(body.reason || doc.reason || "Return refund"),
         actor: authUser,
         request,
+        manualConfirmed: Boolean(body.manualConfirmed),
       });
       doc.refundAmount = Number(doc.refundAmount || 0) + amount;
-      if (doc.status === "requested") {
-        doc.status = "approved";
-        doc.decidedBy = actor;
-      }
       await doc.save();
       await logAdminAction({
         request,

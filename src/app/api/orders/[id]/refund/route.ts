@@ -28,20 +28,25 @@ export async function POST(request: Request, { params }: Params) {
     if (!order) return jsonError("Order not found", 404);
 
     const body = await request.json();
-    const amount = body.amount !== undefined ? Number(body.amount) : Number(order.total) - Number(order.refundedAmount || 0);
+    const amount =
+      body.amount !== undefined && String(body.amount).trim() !== ""
+        ? Number(body.amount)
+        : Number(order.total) - Number(order.refundedAmount || 0);
     const reason = String(body.reason || "").trim();
     if (!reason) throw new ApiError("A refund reason is required");
 
-    await refundOrder({
+    const result = await refundOrder({
       order,
       amount,
       reason,
       actor: authUser,
       request,
+      manualConfirmed: Boolean(body.manualConfirmed),
     });
 
     return jsonOk({
       order: toOrder(order.toObject(), { includeTimeline: true, includeInternal: true }),
+      channel: result.channel,
     });
   } catch (error) {
     return handleApiError(error);

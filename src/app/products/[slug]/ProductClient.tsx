@@ -14,6 +14,8 @@ import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
 import { authHeaders } from "@/lib/checkout-client";
 import { trackEvent, trackPageDuration } from "@/lib/track-client";
+import { maxPurchasableQty, qtyOfProductSizeInCart } from "@/lib/cart-stock";
+import { DEFAULT_SIZE_CHART } from "@/lib/size-chart";
 import type { ReviewDTO } from "@/lib/reviews";
 
 const getVideoInfo = (url: string) => {
@@ -127,12 +129,47 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const images = [product.image, ...(product.images || [])].filter(Boolean); 
   const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
-  const isInventoryTracked = product.trackInventory;
-  const isTotallySoldOut = isInventoryTracked && (!product.inventory || product.inventory.every(i => i.stock === 0));
+  const [liveInventory, setLiveInventory] = useState(product.inventory);
+  const [liveTrackInventory, setLiveTrackInventory] = useState(product.trackInventory);
+  const [liveStockStatus, setLiveStockStatus] = useState(product.stockStatus);
+
+  useEffect(() => {
+    setLiveInventory(product.inventory);
+    setLiveTrackInventory(product.trackInventory);
+    setLiveStockStatus(product.stockStatus);
+  }, [product.id, product.inventory, product.trackInventory, product.stockStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/products/${encodeURIComponent(product.id)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data.product) return;
+        setLiveInventory(data.product.inventory);
+        setLiveTrackInventory(data.product.trackInventory);
+        setLiveStockStatus(data.product.stockStatus);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [product.id]);
+
+  const stockProduct = {
+    ...product,
+    inventory: liveInventory,
+    trackInventory: liveTrackInventory,
+    stockStatus: liveStockStatus,
+  };
+
+  const isInventoryTracked = Boolean(stockProduct.trackInventory) || Boolean(stockProduct.inventory?.length);
+  const isTotallySoldOut =
+    isInventoryTracked &&
+    (!stockProduct.inventory || stockProduct.inventory.every((i) => i.stock === 0));
   
   const firstAvailableSize = sizes.find(s => {
     if (!isInventoryTracked) return true;
-    const inv = product.inventory?.find(i => i.size === s);
+    const inv = stockProduct.inventory?.find(i => i.size === s);
     return inv ? inv.stock > 0 : false;
   }) || sizes[0];
 
@@ -141,14 +178,112 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const [selectedColor, setSelectedColor] = useState(colors.length > 0 ? colors[0] : undefined);
 
   const [isNavigating, setIsNavigating] = useState(false);
+  const [showSizeChart, setShowSizeChart] = useState(false);
+  const [pinCode, setPinCode] = useState("");
+  const [pinResult, setPinResult] = useState<{
+    available: boolean;
+    message: string;
+    freeShippingAbove?: number;
+    flatShippingFee?: number;
+  } | null>(null);
+  const [pinChecking, setPinChecking] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [notifyBusy, setNotifyBusy] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("duti-heritage_pincode");
+      if (saved && /^\d{6}$/.test(saved)) setPinCode(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (user?.email && !notifyEmail) setNotifyEmail(user.email);
+  }, [user?.email, notifyEmail]);
+
+  const remaining = maxPurchasableQty(stockProduct, selectedSize);
+  const inCartForSize = qtyOfProductSizeInCart(cart, product.id, selectedSize);
+  const canAddMore = remaining === null || remaining > inCartForSize;
+  const sizeSoldOut = remaining === 0;
   const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor);
-  const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize, selectedColor); };
+  const handleAddToCart = () => {
+    if (sizeSoldOut || !canAddMore) {
+      if (isAdded) setIsCartOpen(true);
+      return;
+    }
+    if (isAdded) setIsCartOpen(true);
+    else addToCart(product, selectedSize, selectedColor);
+  };
 
   const handleBuyNow = () => {
+    if (sizeSoldOut || !canAddMore) return;
     setIsNavigating(true);
     addToCart(product, selectedSize, selectedColor);
     router.push("/checkout");
     setTimeout(() => setIsNavigating(false), 1000);
+  };
+
+  const checkPin = async () => {
+    const pin = pinCode.trim();
+    if (pin.length !== 6) {
+      setPinResult({ available: false, message: "Enter a valid 6-digit pincode" });
+      return;
+    }
+    setPinChecking(true);
+    try {
+      const res = await fetch("/api/settings/cod/check-pincode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinCode: pin }),
+      });
+      const data = await res.json();
+      const available = Boolean(data.available);
+      const freeNote = data.freeShippingAbove
+        ? ` Prepaid shipping is free above ₹${Number(data.freeShippingAbove).toLocaleString("en-IN")}.`
+        : "";
+      setPinResult({
+        available,
+        message: available
+          ? `We deliver to this pincode. Cash on delivery is available.${freeNote}`
+          : `We deliver to this pincode. Cash on delivery is not available — pay online at checkout.${freeNote}`,
+        freeShippingAbove: data.freeShippingAbove,
+        flatShippingFee: data.flatShippingFee,
+      });
+      try {
+        localStorage.setItem("duti-heritage_pincode", pin);
+      } catch {}
+    } catch {
+      setPinResult({ available: false, message: "Could not check this pincode. Try again." });
+    } finally {
+      setPinChecking(false);
+    }
+  };
+
+  const handleNotifyMe = async () => {
+    if (!notifyEmail.includes("@")) {
+      showToast("Enter your email so we can write when this size is back.");
+      return;
+    }
+    setNotifyBusy(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/products/notify-me", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          productId: product.id,
+          size: selectedSize,
+          email: notifyEmail,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save request");
+      showToast(data.message || "We'll email you when this size is back.");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Could not save request");
+    } finally {
+      setNotifyBusy(false);
+    }
   };
 
   const handleWriteReviewClick = async () => {
@@ -446,23 +581,37 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                   ) : null}
                 </div>
               <span className="text-[12px] text-gray-500 -mt-3">
-                Tax included. <Link href="/shipping" className="underline underline-offset-2">Shipping</Link> calculated at checkout.
+                Prices include GST.{" "}
+                <Link href="/shipping" className="underline underline-offset-2">Shipping</Link>{" "}
+                calculated at checkout.
               </span>
+              <p className="text-[12px] text-gray-500">
+                We usually dispatch in 48–72 hours. Delivery is typically 3–7 working days after dispatch.
+              </p>
 
 
 
               
               {/* Size Selector */}
               <div className="flex flex-col gap-2 mt-2">
-                <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Size</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Size</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeChart(true)}
+                    className="text-[12px] underline underline-offset-2 text-gray-600"
+                  >
+                    Size chart
+                  </button>
+                </div>
                 <div className="grid grid-cols-3 gap-3">
                   {sizes.map((size) => {
                     let outOfStock = false;
                     let lowStock = false;
                     let stockLeft = 0;
                     
-                    if (isInventoryTracked && product.inventory) {
-                      const inv = product.inventory.find(i => i.size === size);
+                    if (isInventoryTracked && stockProduct.inventory) {
+                      const inv = stockProduct.inventory.find(i => i.size === size);
                       if (inv) {
                         stockLeft = inv.stock;
                         outOfStock = inv.stock === 0;
@@ -475,11 +624,10 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                     return (
                       <button
                         key={size}
-                        disabled={outOfStock}
                         onClick={() => setSelectedSize(size)}
                         className={`
                           py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all relative overflow-hidden group
-                          ${outOfStock ? 'opacity-40 cursor-not-allowed bg-gray-50 text-gray-400 border-2 border-transparent line-through' :
+                          ${outOfStock ? 'opacity-60 bg-gray-50 text-gray-400 border-2 border-transparent' :
                             selectedSize === size 
                             ? 'bg-[#EAF5EC] border-2 border-[#2E7D32] text-[#2E7D32]' 
                             : 'bg-gray-50 border-2 border-transparent text-gray-700 hover:bg-gray-100'}
@@ -525,27 +673,78 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                   </div>
                 )}
 
+              <div className="flex flex-col gap-2 mt-4">
+                <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Check pincode</span>
+                <div className="flex gap-2">
+                  <input
+                    value={pinCode}
+                    onChange={(e) => setPinCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6-digit PIN"
+                    aria-label="Pincode"
+                    className="flex-1 border border-[var(--color-border)] px-3 py-3 text-[14px] rounded-xl outline-none focus:border-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={checkPin}
+                    disabled={pinChecking}
+                    className="px-4 py-3 text-[12px] tracking-[1px] uppercase border border-black rounded-xl hover:bg-black hover:text-white disabled:opacity-50"
+                  >
+                    {pinChecking ? "…" : "Check"}
+                  </button>
+                </div>
+                {pinResult ? (
+                  <p className={`text-[12px] ${pinResult.available ? "text-green-700" : "text-amber-800"}`}>
+                    {pinResult.message}
+                  </p>
+                ) : (
+                  <p className="text-[12px] text-gray-500">We deliver pan-India. Check whether COD is available for your pin.</p>
+                )}
+              </div>
+
               {/* Actions */}
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">
-                {isTotallySoldOut ? (
-                  <button 
-                    disabled
-                    className="w-full py-4 rounded-xl bg-gray-200 text-gray-500 text-[14px] font-bold tracking-wide uppercase cursor-not-allowed"
-                  >
-                    Out of Stock
-                  </button>
+                {sizeSoldOut || isTotallySoldOut ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[13px] text-gray-600">
+                      {isTotallySoldOut ? "This product is sold out." : `${selectedSize} is sold out.`} Email us — we’ll write when it’s back. Not WhatsApp.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={notifyEmail}
+                        onChange={(e) => setNotifyEmail(e.target.value)}
+                        placeholder="Your email"
+                        aria-label="Email for stock alert"
+                        className="flex-1 border border-[var(--color-border)] px-3 py-3 text-[14px] rounded-xl outline-none focus:border-black"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleNotifyMe}
+                        disabled={notifyBusy}
+                        className="px-4 py-3 text-[12px] tracking-[1px] uppercase bg-gray-900 text-white rounded-xl disabled:opacity-50"
+                      >
+                        {notifyBusy ? "…" : "Notify me"}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <>
+                    {!canAddMore ? (
+                      <p className="text-[12px] text-amber-800">You already have all remaining stock of this size in your cart.</p>
+                    ) : null}
                     <button 
                       onClick={handleAddToCart}
-                      className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
+                      disabled={!canAddMore}
+                      className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Add to cart
                     </button>
                     <button 
                       onClick={handleBuyNow}
-                      disabled={isNavigating}
-                      className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'}`}
+                      disabled={isNavigating || !canAddMore}
+                      className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'} disabled:opacity-40`}
                     >
                       {isNavigating ? (
                         <>
@@ -786,6 +985,44 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
         </div>
       )}
 
+      {showSizeChart && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={() => setShowSizeChart(false)}>
+          <div
+            className="bg-white max-w-[520px] w-full p-6 relative shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowSizeChart(false)}
+              className="absolute top-4 right-4 text-gray-500"
+              aria-label="Close size chart"
+            >
+              <FiX size={20} />
+            </button>
+            <h2 className="text-[16px] font-serif uppercase tracking-[2px] mb-2">{DEFAULT_SIZE_CHART.title}</h2>
+            <p className="text-[12px] text-gray-500 mb-4">{DEFAULT_SIZE_CHART.note}</p>
+            <table className="w-full text-[13px] text-left">
+              <thead>
+                <tr className="border-b border-[var(--color-border)]">
+                  {DEFAULT_SIZE_CHART.columns.map((c) => (
+                    <th key={c} className="py-2 font-medium uppercase tracking-wider text-[11px]">{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {DEFAULT_SIZE_CHART.rows.map((row) => (
+                  <tr key={row[0]} className="border-b border-[var(--color-border)]">
+                    {row.map((cell, i) => (
+                      <td key={i} className="py-2">{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Custom Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-[100px] lg:bottom-8 left-1/2 -translate-x-1/2 bg-black text-white px-8 py-4 text-[12px] tracking-[2px] uppercase z-[150] shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300">
@@ -800,14 +1037,15 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
         }`}
       >
         <button 
-          onClick={handleAddToCart}
-          className="flex-1 py-3.5 border border-[var(--color-text)] text-[12px] font-medium tracking-[1.5px] uppercase active:bg-[var(--color-surface)] transition-colors"
+          onClick={sizeSoldOut || isTotallySoldOut ? handleNotifyMe : handleAddToCart}
+          disabled={sizeSoldOut || isTotallySoldOut ? notifyBusy : !canAddMore}
+          className="flex-1 py-3.5 border border-[var(--color-text)] text-[12px] font-medium tracking-[1.5px] uppercase active:bg-[var(--color-surface)] transition-colors disabled:opacity-40"
         >
-          Add to cart
+          {sizeSoldOut || isTotallySoldOut ? (notifyBusy ? "…" : "Notify me") : "Add to cart"}
         </button>
         <button 
           onClick={handleBuyNow}
-          disabled={isNavigating}
+          disabled={isNavigating || sizeSoldOut || isTotallySoldOut || !canAddMore}
           className={`flex-1 py-3.5 text-white text-[12px] font-medium tracking-[1.5px] uppercase transition-opacity flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800' : 'bg-[var(--color-accent)] active:bg-opacity-90'}`}
         >
           {isNavigating ? (
@@ -889,31 +1127,6 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           </div>
         </div>
       )}
-
-      {/* Mobile Sticky Add to Cart */}
-      <div 
-        className={`fixed bottom-0 left-0 w-full bg-white border-t border-[var(--color-border)] p-3 px-4 z-[90] flex gap-3 lg:hidden shadow-[0_-5px_15px_rgba(0,0,0,0.05)] transition-all duration-300 ease-in-out ${
-          isMainActionsVisible ? 'opacity-0 translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
-        }`}
-      >
-        <button 
-          onClick={handleAddToCart}
-          className={`flex-1 py-3.5 border text-[12px] font-medium tracking-[1.5px] uppercase transition-colors ${
-            isAdded
-              ? "border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]"
-              : "border-[var(--color-text)] text-[var(--color-text)] active:bg-[var(--color-surface)]"
-          }`}
-        >
-          {isAdded ? "Added to cart" : "Add to cart"}
-        </button>
-        <button 
-          onClick={handleBuyNow}
-          disabled={isNavigating}
-          className="flex-1 py-3.5 bg-[var(--color-text)] text-[var(--color-surface)] text-[12px] font-medium tracking-[1.5px] uppercase transition-transform active:scale-[0.98] disabled:opacity-50"
-        >
-          {isNavigating ? "Wait..." : "Buy Now"}
-        </button>
-      </div>
     </main>
   );
 };

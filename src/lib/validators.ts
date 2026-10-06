@@ -30,7 +30,6 @@ export const placeOrderSchema = z.object({
     paymentId: z.string(),
     signature: z.string(),
   }).optional().nullable(),
-  bypassPayment: z.boolean().optional(),
 }).passthrough();
 
 export const validateCouponSchema = z.object({

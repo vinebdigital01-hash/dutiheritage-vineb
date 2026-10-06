@@ -15,6 +15,22 @@ const AddressSchema = new Schema(
   { _id: false }
 );
 
+const SavedAddressSchema = new Schema(
+  {
+    label: { type: String, default: "Home" },
+    firstName: String,
+    lastName: String,
+    address: String,
+    apartment: String,
+    city: String,
+    state: String,
+    pinCode: String,
+    phone: String,
+    country: { type: String, default: "IN" },
+  },
+  { _id: true }
+);
+
 const CustomerSchema = new Schema(
   {
     email: { type: String, lowercase: true, trim: true, index: true, sparse: true },
@@ -29,6 +45,9 @@ const CustomerSchema = new Schema(
       default: "firebase",
     },
     address: { type: AddressSchema },
+    addresses: { type: [SavedAddressSchema], default: [] },
+    deleteRequestedAt: { type: Date, default: null },
+    deleteRequestNote: { type: String, default: "" },
     city: String,
     state: String,
     pincode: String,

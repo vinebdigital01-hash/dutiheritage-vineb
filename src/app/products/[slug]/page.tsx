@@ -5,8 +5,9 @@ import { Review } from "@/models";
 import { connectDB } from "@/lib/mongodb";
 import { ProductClient } from "./ProductClient";
 import { getBaseUrl } from "@/lib/utils";
+import { schemaAvailability } from "@/lib/cart-stock";
 
-export const revalidate = 300;
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   const products = await db.getAllProducts();
@@ -136,7 +137,7 @@ export default async function ProductPage({ params }: Props) {
       url: `${baseUrl}/products/${product.slug}`,
       priceCurrency: "INR",
       price: product.salePrice || product.price,
-      availability: "https://schema.org/InStock",
+      availability: schemaAvailability(product),
       itemCondition: "https://schema.org/NewCondition",
     },
     ...(product.tags && product.tags.length > 0 && { keywords: product.tags.join(", ") }),
@@ -168,11 +169,7 @@ export default async function ProductPage({ params }: Props) {
     ],
   };
 
-  // Fetch suggested products on the server (avoids bundling all products into client JS)
-  const allProducts = await db.getAllProducts();
-  const suggestedProducts = allProducts
-    .filter(p => p.id !== product.id)
-    .slice(0, 5);
+  const suggestedProducts = await db.getRelatedProducts(product.id, product.collectionId, 5);
 
   return (
     <>

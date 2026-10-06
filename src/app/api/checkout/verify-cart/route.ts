@@ -1,21 +1,25 @@
-import { requireMongo, jsonOk, handleApiError, ApiError } from "@/lib/api";
-import { priceCartLines, type CartLineInput } from "@/services/checkout";
+import { requireMongo, jsonOk, handleApiError } from "@/lib/api";
+import {
+  inspectCartLines,
+  type InspectableCartLine,
+} from "@/services/checkout";
 
 export async function POST(request: Request) {
   try {
     requireMongo();
     const body = await request.json();
-    const items = body.items as CartLineInput[];
-    if (!items || !items.length) {
-      return jsonOk({ valid: true, lines: [] });
+    const items = (body.items || []) as InspectableCartLine[];
+    if (!items.length) {
+      return jsonOk({ valid: true, issues: [], lines: [] });
     }
 
-    try {
-      const lines = await priceCartLines(items);
-      return jsonOk({ valid: true, lines });
-    } catch (err: any) {
-      return jsonOk({ valid: false, error: err.message });
-    }
+    const result = await inspectCartLines(items);
+    return jsonOk({
+      valid: result.valid,
+      issues: result.issues,
+      lines: result.lines,
+      error: result.issues.find((i) => i.type !== "price_changed")?.message,
+    });
   } catch (err) {
     return handleApiError(err);
   }

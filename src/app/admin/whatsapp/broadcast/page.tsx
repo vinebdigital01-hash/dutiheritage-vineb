@@ -1,146 +1,124 @@
 "use client";
 
-import { useState } from "react";
-import { FiSend, FiUsers, FiMessageSquare } from "react-icons/fi";
+import { useState, useEffect } from "react";
+import { AdminButton, AdminInput, AdminSelect, AdminTextarea } from "@/components/admin/ui";
+import { adminFetch, AdminApiError } from "@/lib/admin-api";
+import { useToast } from "@/components/admin/Toast";
+import Link from "next/link";
 
-export default function WhatsAppBroadcastPage() {
+export default function BroadcastPage() {
+  const { show } = useToast();
   const [audience, setAudience] = useState("all");
   const [phones, setPhones] = useState("");
-  const [messageType, setMessageType] = useState("text");
   const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [type, setType] = useState("text");
+  const [loading, setLoading] = useState(false);
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [reason, setReason] = useState("");
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message) return;
-
-    setSending(true);
-    setResult(null);
-
-    try {
-      const res = await fetch("/api/bot/broadcast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phones: audience === "custom" ? phones : "all",
-          type: messageType,
-          message,
-        }),
+  useEffect(() => {
+    adminFetch<{ configured: boolean; reason?: string }>("/api/bot/broadcast")
+      .then((d) => {
+        setConfigured(d.configured);
+        setReason(d.reason || "");
+      })
+      .catch(() => {
+        setConfigured(false);
+        setReason("Could not check WhatsApp. Sign in again if you were logged out.");
       });
+  }, []);
 
-      const data = await res.json();
-      if (res.ok) {
-        setResult({ success: true, message: data.message });
-        setMessage("");
-      } else {
-        setResult({ success: false, message: data.error || "Failed to send broadcast." });
-      }
-    } catch (error: any) {
-      setResult({ success: false, message: error.message || "An error occurred." });
+  const send = async () => {
+    if (!configured) {
+      show("WhatsApp is not connected. Nothing was sent.", "error");
+      return;
+    }
+    if (!message.trim()) {
+      show("Write a message first.", "error");
+      return;
+    }
+    if (audience === "custom" && !phones.trim()) {
+      show("Add phone numbers, one per line or comma-separated.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await adminFetch<{ message?: string; sent?: number; failed?: number }>(
+        "/api/bot/broadcast",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            audience,
+            phones: audience === "custom" ? phones : undefined,
+            message: message.trim(),
+            type,
+          }),
+        }
+      );
+      show(data.message || `Sent ${data.sent || 0}`);
+      setMessage("");
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : "Broadcast failed", "error");
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-serif tracking-[1px] uppercase mb-2">Send to many people</h1>
-        <p className="text-sm text-neutral-500">One WhatsApp message to many customers. Not for packing parcels.</p>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl border border-[var(--color-border)] shadow-sm">
-        <form onSubmit={handleSend} className="space-y-6">
-          
-          <div>
-            <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-              <FiUsers /> Audience
-            </label>
-            <select
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              className="w-full border border-neutral-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-black focus:border-black outline-none"
-            >
-              <option value="all">All Customers</option>
-              <option value="active">Active Conversations (Last 24h)</option>
-              <option value="custom">Specific Phone Numbers</option>
-            </select>
-          </div>
-
-          {audience === "custom" && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone Numbers</label>
-              <textarea
-                value={phones}
-                onChange={(e) => setPhones(e.target.value)}
-                placeholder="Enter comma-separated phone numbers with country code (e.g. 919876543210, 919876543211)"
-                rows={3}
-                className="w-full border border-neutral-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-black focus:border-black outline-none"
-                required
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Message Type</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  name="messageType"
-                  value="text"
-                  checked={messageType === "text"}
-                  onChange={(e) => setMessageType(e.target.value)}
-                  className="accent-black"
-                />
-                Regular Text
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  name="messageType"
-                  value="template"
-                  checked={messageType === "template"}
-                  onChange={(e) => setMessageType(e.target.value)}
-                  className="accent-black"
-                />
-                Approved Template
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-              <FiMessageSquare /> Message Body
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={messageType === "template" ? "Enter template name or ID..." : "Type your message here..."}
-              rows={5}
-              className="w-full border border-neutral-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-black focus:border-black outline-none"
-              required
-            />
-          </div>
-
-          {result && (
-            <div className={`p-3 rounded-md text-sm ${result.success ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-              {result.message}
-            </div>
-          )}
-
-          <div className="flex justify-end pt-4 border-t border-[var(--color-border)]">
-            <button
-              type="submit"
-              disabled={sending || !message}
-              className="bg-black text-white px-6 py-2.5 rounded-md text-sm tracking-[1px] uppercase flex items-center gap-2 hover:bg-black/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {sending ? "Sending..." : <><FiSend /> Send Broadcast</>}
-            </button>
-          </div>
-        </form>
-      </div>
+    <div className="max-w-xl space-y-4">
+      <h1 className="font-serif text-2xl">Send to many</h1>
+      <p className="text-[13px] text-neutral-600">
+        This sends real WhatsApp. If keys are missing, the button stays off — we will not show a fake success.         For a saved group, use{" "}
+        <Link href="/admin/groups" className="underline">
+          Groups
+        </Link>
+        .
+      </p>
+      {configured === false && (
+        <p className="text-[13px] text-[#8B3A2A] bg-[#8B3A2A]/5 border border-[#8B3A2A]/20 p-3">
+          {reason || "WhatsApp is not connected. No messages will be sent."}
+        </p>
+      )}
+      {configured === true && (
+        <p className="text-[13px] text-neutral-600 bg-neutral-50 border border-neutral-200 p-3">
+          WhatsApp is connected. Up to 200 numbers per send.
+        </p>
+      )}
+      <AdminSelect
+        label="Who"
+        value={audience}
+        onChange={(e) => setAudience(e.target.value)}
+      >
+        <option value="all">Customers with a phone (up to 200)</option>
+        <option value="active">Chatted in the last 24 hours</option>
+        <option value="custom">These numbers only</option>
+      </AdminSelect>
+      {audience === "custom" && (
+        <AdminTextarea
+          label="Phone numbers"
+          value={phones}
+          onChange={(e) => setPhones(e.target.value)}
+          placeholder="9876543210, 9123456789"
+          rows={4}
+        />
+      )}
+      <AdminSelect
+        label="Kind"
+        value={type}
+        onChange={(e) => setType(e.target.value)}
+      >
+        <option value="text">Plain text</option>
+        <option value="template">Approved template name</option>
+      </AdminSelect>
+      <AdminInput
+        label={type === "template" ? "Template name" : "Message"}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder={type === "template" ? "order_shipped" : "Hi from Duti Heritage"}
+      />
+      <AdminButton onClick={send} disabled={loading || configured !== true}>
+        {loading ? "Sending…" : configured === false ? "WhatsApp not connected" : "Send WhatsApp"}
+      </AdminButton>
     </div>
   );
 }

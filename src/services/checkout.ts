@@ -2,7 +2,12 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { Product, Settings } from "@/models";
 import { ApiError } from "@/lib/api";
-import { assertLineInStock, resolveInventorySize } from "@/services/inventory";
+import {
+  assertLineInStock,
+  availableStock,
+  enforcesInventory,
+  resolveInventorySize,
+} from "@/services/inventory";
 
 export type CheckoutSettings = {
   freeShippingAbove: number;
@@ -162,6 +167,111 @@ export async function priceCartLines(
   });
 }
 
+export type CartLineIssue = {
+  productId: string;
+  size?: string;
+  name: string;
+  type: "not_found" | "out_of_stock" | "price_changed";
+  message: string;
+  availableQty?: number;
+  livePrice?: number;
+  cartPrice?: number;
+};
+
+export type InspectableCartLine = CartLineInput & { unitPrice?: number };
+
+/** Per-line stock and price check for checkout UI. Does not throw on the first bad line. */
+export async function inspectCartLines(
+  lines: InspectableCartLine[]
+): Promise<{ valid: boolean; issues: CartLineIssue[]; lines: PricedLine[] }> {
+  if (!lines.length) {
+    return { valid: true, issues: [], lines: [] };
+  }
+
+  await connectDB();
+  const ids = [...new Set(lines.map((l) => l.productId))].filter((id) =>
+    mongoose.Types.ObjectId.isValid(id)
+  );
+  const products = ids.length
+    ? await Product.find({ isActive: true }).where("_id").in(ids).lean()
+    : [];
+  const byId = new Map(products.map((p) => [p._id.toString(), p]));
+
+  const issues: CartLineIssue[] = [];
+  const priced: PricedLine[] = [];
+
+  for (const line of lines) {
+    const qty = Math.max(1, Number(line.quantity) || 1);
+    const product = byId.get(line.productId);
+    if (!product) {
+      issues.push({
+        productId: line.productId,
+        size: line.size,
+        name: "This item",
+        type: "not_found",
+        message: "An item in your cart is no longer available. Please remove it.",
+      });
+      continue;
+    }
+
+    const size = resolveInventorySize(product, line.size);
+    const livePrice = Number(product.salePrice ?? product.price);
+    const name = product.name;
+
+    if (enforcesInventory(product)) {
+      const stock = availableStock(product, size);
+      if (stock < qty) {
+        issues.push({
+          productId: line.productId,
+          size,
+          name,
+          type: "out_of_stock",
+          availableQty: stock,
+          message:
+            stock <= 0
+              ? `${name}${size ? ` (Size: ${size})` : ""} is sold out. Please remove it.`
+              : `Only ${stock} left for ${name}${size ? ` (Size: ${size})` : ""}. Reduce the quantity.`,
+        });
+        continue;
+      }
+    }
+
+    if (typeof line.unitPrice === "number" && Number.isFinite(line.unitPrice)) {
+      const cartPaise = Math.round(line.unitPrice * 100);
+      const livePaise = Math.round(livePrice * 100);
+      if (cartPaise !== livePaise) {
+        issues.push({
+          productId: line.productId,
+          size,
+          name,
+          type: "price_changed",
+          livePrice,
+          cartPrice: line.unitPrice,
+          message: `${name} is now ₹${livePrice.toLocaleString("en-IN")} (was ₹${line.unitPrice.toLocaleString("en-IN")}). You will be charged the current price.`,
+        });
+      }
+    }
+
+    priced.push({
+      productId: line.productId,
+      slug: product.slug,
+      name,
+      image: product.image,
+      collectionId: String(product.collectionId ?? ""),
+      size,
+      color: line.color,
+      quantity: qty,
+      price: product.price,
+      salePrice: product.salePrice ?? null,
+      hsn: (product as { hsn?: string }).hsn || "6104",
+      gstRate: Number((product as { gstRate?: number }).gstRate ?? 5),
+    });
+  }
+
+  const blocking = issues.some((i) => i.type !== "price_changed");
+  return { valid: !blocking, issues, lines: priced };
+}
+
 export async function resolveCouponDiscount(
   code: string | undefined | null,
   subtotal: number,
@@ -169,6 +279,9 @@ export async function resolveCouponDiscount(
     productIds?: string[]; 
     collectionIds?: string[];
     items?: Array<{ productId: string; collectionId?: string; price: number; quantity: number; }>;
+    customerPhone?: string;
+    customerEmail?: string;
+    firebaseUid?: string;
   }
 ): Promise<{ code: string; amount: number } | null> {
   if (!code?.trim()) return null;
@@ -179,6 +292,9 @@ export async function resolveCouponDiscount(
     productIds: opts?.productIds,
     collectionIds: opts?.collectionIds,
     items: opts?.items,
+    customerPhone: opts?.customerPhone,
+    customerEmail: opts?.customerEmail,
+    firebaseUid: opts?.firebaseUid,
   });
   return { code: result.code, amount: result.amount };
 }

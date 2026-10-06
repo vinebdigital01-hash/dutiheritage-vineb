@@ -133,7 +133,7 @@ export const Header = () => {
               </button>
               <Link
                 href="/account"
-                className="hidden xl:flex items-center justify-center text-[var(--color-text)] hover:opacity-70 transition-opacity"
+                className="flex items-center justify-center text-[var(--color-text)] hover:opacity-70 transition-opacity"
                 aria-label="Account"
               >
                 <svg

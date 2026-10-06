@@ -192,8 +192,8 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
         actions={
           <div className="flex flex-wrap gap-2">
             <AdminButton variant="secondary" onClick={handleExportCSV}>Download products spreadsheet</AdminButton>
-            <Link href="/admin/products/bulk-inventory">
-              <AdminButton variant="secondary">Update stock (spreadsheet)</AdminButton>
+            <Link href="/admin/inventory">
+              <AdminButton variant="secondary">Update stock</AdminButton>
             </Link>
             <Link href="/admin/products/bulk-import">
               <AdminButton variant="secondary">Add many products</AdminButton>

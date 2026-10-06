@@ -13,7 +13,6 @@ export const PromoBanner = () => {
     "Subscribe to receive updates, access to exclusive deals, and more.";
   const buttonText = promo?.buttonText || "Subscribe";
 
-
   const [subscribeResult, setSubscribeResult] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -21,25 +20,24 @@ export const PromoBanner = () => {
     event.preventDefault();
     setIsSubmitting(true);
     setSubscribeResult("");
-    
-    const formData = new FormData(event.currentTarget);
-    formData.append("name", "Promo Banner Subscriber"); 
-    formData.append("access_key", "26f12f2a-a465-46c9-9355-892de2f8117d");
+
+    const form = event.currentTarget;
+    const emailValue = String(new FormData(form).get("email") || "").trim();
 
     try {
-      const response = await fetch("https://api.web3forms.com/submit", {
+      const response = await fetch("/api/newsletter/subscribe", {
         method: "POST",
-        body: formData
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailValue, source: "promo" }),
       });
-
-      const data = await response.json();
-      if (data.success) {
-        setSubscribeResult("Thanks for joining the Heritage Club!");
-        (event.target as HTMLFormElement).reset();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSubscribeResult(data.error || "Something went wrong. Try again.");
       } else {
-        setSubscribeResult("Something went wrong. Try again.");
+        setSubscribeResult(data.message || "Thanks for joining the Heritage Club!");
+        form.reset();
       }
-    } catch (err) {
+    } catch {
       setSubscribeResult("Connection error. Try again.");
     }
     setIsSubmitting(false);

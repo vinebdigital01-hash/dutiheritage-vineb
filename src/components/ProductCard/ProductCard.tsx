@@ -31,7 +31,7 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
     <Link 
       href={`/products/${product.slug}`} 
       className="group flex flex-col h-full animate-fade-in-up opacity-0"
-      style={{ animationDelay: `${index * 0.1}s` }}
+      style={{ animationDelay: `${Math.min(index, 8) * 0.05}s` }}
     >
       <div className="relative w-full aspect-[3/4] overflow-hidden bg-[var(--color-surface)] mb-2">
         <button 
@@ -41,7 +41,7 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
         >
           <FiHeart className={isWishlisted ? "fill-current" : ""} size={16} />
         </button>
-        {product.image ? (
+        {product.image?.trim() ? (
           isCloudinary(product.image) ? (
             <CldImage 
               src={product.image}

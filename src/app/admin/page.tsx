@@ -5,7 +5,6 @@ import Link from "next/link";
 import { adminFetch, downloadAdminFile } from "@/lib/admin-api";
 import { PageHeader, StatCard, AdminButton, Badge, useToast } from "@/components/admin/ui";
 import type { OrderDTO } from "@/lib/mappers";
-import type { Product, Collection } from "@/types";
 
 // Import all charts
 import {
@@ -47,62 +46,42 @@ export default function AdminDashboardPage() {
   const [needsConfirmation, setNeedsConfirmation] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [outOfStockCount, setOutOfStockCount] = useState(0);
+  const [todayRevenue, setTodayRevenue] = useState(0);
+  const [todayOrderCount, setTodayOrderCount] = useState(0);
 
   const loadCoreData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, productsRes, collectionsRes, customersRes, inventoryRes] = await Promise.all([
+      const [summary, ordersRes, inventoryRes] = await Promise.all([
+        adminFetch<{
+          revenue: number;
+          orderCount: number;
+          todayRevenue: number;
+          todayOrderCount: number;
+          needsConfirmation: number;
+          productCount: number;
+          collectionCount: number;
+          customerCount: number;
+        }>(`/api/analytics/home-summary?days=${days}`),
         adminFetch<{ orders: OrderDTO[]; count: number; total?: number }>("/api/orders?limit=8"),
-        adminFetch<{ products: Product[]; count: number }>("/api/products?all=1"),
-        adminFetch<{ collections: Collection[] }>("/api/collections?all=1"),
-        adminFetch<{ customers: any[]; count: number }>("/api/customers?limit=1"),
         adminFetch<{ lowCount: number; outCount: number }>("/api/inventory/alerts").catch(() => ({
           lowCount: 0,
           outCount: 0,
         })),
       ]);
 
-      const orders = ordersRes?.orders || [];
-      setRecentOrders(orders);
-      setTotalOrderCount(ordersRes?.total || ordersRes?.count || orders.length);
-
-      // Fetch ALL orders to compute revenue (the list API may return paginated)
-        const allOrdersRes = await adminFetch<{ orders: OrderDTO[]; count: number; total?: number }>("/api/orders?limit=100");
-      const allOrders = allOrdersRes?.orders || [];
-
-      // Calculate revenue from non-cancelled orders in the time period
-      const now = new Date();
-      const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - days);
-      startDate.setHours(0, 0, 0, 0);
-
-      let revenue = 0;
-      let ordersInPeriod = 0;
-      let pendingConfirmation = 0;
-
-      allOrders.forEach(o => {
-        if (o.status !== "Cancelled" && o.createdAt) {
-          const orderDate = new Date(o.createdAt);
-          if (orderDate >= startDate) {
-            revenue += o.total || 0;
-            ordersInPeriod++;
-          }
-        }
-        if (o.status === "Confirmation Pending") {
-          pendingConfirmation++;
-        }
-      });
-
-      setTotalRevenue(revenue);
-      setTotalOrderCount(ordersInPeriod);
-      setNeedsConfirmation(pendingConfirmation);
+      setRecentOrders(ordersRes?.orders || []);
+      setTotalRevenue(summary.revenue || 0);
+      setTotalOrderCount(summary.orderCount || 0);
+      setNeedsConfirmation(summary.needsConfirmation || 0);
+      setProductCount(summary.productCount || 0);
+      setCollectionCount(summary.collectionCount || 0);
+      setCustomerCount(summary.customerCount || 0);
       setLowStockCount(inventoryRes?.lowCount || 0);
       setOutOfStockCount(inventoryRes?.outCount || 0);
-      setProductCount(productsRes?.products?.length || 0);
-      setCollectionCount(collectionsRes?.collections?.length || 0);
-      setCustomerCount(customersRes?.count || 0);
+      setTodayRevenue(summary.todayRevenue || 0);
+      setTodayOrderCount(summary.todayOrderCount || 0);
 
-      // Count abandoned carts
       try {
         const cartsRes = await adminFetch<{ carts: any[]; count: number }>("/api/cart/sync?status=abandoned&limit=1");
         setAbandonedCount(cartsRes?.count || 0);
@@ -154,7 +133,7 @@ export default function AdminDashboardPage() {
       {Toast}
       <PageHeader
         title="Home"
-        subtitle="Today’s snapshot — you pack from Orders, not here"
+        subtitle="Numbers from the full day in India time — not a sample of 100 orders"
         actions={
           <div className="flex flex-wrap gap-3 items-center">
             <select 
@@ -206,11 +185,12 @@ export default function AdminDashboardPage() {
               <p className="text-[13px] text-neutral-500 mt-1">Open Stock →</p>
             </Link>
             <div className="bg-white border border-[var(--color-border)] rounded-xl px-5 py-4">
-              <p className="text-[11px] uppercase tracking-wider text-neutral-500">Start here</p>
-              <p className="text-[15px] font-medium mt-1">Recent orders</p>
-              <p className="text-[13px] text-neutral-600 mt-2 leading-snug">
-                Scroll down and click an order number to open it.
+              <p className="text-[11px] uppercase tracking-wider text-neutral-500">Today (IST)</p>
+              <p className="text-[15px] font-medium mt-1">Revenue / orders today</p>
+              <p className="text-2xl font-serif mt-1">
+                {`\u20B9${todayRevenue.toLocaleString("en-IN")}`}
               </p>
+              <p className="text-[13px] text-neutral-500 mt-1">{todayOrderCount} orders today</p>
             </div>
           </div>
 

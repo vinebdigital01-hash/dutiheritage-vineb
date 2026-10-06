@@ -1,7 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { Customer, type CustomerDocument } from "@/models";
 import type { AuthUser } from "@/lib/auth";
-import type { UserProfile } from "@/types";
+import type { SavedAddress, UserProfile } from "@/types";
 
 export type SyncPayload = {
   name?: string | null;
@@ -15,27 +15,69 @@ export type SyncPayload = {
   country?: string;
 };
 
+type AddrShape = {
+  _id?: { toString(): string };
+  id?: string;
+  label?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  phone?: string;
+  country?: string;
+};
+
+function mapSavedAddress(a: AddrShape, fallbackId: string): SavedAddress {
+  return {
+    id: a.id || (a._id ? a._id.toString() : fallbackId),
+    label: a.label || "Home",
+    firstName: a.firstName || undefined,
+    lastName: a.lastName || undefined,
+    address: a.address || undefined,
+    apartment: a.apartment || undefined,
+    city: a.city || undefined,
+    state: a.state || undefined,
+    pinCode: a.pinCode || undefined,
+    phone: a.phone || undefined,
+    country: a.country || "IN",
+  };
+}
+
+export function addressesFromCustomer(customer: CustomerDocument): SavedAddress[] {
+  const raw = (customer as CustomerDocument & { addresses?: AddrShape[] }).addresses;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map((a, i) => mapSavedAddress(a, `addr-${i}`));
+  }
+  const addr = customer.address as AddrShape | undefined;
+  if (addr && (addr.address || addr.pinCode || addr.city)) {
+    return [mapSavedAddress({ ...addr, label: "Home" }, "home")];
+  }
+  return [];
+}
+
 export function customerToProfile(customer: CustomerDocument): UserProfile {
-  const addr = customer.address as
-    | {
-        address?: string;
-        apartment?: string;
-        city?: string;
-        state?: string;
-        pinCode?: string;
-        country?: string;
-        phone?: string;
-      }
-    | undefined;
+  const addresses = addressesFromCustomer(customer);
+  const primary = addresses.find((a) => a.label.toLowerCase() === "home") || addresses[0];
+  const addr = customer.address as AddrShape | undefined;
+  const extra = customer as CustomerDocument & {
+    deleteRequestedAt?: Date | null;
+  };
 
   return {
-    phone: customer.phone || addr?.phone || undefined,
-    address: addr?.address || undefined,
-    apartment: addr?.apartment || undefined,
-    city: customer.city || addr?.city || undefined,
-    state: customer.state || addr?.state || undefined,
-    pinCode: customer.pincode || addr?.pinCode || undefined,
-    country: addr?.country || undefined,
+    phone: customer.phone || addr?.phone || primary?.phone || undefined,
+    address: primary?.address || addr?.address || undefined,
+    apartment: primary?.apartment || addr?.apartment || undefined,
+    city: customer.city || primary?.city || addr?.city || undefined,
+    state: customer.state || primary?.state || addr?.state || undefined,
+    pinCode: customer.pincode || primary?.pinCode || addr?.pinCode || undefined,
+    country: primary?.country || addr?.country || undefined,
+    addresses,
+    deleteRequestedAt: extra.deleteRequestedAt
+      ? new Date(extra.deleteRequestedAt).toISOString()
+      : null,
   };
 }
 

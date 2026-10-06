@@ -1,6 +1,6 @@
 # Make complete admin easy — production plan (Phase F)
 
-**Status: F1–F7 done. Complete admin ease pass is finished.**
+**Status: F1–F7 done. Complete admin ease pass is finished.** Next honesty pass: [ADMIN_PRODUCTION_README.md](./ADMIN_PRODUCTION_README.md) (Phase H — do not start until H1 is approved).
 
 Phases **A–E are already built** (orders, stock, GST, customers, roles, returns, search, WhatsApp). Staff still cannot tell what the screens *mean*. This file is the next production phase: **same admin, plain language**.
 

@@ -115,4 +115,38 @@ export const db = {
     if (!doc || doc.isActive === false) return undefined;
     return toCollection(doc);
   },
+
+  async getRelatedProducts(productId: string, collectionId: string, limit = 5): Promise<Product[]> {
+    const cap = Math.min(8, Math.max(1, limit));
+    if (!useMongo()) {
+      const same = mockProducts.filter((p) => p.collectionId === collectionId && p.id !== productId).slice(0, cap);
+      if (same.length >= cap) return same;
+      const extra = mockProducts.filter(
+        (p) => p.id !== productId && !same.some((s) => s.id === p.id)
+      ).slice(0, cap - same.length);
+      return [...same, ...extra];
+    }
+
+    await ensureDb();
+    const exclude = isObjectId(productId) ? [productId] : [];
+    const same = await ProductModel.find({
+      isActive: true,
+      collectionId,
+      ...(exclude.length ? { _id: { $nin: exclude } } : {}),
+    })
+      .limit(cap)
+      .lean();
+    let products = same.map((doc) => toProduct(doc));
+    if (products.length < cap) {
+      const extraExclude = [...exclude, ...products.map((p) => p.id)].filter(isObjectId);
+      const extra = await ProductModel.find({
+        isActive: true,
+        ...(extraExclude.length ? { _id: { $nin: extraExclude } } : {}),
+      })
+        .limit(cap - products.length)
+        .lean();
+      products = [...products, ...extra.map((doc) => toProduct(doc))];
+    }
+    return products;
+  },
 };

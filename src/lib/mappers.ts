@@ -88,6 +88,14 @@ export type OrderDTO = {
   paymentStatus: string;
   razorpayPaymentId?: string | null;
   refundedAmount?: number;
+  refunds?: Array<{
+    amount: number;
+    reason?: string;
+    actor?: string;
+    razorpayRefundId?: string;
+    channel?: "razorpay" | "manual" | "cod_note";
+    at?: string;
+  }>;
   couponCode?: string | null;
   status: OrderStatus;
   trackingInfo?: {
@@ -100,6 +108,12 @@ export type OrderDTO = {
   statusReason?: string | null;
   cancelRequestState?: "none" | "requested" | "rejected" | "accepted";
   cancelRejectReason?: string | null;
+  /** Latest return/exchange request for this order (customer list). */
+  returnRequest?: {
+    status: string;
+    type?: string;
+    rejectReason?: string | null;
+  } | null;
   timeline?: Array<{
     at: string;
     actor: string;
@@ -175,6 +189,19 @@ export function toOrder(
     paymentStatus: String(doc.paymentStatus || "pending") as OrderDTO["paymentStatus"],
     razorpayPaymentId: doc.razorpayPaymentId ? String(doc.razorpayPaymentId) : null,
     refundedAmount: Number(doc.refundedAmount) || 0,
+    refunds: Array.isArray(doc.refunds)
+      ? (doc.refunds as Array<Record<string, unknown>>).map((r) => ({
+          amount: Number(r.amount) || 0,
+          reason: r.reason ? String(r.reason) : undefined,
+          actor: r.actor ? String(r.actor) : undefined,
+          razorpayRefundId: r.razorpayRefundId ? String(r.razorpayRefundId) : undefined,
+          channel:
+            r.channel === "razorpay" || r.channel === "manual" || r.channel === "cod_note"
+              ? r.channel
+              : undefined,
+          at: r.at ? new Date(r.at as string | Date).toISOString() : undefined,
+        }))
+      : [],
     couponCode: (doc.couponCode as string | undefined) ?? null,
     status: doc.status as OrderStatus,
     trackingInfo: tracking

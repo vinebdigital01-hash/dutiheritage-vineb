@@ -101,6 +101,10 @@ const OrderSchema = new Schema(
           reason: { type: String },
           actor: { type: String },
           razorpayRefundId: { type: String },
+          channel: {
+            type: String,
+            enum: ["razorpay", "manual", "cod_note"],
+          },
           at: { type: Date, default: Date.now },
         },
       ],

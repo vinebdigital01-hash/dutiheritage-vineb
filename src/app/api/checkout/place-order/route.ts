@@ -50,8 +50,6 @@ type PlaceOrderBody = {
     paymentId: string;
     signature: string;
   } | null;
-  /** Dev-only: allow placing prepaid without Razorpay when keys missing */
-  allowUnpaidDev?: boolean;
 };
 
 /**
@@ -146,6 +144,9 @@ export async function POST(request: Request) {
         price: l.salePrice ?? l.price,
         quantity: l.quantity,
       })),
+      customerPhone: c.phone,
+      customerEmail: c.email,
+      firebaseUid,
     });
 
     const totals = computeCheckoutTotals({
@@ -188,13 +189,12 @@ export async function POST(request: Request) {
         razorpayPaymentId = body.razorpay.paymentId;
         paymentStatus =
           paymentMethod === "partial" ? "partially_paid" : "paid";
-      } else if (!body.allowUnpaidDev) {
+      } else {
         throw new ApiError(
-          "Razorpay is not configured. Add keys to .env.local or use COD.",
+          "Online payment is not available right now. Please choose Cash on Delivery, or try again later.",
           503
         );
       }
-      // else: unpaid/dev prepaid allowed
     }
 
     let customerId: string | undefined;
