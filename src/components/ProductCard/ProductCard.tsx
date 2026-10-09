@@ -26,6 +26,13 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
   const savings = hasSale ? product.price - product.salePrice! : 0;
   const { wishlist, toggleWishlist } = useAppContext();
   const isWishlisted = wishlist?.includes(product.id);
+  
+  const rows = product.inventory || [];
+  const tracking = Boolean(product.trackInventory) || rows.length > 0;
+  const stocks = rows.map((r) => Number(r.stock || 0));
+  const totalStock = stocks.reduce((a, b) => a + b, 0);
+  const isSoldOut = tracking && totalStock <= 0;
+  const threshold = product.lowStockThreshold ?? 3;
 
   return (
     <Link 
@@ -53,7 +60,7 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
               src={product.image}
               alt={product.name}
               fill
-              className="object-cover transition-transform duration-400 ease-in-out group-hover:scale-105"
+              className={`object-cover transition-transform duration-400 ease-in-out group-hover:scale-105 ${isSoldOut ? "grayscale opacity-50" : ""}`}
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
               priority={priority}
             />
@@ -62,7 +69,7 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
               src={product.image}
               alt={product.name}
               fill
-              className="object-cover transition-transform duration-400 ease-in-out group-hover:scale-105"
+              className={`object-cover transition-transform duration-400 ease-in-out group-hover:scale-105 ${isSoldOut ? "grayscale opacity-50" : ""}`}
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
               priority={priority}
             />
@@ -73,43 +80,33 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
           </div>
         )}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
-          {(() => {
-            const rows = product.inventory || [];
-            const tracking = Boolean(product.trackInventory) || rows.length > 0;
-            if (!tracking) return null;
-            const stocks = rows.map((r) => Number(r.stock || 0));
-            const total = stocks.reduce((a, b) => a + b, 0);
-            const threshold = product.lowStockThreshold ?? 3;
-            if (total <= 0) {
-              return (
-                <div className="bg-red-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
-                  SOLD OUT
-                </div>
-              );
-            }
-            if (total <= threshold || product.stockStatus === "low_stock") {
-              return (
+          {isSoldOut ? (
+            <div className="bg-red-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
+              SOLD OUT
+            </div>
+          ) : (
+            <>
+              {tracking && totalStock > 0 && (totalStock <= threshold || product.stockStatus === "low_stock") && (
                 <div className="bg-amber-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
-                  Only {total} left
+                  Only {totalStock} left
                 </div>
-              );
-            }
-            return null;
-          })()}
-          {product.tags && product.tags.map(tag => (
-             <div key={tag} className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
-               {tag}
-             </div>
-          ))}
-          {!product.tags && product.badge && (
-            <div className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
-              {product.badge}
-            </div>
-          )}
-          {hasSale && (
-            <div className="bg-[var(--color-bg)] text-[var(--color-text)] text-[11px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm border border-gray-100">
-              SALE
-            </div>
+              )}
+              {product.tags && product.tags.map(tag => (
+                 <div key={tag} className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
+                   {tag}
+                 </div>
+              ))}
+              {!product.tags && product.badge && (
+                <div className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
+                  {product.badge}
+                </div>
+              )}
+              {hasSale && (
+                <div className="bg-[var(--color-bg)] text-[var(--color-text)] text-[11px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm border border-gray-100">
+                  SALE
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
