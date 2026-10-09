@@ -104,15 +104,15 @@ export default function AdminInventoryPage() {
     };
   }, [loadLists, loadStock]);
 
-  const rowKey = (r: { productId: string; size: string }) => `${r.productId}:${r.size}`;
+  const rowKey = (r: StockRow) => `${r.productId}:${r.color || ""}:${r.size}`;
 
-  const saveQty = async (productId: string, size: string, stock: number) => {
-    const key = `${productId}:${size}`;
+  const saveQty = async (productId: string, color: string, size: string, stock: number) => {
+    const key = `${productId}:${color}:${size}`;
     setBusyKey(key);
     try {
       await adminFetch("/api/inventory/stock", {
         method: "POST",
-        body: JSON.stringify({ productId, size, stock }),
+        body: JSON.stringify({ productId, color, size, stock }),
       });
       show(`Saved ${size} → ${stock}`);
       await Promise.all([loadLists(), loadStock()]);
@@ -251,6 +251,7 @@ export default function AdminInventoryPage() {
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
                       <th className="px-5 py-3">Product</th>
+                      <th className="px-5 py-3">Color</th>
                       <th className="px-5 py-3">Size</th>
                       <th className="px-5 py-3">Now</th>
                       <th className="px-5 py-3">New qty</th>
@@ -287,7 +288,7 @@ export default function AdminInventoryPage() {
                           <td className="px-5 py-3">
                             <AdminButton
                               disabled={busyKey === key}
-                              onClick={() => saveQty(r.productId, r.size, Number(value))}
+                              onClick={() => saveQty(r.productId, r.color || "", r.size, Number(value))}
                             >
                               {busyKey === key ? "Saving…" : "Save"}
                             </AdminButton>
@@ -352,6 +353,7 @@ export default function AdminInventoryPage() {
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
                       <th className="px-5 py-3">Product</th>
+                      <th className="px-5 py-3">Color</th>
                       <th className="px-5 py-3">Size</th>
                       <th className="px-5 py-3">SKU</th>
                       <th className="px-5 py-3">Stock</th>
@@ -362,7 +364,8 @@ export default function AdminInventoryPage() {
                     {alerts.map((a, i) => (
                       <tr key={`${a.id}-${a.size}-${i}`}>
                         <td className="px-5 py-3 font-medium">{a.name}</td>
-                        <td className="px-5 py-3">{a.size || "—"}</td>
+                          <td className="px-5 py-3 text-neutral-500">{a.color || "-"}</td>
+                          <td className="px-5 py-3">{a.size || "?"}</td>
                         <td className="px-5 py-3 font-mono text-[12px]">{a.sku || "—"}</td>
                         <td className="px-5 py-3 font-medium">{a.stock}</td>
                         <td className="px-5 py-3">
@@ -395,6 +398,7 @@ export default function AdminInventoryPage() {
                     <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
                       <th className="px-5 py-3">When</th>
                       <th className="px-5 py-3">Product</th>
+                      <th className="px-5 py-3">Color</th>
                       <th className="px-5 py-3">Size</th>
                       <th className="px-5 py-3">Change</th>
                       <th className="px-5 py-3">After</th>
