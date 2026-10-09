@@ -11,8 +11,8 @@ const STAGES: { stage: "3d" | "7d"; minAge: number; maxAge: number }[] = [
   { stage: "7d", minAge: 7 * DAY, maxAge: 14 * DAY },
 ];
 
-async function run(request: Request) {
-  requireCronSecret(request);
+export async function runWishlistReminders() {
+  
   requireMongo();
   await connectDB();
 
@@ -61,17 +61,13 @@ async function run(request: Request) {
     }
   }
 
-  return jsonOk({
+  return {
     processed: results.length,
     results,
     at: new Date().toISOString(),
-  });
+  };
 }
 
-export async function GET(request: Request) {
-  try { return await run(request); } catch (error) { return handleApiError(error); }
-}
 
-export async function POST(request: Request) {
-  try { return await run(request); } catch (error) { return handleApiError(error); }
-}
+
+

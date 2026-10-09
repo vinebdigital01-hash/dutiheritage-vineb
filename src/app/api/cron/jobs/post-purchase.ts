@@ -9,8 +9,8 @@ const DAY = 24 * 60 * 60 * 1000;
 /**
  * Review reminder ~3 days after delivery.
  */
-async function run(request: Request) {
-  requireCronSecret(request);
+export async function runPostPurchase() {
+  
   requireMongo();
   await connectDB();
 
@@ -35,21 +35,9 @@ async function run(request: Request) {
     results.push({ orderId: order.orderId, result });
   }
 
-  return jsonOk({ processed: results.length, results });
+  return { processed: results.length, results };
 }
 
-export async function GET(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
 
-export async function POST(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+
+

@@ -19,8 +19,8 @@ const STAGES: { stage: Stage; minAge: number; maxAge?: number }[] = [
  * Auth: Authorization: Bearer CRON_SECRET
  * Marks stale active carts abandoned and sends 1h / 24h / 72h reminders.
  */
-async function run(request: Request) {
-  requireCronSecret(request);
+export async function runAbandonedCarts() {
+  
   requireMongo();
   await connectDB();
 
@@ -81,25 +81,13 @@ async function run(request: Request) {
     }
   }
 
-  return jsonOk({
+  return {
     processed: results.length,
     results,
     at: new Date().toISOString(),
-  });
+  };
 }
 
-export async function GET(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
 
-export async function POST(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+
+

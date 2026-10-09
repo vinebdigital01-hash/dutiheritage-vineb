@@ -12,8 +12,8 @@ const THIRTY_MIN = 30 * 60 * 1000;
  * Auth: Authorization: Bearer CRON_SECRET
  * If 30+ minutes since WhatsApp checkout start and no order → nudge once.
  */
-async function run(request: Request) {
-  requireCronSecret(request);
+export async function runWhatsappAbandoned() {
+  
   requireMongo();
   await connectDB();
 
@@ -64,21 +64,9 @@ async function run(request: Request) {
     });
   }
 
-  return jsonOk({ processed: results.length, results });
+  return { processed: results.length, results };
 }
 
-export async function GET(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
 
-export async function POST(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+
+

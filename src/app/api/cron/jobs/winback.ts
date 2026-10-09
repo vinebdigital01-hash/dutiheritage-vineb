@@ -9,8 +9,8 @@ const DAY = 24 * 60 * 60 * 1000;
 /**
  * Win-back for customers dormant 30d / 60d since last purchase or visit.
  */
-async function run(request: Request) {
-  requireCronSecret(request);
+export async function runWinback() {
+  
   requireMongo();
   await connectDB();
 
@@ -60,21 +60,9 @@ async function run(request: Request) {
     }
   }
 
-  return jsonOk({ processed: results.length, results });
+  return { processed: results.length, results };
 }
 
-export async function GET(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
 
-export async function POST(request: Request) {
-  try {
-    return await run(request);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+
+
