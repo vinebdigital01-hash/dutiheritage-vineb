@@ -1,3 +1,4 @@
+import { getLatestProducts } from "./email-products";
 import { connectDB } from "@/lib/mongodb";
 import {
   AutomationLog,
@@ -15,6 +16,7 @@ import {
   emailPromoCode,
   emailButton,
   emailMetricRow,
+  emailProductGrid,
   escHtml,
 } from "@/lib/email";
 import { sendWhatsApp, isWhatsAppConfigured } from "@/lib/whatsapp";
@@ -242,6 +244,10 @@ export async function sendWelcome(input: {
     phone: input.phone,
     subject,
     html: emailLayout(subject, body, {
+        recommendationsHtml: await (async () => { 
+          const p = await getLatestProducts(4); 
+          return p && p.length ? emailProductGrid("Our Latest Arrivals", p) : undefined;
+        })(),
       preheader: "10% off your first order with WELCOME10",
       primaryCta: { label: "Shop the collection", href: SITE() },
       secondaryCta: { label: "Your account", href: `${SITE()}/account` },
@@ -831,6 +837,10 @@ export async function sendCartAbandoned(input: {
     phone: input.phone,
     subject: copy.subject,
     html: emailLayout(copy.subject, copy.body, {
+        recommendationsHtml: await (async () => { 
+          const p = await getLatestProducts(4); 
+          return p && p.length ? emailProductGrid("More styles you might love", p) : undefined;
+        })(),
       kind: "marketing",
       preheader: copy.subject,
       primaryCta: { label: "Return to cart", href: cartUrl },
@@ -933,6 +943,10 @@ export async function sendWinback(input: {
     phone: input.phone,
     subject: copy.subject,
     html: emailLayout(copy.subject, copy.body, {
+        recommendationsHtml: await (async () => { 
+          const p = await getLatestProducts(4); 
+          return p && p.length ? emailProductGrid("Treat yourself to these", p) : undefined;
+        })(),
       kind: "marketing",
       preheader: copy.subject,
       primaryCta: { label: "Explore the latest", href: SITE() },
@@ -1116,6 +1130,10 @@ export async function sendWishlistReminder(input: {
     phone: input.phone,
     subject: copy.subject,
     html: emailLayout(copy.subject, copy.body, {
+        recommendationsHtml: await (async () => { 
+          const p = await getLatestProducts(4); 
+          return p && p.length ? emailProductGrid("You might also like", p) : undefined;
+        })(),
       kind: "marketing",
       preheader: copy.subject,
       primaryCta: { label: "View product", href: url },

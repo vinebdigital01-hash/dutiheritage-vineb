@@ -124,6 +124,7 @@ export type EmailLayoutOptions = {
   hideDefaultCtas?: boolean;
   footerNote?: string;
   kind?: "transactional" | "marketing" | "staff";
+  recommendationsHtml?: string;
 };
 
 /** Primary / outline button — table-based for Outlook */
@@ -267,6 +268,7 @@ export function emailLayout(
             </td>
           </tr>
           ${ctaRow}
+          ${opts.recommendationsHtml ? `<tr><td style="padding:0px 36px 32px;">${opts.recommendationsHtml}</td></tr>` : ""}
           <tr>
             <td style="padding:22px 36px;background:${C.wash};border-top:1px solid ${C.line};text-align:center;">
               ${footerExtra}
@@ -285,4 +287,53 @@ export function emailLayout(
   </table>
 </body>
 </html>`;
+}
+
+export type EmailProductType = {
+  name: string;
+  slug: string;
+  image: string;
+  price: number;
+  salePrice?: number;
+};
+
+export function emailProductGrid(title: string, products: EmailProductType[]): string {
+  if (!products || products.length === 0) return "";
+  const site = getPublicSiteUrl();
+  
+  const productCells = products.map((p, i) => {
+    const url = `${site}/products/${p.slug}`;
+    const img = p.image || "https://placehold.co/400x500/f6f9fc/8898aa?text=Image+Not+Available";
+    const displayPrice = p.salePrice ? p.salePrice : p.price;
+    const strikePrice = p.salePrice && p.salePrice < p.price ? `<span style="text-decoration:line-through;color:#8898aa;font-size:12px;margin-right:4px;">₹${p.price}</span>` : "";
+    
+    // 2 items per row
+    return `
+      <td width="50%" valign="top" style="padding:0 8px 24px;">
+        <a href="${url}" style="text-decoration:none;color:inherit;display:block;">
+          <img src="${img}" alt="${escHtml(p.name)}" width="100%" style="width:100%;max-width:100%;height:auto;border-radius:4px;border:1px solid #e9ecef;margin-bottom:12px;">
+          <h4 style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:600;color:#111;line-height:1.4;">${escHtml(p.name)}</h4>
+          <p style="margin:0 0 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#111;font-weight:700;">${strikePrice}₹${displayPrice}</p>
+          <div style="display:inline-block;padding:8px 16px;background-color:#111;color:#fff;font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;border-radius:2px;">Shop Now</div>
+        </a>
+      </td>
+    `;
+  });
+
+  // Group into rows of 2
+  let rows = "";
+  for (let i = 0; i < productCells.length; i += 2) {
+    const cell1 = productCells[i];
+    const cell2 = i + 1 < productCells.length ? productCells[i + 1] : '<td width="50%" style="padding:0 8px 24px;"></td>';
+    rows += `<tr>${cell1}${cell2}</tr>`;
+  }
+
+  return `
+    <div style="margin-top:32px;padding-top:32px;border-top:1px solid #e9ecef;">
+      <h3 style="margin:0 0 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:18px;font-weight:600;text-align:center;color:#111;">${escHtml(title)}</h3>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 -8px;">
+        ${rows}
+      </table>
+    </div>
+  `;
 }

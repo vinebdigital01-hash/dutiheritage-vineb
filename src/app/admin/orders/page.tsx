@@ -562,7 +562,7 @@ export default function AdminOrdersPage() {
           {/* Desktop table */}
           <div className="hidden md:block bg-white border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-[13px] min-w-[900px]">
+              <table className="w-full text-left text-[13px] min-w-[1000px]">
                 <thead className="bg-neutral-50 text-[11px] tracking-[1px] uppercase text-neutral-500">
                   <tr>
                     <th className="px-4 py-3 font-medium w-10">
