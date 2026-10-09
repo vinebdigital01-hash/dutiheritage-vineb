@@ -50,23 +50,35 @@ export async function GET(request: Request) {
       Product.countDocuments(filter),
     ]);
 
-    const rows: StockRow[] = [];
+    const rows: (StockRow & { color: string })[] = [];
     for (const p of docs) {
       const inv = Array.isArray(p.inventory) ? p.inventory : [];
-      const sizeSet = new Set<string>();
-      for (const s of p.sizes || []) {
-        if (s) sizeSet.add(String(s));
-      }
+      
+      // Collect combinations of size & color
+      const combinations = new Map<string, {size: string, color: string}>();
+      
       for (const r of inv) {
-        if (r.size) sizeSet.add(String(r.size));
+        const s = String(r.size || "");
+        const c = String(r.color || "");
+        combinations.set(`${c}-${s}`, { size: s, color: c });
       }
-      if (sizeSet.size === 0) continue;
-      for (const size of sizeSet) {
-        const row = inv.find((r) => r.size === size);
+      
+      // If there's no inventory entries yet, just show sizes with no color
+      if (combinations.size === 0 && Array.isArray(p.sizes)) {
+         for (const s of p.sizes) {
+            combinations.set(`-${String(s)}`, { size: String(s), color: "" });
+         }
+      }
+      
+      if (combinations.size === 0) continue;
+      
+      for (const { size, color } of combinations.values()) {
+        const row = inv.find((r) => r.size === size && (r.color || "") === color);
         rows.push({
           productId: p._id.toString(),
           name: String(p.name || ""),
           size,
+          color,
           sku: row?.sku ? String(row.sku) : "",
           stock: row ? Number(row.stock || 0) : 0,
           trackInventory: Boolean(p.trackInventory),
@@ -116,9 +128,10 @@ export async function POST(request: Request) {
 
     const actor = authUser.email || authUser.uid;
     const updatedCount = await setAbsoluteStock(
-      items.map((item: { productId?: string; size?: string; stock?: string | number }) => ({
+      items.map((item: { productId?: string; size?: string; color?: string; stock?: string | number }) => ({
         productId: String(item.productId || ""),
         size: item.size ? String(item.size) : undefined,
+        color: item.color ? String(item.color) : undefined,
         stock: Number(item.stock),
       })),
       { reason: Array.isArray(body.items) ? "csv" : "admin", actor }

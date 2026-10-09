@@ -39,6 +39,7 @@ type StockRow = {
   productId: string;
   name: string;
   size: string;
+  color: string;
   sku: string;
   stock: number;
   trackInventory: boolean;

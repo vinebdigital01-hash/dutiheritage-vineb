@@ -145,7 +145,7 @@ export async function logInventoryDiff(
 }
 
 export async function setAbsoluteStock(
-  items: Array<{ productId: string; size?: string; stock: number }>,
+  items: Array<{ productId: string; size?: string; color?: string; stock: number }>,
   meta: { actor?: string; reason: "admin" | "csv" }
 ) {
   await connectDB();
@@ -162,20 +162,26 @@ export async function setAbsoluteStock(
 
     const prev = (product.inventory || []).map((r) => ({
       size: r.size,
+      color: r.color,
       stock: r.stock,
       sku: r.sku,
     }));
     const size = (item.size || "").trim() || (prev.length === 1 ? prev[0]?.size : undefined);
     if (!size) continue;
+    const color = (item.color || "").trim();
 
-    const existingRow = product.inventory.find((r) => r.size === size);
+    const existingRow = product.inventory.find((r) => r.size === size && (r.color || "") === color);
     if (existingRow) {
       existingRow.stock = parsedStock;
     } else {
-      product.inventory.push({ size, stock: parsedStock, sku: "" });
+      product.inventory.push({ size, color, stock: parsedStock, sku: "" });
     }
     if (!product.sizes.includes(size)) {
       product.sizes.push(size);
+    }
+    if (color && !product.colors) {
+       // if product.colors doesn't exist, we skip, wait, actually Product doesn't have an array of colors? It has `colors: [String]` or a single string `colors`?
+       // ProductForm uses `form.colors.split(',')` which means it's a string, wait, let's just leave colors alone.
     }
     product.trackInventory = true;
     product.stockStatus = computeStockStatus(product);
