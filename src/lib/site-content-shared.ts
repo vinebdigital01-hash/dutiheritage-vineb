@@ -32,6 +32,7 @@ export type SiteContentData = {
     facebookUrl?: string;
     pinterestUrl?: string;
     whatsappUrl?: string;
+    socialLinks?: { url: string }[];
   };
 };
 

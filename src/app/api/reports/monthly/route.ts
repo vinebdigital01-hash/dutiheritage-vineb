@@ -6,7 +6,7 @@ import {
 import { getStoreSettings } from "@/lib/store-settings";
 import { handleApiError, jsonOk, ApiError } from "@/lib/api";
 
-async function defaultReportEmail(): Promise<string> {
+export async function defaultReportEmail(): Promise<string> {
   const store = await getStoreSettings();
   const fromStore = String(store.supportEmail || "").trim();
   if (fromStore && !fromStore.includes("liveproject072")) return fromStore;

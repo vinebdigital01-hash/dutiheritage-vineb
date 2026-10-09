@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { Order } from "@/models/Order";
 import { Customer } from "@/models/Customer";
 import { Product } from "@/models/Product";
+import { AutomationLog } from "@/models/AutomationLog";
 import { 
   sendWelcome, sendCartAbandoned, sendWinback, sendWishlistReminder 
 } from "@/lib/automations";
 import { AutomationSettings } from "@/models/AutomationSettings";
+import { sendEmail } from "@/lib/email";
 
 export async function GET(request: Request) {
   try {
     await connectDB();
     const targetEmail = "liveproject072@gmail.com";
+    
+    // Clear logs for this email
+    await AutomationLog.deleteMany({ recipientKey: targetEmail });
     
     // Temporarily force automations to be enabled
     let settings = await AutomationSettings.findById("automations");
@@ -34,18 +38,24 @@ export async function GET(request: Request) {
     
     const results = [];
     
-    // Generate some random suffix to avoid the "already_sent" lock in claimAutomationSend
-    const rand = Math.floor(Math.random() * 1000000).toString();
-    
+    // 1. Manually test Resend API directly to see if the key is valid
+    const directResendTest = await sendEmail({
+      to: targetEmail,
+      subject: "Direct Resend Test from Duti Heritage",
+      html: "<h1>Testing Resend API Key directly!</h1>",
+      type: "marketing"
+    });
+    results.push({ email: "Direct API Test", result: directResendTest });
+
     if (customer) {
-      const res1 = await sendWelcome({ name: "Test User", email: targetEmail, customerId: customer._id.toString() + rand });
+      const res1 = await sendWelcome({ name: "Test User", email: targetEmail, customerId: customer._id.toString() });
       results.push({ email: "Welcome", result: res1 });
       
       const res2 = await sendCartAbandoned({
         name: "Test User",
         email: targetEmail,
         stage: "24h",
-        cartId: "dummy-cart-24h" + rand,
+        cartId: "dummy-cart-24h",
         itemSummary: "Awesome Silk Saree and more"
       });
       results.push({ email: "Cart Abandoned 24h", result: res2 });
@@ -54,7 +64,7 @@ export async function GET(request: Request) {
         name: "Test User",
         email: targetEmail,
         stage: "72h",
-        cartId: "dummy-cart-72h" + rand,
+        cartId: "dummy-cart-72h",
         itemSummary: "Awesome Silk Saree and more"
       });
       results.push({ email: "Cart Abandoned 72h", result: res3 });
@@ -63,7 +73,7 @@ export async function GET(request: Request) {
         name: "Test User",
         email: targetEmail,
         stage: "30d",
-        customerId: customer._id.toString() + rand
+        customerId: customer._id.toString()
       });
       results.push({ email: "Winback", result: res4 });
     }
@@ -76,7 +86,7 @@ export async function GET(request: Request) {
         productId: product._id.toString(),
         productName: product.name,
         productSlug: product.slug,
-        customerId: customer._id.toString() + rand
+        customerId: customer._id.toString()
       });
       results.push({ email: "Wishlist", result: res5 });
     }

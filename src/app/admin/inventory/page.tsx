@@ -54,6 +54,7 @@ export default function AdminInventoryPage() {
   const [rows, setRows] = useState<StockRow[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
   const [q, setQ] = useState("");
   const [qInput, setQInput] = useState("");
   const [page, setPage] = useState(1);
@@ -121,6 +122,32 @@ export default function AdminInventoryPage() {
     }
   };
 
+    const saveAllDrafts = async () => {
+    const items = Object.entries(draft).map(([key, stock]) => {
+      const [productId, size] = key.split(":");
+      return { productId, size, stock: Number(stock) };
+    }).filter(i => !isNaN(i.stock) && i.stock >= 0);
+    
+    if (items.length === 0) {
+      show("No valid changes to save", "error");
+      return;
+    }
+    setSavingAll(true);
+    try {
+      const data = await adminFetch<{ updatedCount: number }>("/api/inventory/stock", {
+        method: "POST",
+        body: JSON.stringify({ items }),
+      });
+      show(`Updated ${data.updatedCount} sizes`);
+      setDraft({});
+      await Promise.all([loadLists(), loadStock()]);
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : "Could not save all", "error");
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
   const uploadCsv = async () => {
     if (!csvFile) {
       show("Choose the spreadsheet first", "error");
@@ -159,7 +186,7 @@ export default function AdminInventoryPage() {
               )
             }
           >
-            Download spreadsheet
+            Download CSV Template
           </AdminButton>
         }
       />
@@ -305,7 +332,7 @@ export default function AdminInventoryPage() {
               className="block text-[13px] text-neutral-600"
             />
             <AdminButton onClick={uploadCsv} disabled={!csvFile || csvBusy}>
-              {csvBusy ? "Uploading…" : "Upload spreadsheet"}
+              {csvBusy ? "Uploading…" : "Upload CSV File"}
             </AdminButton>
           </div>
 

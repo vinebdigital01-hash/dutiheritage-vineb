@@ -440,6 +440,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           localStorage.setItem(userCartStorageKey(uid), snapshot);
           localStorage.removeItem(CART_LS_KEY);
           localStorage.removeItem(CART_OWNER_KEY);
+          localStorage.removeItem(CART_LS_KEY);
+          localStorage.removeItem(CART_OWNER_KEY);
           // Keep CART_OWNER_KEY so a later different login does not inherit this cart
           localStorage.setItem(CART_OWNER_KEY, uid);
         } catch {}
