@@ -49,9 +49,9 @@ export default function AdminContentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [content, setContent] = useState<SiteContent>({});
-  const [navText, setNavText] = useState("");
+  const [navLinks, setNavLinks] = useState<{label: string, slug: string}[]>([]);
   const [slugsText, setSlugsText] = useState("");
-  const [allCollections, setAllCollections] = useState<{name:string, slug:string}[]>([]);
+  const [allCollections, setAllCollections] = useState<{name:string, slug:string, productCount?: number}[]>([]);
   const [activeSlugs, setActiveSlugs] = useState<string[]>([]);
   const [policySlug, setPolicySlug] = useState(POLICY_SLUGS[0]!.slug);
   const [policyTitle, setPolicyTitle] = useState(POLICY_SLUGS[0]!.title);
@@ -63,16 +63,16 @@ export default function AdminContentPage() {
       try {
         const [data, collData] = await Promise.all([
           adminFetch<{ content: SiteContent }>("/api/site-content"),
-          adminFetch<{ collections: {name:string, slug:string}[] }>("/api/collections?all=1").catch(() => ({ collections: [] }))
+          adminFetch<{ collections: {name:string, slug:string, productCount: number}[] }>("/api/collections?all=1").catch(() => ({ collections: [] }))
         ]);
         const c = data.content || {};
         setAllCollections(collData.collections || []);
         setContent(c);
-        setNavText(
-          (c.headerNavLinks || [])
-            .map((l) => `${l.label}|${l.slug}`)
-            .join("\n")
-        );
+        setNavLinks(c.headerNavLinks && c.headerNavLinks.length > 0 ? c.headerNavLinks : [
+          { label: "Home", slug: "/" },
+          { label: "Best Sellers", slug: "/collections/best-sellers" },
+          { label: "On Sale", slug: "/collections/on-sale" }
+        ]);
         setSlugsText((c.homepageSlugs || []).join("\n"));
         setActiveSlugs(c.homepageSlugs || []);
       } catch (e) {
@@ -105,15 +105,7 @@ export default function AdminContentPage() {
     if (!(await confirm({ title: "Update site content", description: "Save homepage and footer content?", confirmText: "Save" }))) return;
     setSaving(true);
     try {
-      const headerNavLinks = navText
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const [label, slug] = line.split("|").map((s) => s.trim());
-          return { label: label || "", slug: slug || "" };
-        })
-        .filter((l) => l.label && l.slug);
+      const headerNavLinks = navLinks.filter(l => l.label && l.slug);
 
       const homepageSlugs = activeSlugs;
 
@@ -177,12 +169,67 @@ export default function AdminContentPage() {
           }
         />
 
-        <AdminTextarea
-          label="Header nav (one per line: Label|/collections/slug)"
-          value={navText}
-          onChange={(e) => setNavText(e.target.value)}
-          placeholder={"New Arrivals|/collections/new-arrivals"}
-        />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-[13px] tracking-[2px] uppercase font-medium">Header Navigation Links</h2>
+              <p className="text-[12px] text-neutral-500">Links shown in the top menu bar</p>
+            </div>
+            <AdminButton
+              type="button"
+              variant="secondary"
+              onClick={() => setNavLinks([...navLinks, { label: "", slug: "/" }])}
+            >
+              Add Link
+            </AdminButton>
+          </div>
+          
+          <div className="space-y-3">
+            {navLinks.map((link, idx) => (
+              <div key={idx} className="flex items-center gap-3 bg-neutral-50 p-3 rounded-lg border border-[var(--color-border)]">
+                <div className="flex-1">
+                  <label className="block text-[11px] text-neutral-500 mb-1">Link Name</label>
+                  <input
+                    type="text"
+                    value={link.label}
+                    onChange={(e) => {
+                      const updated = [...navLinks];
+                      updated[idx].label = e.target.value;
+                      setNavLinks(updated);
+                    }}
+                    placeholder="e.g. Best Sellers"
+                    className="w-full bg-white border border-[var(--color-border)] rounded px-2 py-1.5 text-[13px]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[11px] text-neutral-500 mb-1">Destination URL</label>
+                  <input
+                    type="text"
+                    value={link.slug}
+                    onChange={(e) => {
+                      const updated = [...navLinks];
+                      updated[idx].slug = e.target.value;
+                      setNavLinks(updated);
+                    }}
+                    placeholder="e.g. /collections/best-sellers"
+                    className="w-full bg-white border border-[var(--color-border)] rounded px-2 py-1.5 text-[13px] font-mono"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = [...navLinks];
+                    updated.splice(idx, 1);
+                    setNavLinks(updated);
+                  }}
+                  className="mt-5 text-red-500 hover:text-red-700 text-[12px] px-2"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="space-y-3">
           <h2 className="text-[13px] tracking-[2px] uppercase font-medium">Homepage Collections</h2>
@@ -236,7 +283,7 @@ export default function AdminContentPage() {
                         }}
                         className="rounded border-neutral-300 text-black focus:ring-black cursor-pointer"
                       />
-                      <span className="text-[13px] font-medium">{coll.name}</span>
+                      <span className="text-[13px] font-medium">{coll.name} <span className="text-[11px] text-neutral-400 font-normal">({coll.productCount || 0} items)</span></span>
                       <span className="text-[11px] text-neutral-400 ml-auto font-mono">{coll.slug}</span>
                     </li>
                   );
@@ -255,7 +302,7 @@ export default function AdminContentPage() {
                       }}
                       className="rounded border-neutral-300 text-black focus:ring-black cursor-pointer"
                     />
-                    <span className="text-[13px] text-neutral-600">{coll.name}</span>
+                    <span className="text-[13px] text-neutral-600">{coll.name} <span className="text-[11px] text-neutral-400 font-normal">({coll.productCount || 0} items)</span></span>
                     <span className="text-[11px] text-neutral-400 ml-auto font-mono">{coll.slug}</span>
                   </li>
                 ))}
