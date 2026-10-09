@@ -331,8 +331,8 @@ export default function AdminInventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--color-border)]">
-                    {alerts.map((a) => (
-                      <tr key={`${a.id}-${a.size}`}>
+                    {alerts.map((a, i) => (
+                      <tr key={`${a.id}-${a.size}-${i}`}>
                         <td className="px-5 py-3 font-medium">{a.name}</td>
                         <td className="px-5 py-3">{a.size || "—"}</td>
                         <td className="px-5 py-3 font-mono text-[12px]">{a.sku || "—"}</td>
