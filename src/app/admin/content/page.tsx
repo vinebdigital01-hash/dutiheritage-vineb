@@ -51,6 +51,8 @@ export default function AdminContentPage() {
   const [content, setContent] = useState<SiteContent>({});
   const [navText, setNavText] = useState("");
   const [slugsText, setSlugsText] = useState("");
+  const [allCollections, setAllCollections] = useState<{name:string, slug:string}[]>([]);
+  const [activeSlugs, setActiveSlugs] = useState<string[]>([]);
   const [policySlug, setPolicySlug] = useState(POLICY_SLUGS[0]!.slug);
   const [policyTitle, setPolicyTitle] = useState(POLICY_SLUGS[0]!.title);
   const [policyBody, setPolicyBody] = useState("");
@@ -70,6 +72,7 @@ export default function AdminContentPage() {
             .join("\n")
         );
         setSlugsText((c.homepageSlugs || []).join("\n"));
+        setActiveSlugs(c.homepageSlugs || []);
       } catch (e) {
         show(e instanceof AdminApiError ? e.message : "Load failed", "error");
       } finally {
@@ -110,10 +113,7 @@ export default function AdminContentPage() {
         })
         .filter((l) => l.label && l.slug);
 
-      const homepageSlugs = slugsText
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const homepageSlugs = activeSlugs;
 
       await adminFetch("/api/site-content", {
         method: "PUT",
@@ -182,11 +182,85 @@ export default function AdminContentPage() {
           placeholder={"New Arrivals|/collections/new-arrivals"}
         />
 
-        <AdminTextarea
-          label="Homepage collection slugs (one per line, top to bottom)"
-          value={slugsText}
-          onChange={(e) => setSlugsText(e.target.value)}
-        />
+        <div className="space-y-3">
+          <h2 className="text-[13px] tracking-[2px] uppercase font-medium">Homepage Collections</h2>
+          <p className="text-[12px] text-neutral-500">
+            Check the collections you want to show on the homepage, and drag them up or down to reorder.
+            Note: Empty collections are automatically hidden on the website.
+          </p>
+          <div className="border border-[var(--color-border)] rounded-xl overflow-hidden bg-white">
+            {allCollections.length === 0 ? (
+              <div className="p-4 text-[13px] text-neutral-500">No collections found. Create some first.</div>
+            ) : (
+              <ul className="divide-y divide-[var(--color-border)] max-h-[400px] overflow-y-auto">
+                {activeSlugs.map((slug, idx) => {
+                  const coll = allCollections.find(c => c.slug === slug);
+                  if (!coll) return null;
+                  return (
+                    <li
+                      key={slug}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData("text/plain", idx.toString())}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const fromIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
+                        const toIdx = idx;
+                        if (fromIdx === toIdx || isNaN(fromIdx)) return;
+                        setActiveSlugs((prev) => {
+                          const next = [...prev];
+                          const [removed] = next.splice(fromIdx, 1);
+                          next.splice(toIdx, 0, removed);
+                          return next;
+                        });
+                      }}
+                      className="flex items-center gap-3 p-3 bg-neutral-50 cursor-move hover:bg-neutral-100 transition-colors"
+                    >
+                      <div className="text-neutral-400 cursor-move">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="8" y1="6" x2="21" y2="6"></line>
+                          <line x1="8" y1="12" x2="21" y2="12"></line>
+                          <line x1="8" y1="18" x2="21" y2="18"></line>
+                          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        onChange={() => {
+                          setActiveSlugs(prev => prev.filter(s => s !== slug));
+                        }}
+                        className="rounded border-neutral-300 text-black focus:ring-black cursor-pointer"
+                      />
+                      <span className="text-[13px] font-medium">{coll.name}</span>
+                      <span className="text-[11px] text-neutral-400 ml-auto font-mono">{coll.slug}</span>
+                    </li>
+                  );
+                })}
+                {allCollections.filter(c => !activeSlugs.includes(c.slug)).map(coll => (
+                  <li
+                    key={coll.slug}
+                    className="flex items-center gap-3 p-3 hover:bg-neutral-50 transition-colors"
+                  >
+                    <div className="w-4 h-4"></div> {/* spacer for drag icon */}
+                    <input
+                      type="checkbox"
+                      checked={false}
+                      onChange={() => {
+                        setActiveSlugs(prev => [...prev, coll.slug]);
+                      }}
+                      className="rounded border-neutral-300 text-black focus:ring-black cursor-pointer"
+                    />
+                    <span className="text-[13px] text-neutral-600">{coll.name}</span>
+                    <span className="text-[11px] text-neutral-400 ml-auto font-mono">{coll.slug}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
 
         <div className="space-y-4 border-t border-[var(--color-border)] pt-6">
           <div className="flex items-center justify-between">
