@@ -144,16 +144,18 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.inventory !== undefined) {
       const prev = (existing.inventory || []).map((i) => ({
         size: String(i.size || ""),
+        color: String(i.color || ""),
         stock: Number(i.stock) || 0,
         sku: String(i.sku || ""),
       }));
       const next = (body.inventory || [])
-        .map((i: { size?: string; stock?: number; sku?: string }) => ({
+        .map((i: { size?: string; color?: string; stock?: number; sku?: string }) => ({
           size: String(i.size || "").trim(),
+          color: String(i.color || "").trim(),
           stock: Number(i.stock) || 0,
           sku: String(i.sku || "").trim(),
         }))
-        .filter((i: { size: string }) => i.size);
+        .filter((i: { size: string; color: string }) => i.size || i.color);
       existing.inventory = next;
       const { computeStockStatus, logInventoryDiff } = await import("@/services/inventory");
       existing.stockStatus = computeStockStatus(existing);

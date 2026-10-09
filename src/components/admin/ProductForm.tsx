@@ -93,6 +93,7 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     slug: p.slug,
     price: String(p.price),
     salePrice: p.salePrice != null ? String(p.salePrice) : "",
+    costPrice: (p as any).costPrice != null ? String((p as any).costPrice) : "",
     description: p.description || "",
     collectionId: p.collectionId,
     image: p.image,

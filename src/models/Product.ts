@@ -35,7 +35,8 @@ const ProductSchema = new Schema(
     lastEditedBy: { type: String },
     inventory: {
       type: [{
-        size: { type: String, required: true },
+        size: { type: String, default: "" },
+        color: { type: String, default: "" },
         stock: { type: Number, required: true, default: 0 },
         sku: { type: String }
       }],
