@@ -81,13 +81,14 @@ export type UserProfile = {
 export type SavedAddress = {
   id: string;
   label: string;
-  isDefault: boolean;
-  firstName: string;
-  lastName: string;
-  address: string;
-  apartment: string;
-  city: string;
-  state: string;
-  pinCode: string;
-  phone: string;
+  isDefault?: boolean;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  phone?: string;
+  country?: string;
 };
