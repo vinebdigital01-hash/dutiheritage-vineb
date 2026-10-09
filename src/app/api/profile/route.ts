@@ -86,7 +86,7 @@ export async function PUT(req: NextRequest) {
           country: a.country || "IN",
         }))
       );
-      const primary = addresses.find((a) => a.label.toLowerCase() === "home") || addresses[0];
+      const primary = addresses.find((a) => (a.label || "").toLowerCase() === "home") || addresses[0];
       const legacy = toLegacyAddress(primary, customer.phone || undefined);
       if (legacy) {
         customer.address = { ...(customer.address || {}), ...legacy };

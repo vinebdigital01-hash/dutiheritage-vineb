@@ -79,8 +79,8 @@ export type UserProfile = {
 
 
 export type SavedAddress = {
-  id: string;
-  label: string;
+  id?: string;
+  label?: string;
   isDefault?: boolean;
   firstName?: string;
   lastName?: string;

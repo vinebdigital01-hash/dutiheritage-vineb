@@ -28,8 +28,8 @@ export async function GET(request: Request) {
     
     const flows = ["welcome", "cart_abandoned", "winback", "wishlist_reminder"];
     for (const flow of flows) {
-      if (!settings[flow]) settings[flow] = {};
-      settings[flow].enabled = true;
+      if (!(settings as any)[flow]) (settings as any)[flow] = {};
+      (settings as any)[flow].enabled = true;
     }
     await settings.save();
     
@@ -99,7 +99,7 @@ export async function GET(request: Request) {
     }
     
     return NextResponse.json({ success: true, results });
-  } catch (e) {
+  } catch (e: any) {
     console.error(e);
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

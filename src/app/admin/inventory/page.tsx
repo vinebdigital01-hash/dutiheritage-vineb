@@ -11,7 +11,7 @@ import {
   useToast,
 } from "@/components/admin/ui";
 
-type AlertRow = {
+type AlertRow = { color?: string;
   id: string;
   name: string;
   slug: string;

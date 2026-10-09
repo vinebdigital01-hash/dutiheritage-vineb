@@ -60,7 +60,7 @@ export function addressesFromCustomer(customer: CustomerDocument): SavedAddress[
 
 export function customerToProfile(customer: CustomerDocument): UserProfile {
   const addresses = addressesFromCustomer(customer);
-  const primary = addresses.find((a) => a.label.toLowerCase() === "home") || addresses[0];
+  const primary = addresses.find((a) => (a.label || "").toLowerCase() === "home") || addresses[0];
   const addr = customer.address as AddrShape | undefined;
   const extra = customer as CustomerDocument & {
     deleteRequestedAt?: Date | null;

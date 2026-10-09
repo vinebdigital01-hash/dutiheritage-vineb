@@ -19,7 +19,7 @@ export async function GET() {
         ...settings,
         razorpayEnabled: isRazorpayConfigured() && store.prepaidEnabled,
         prepaidEnabled: store.prepaidEnabled,
-        checkoutTimer: store.flags?.checkoutTimer !== false,
+        checkoutTimer: (store.flags as any)?.checkoutTimer !== false,
       }),
       {
         status: 200,

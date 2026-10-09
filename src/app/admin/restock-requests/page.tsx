@@ -57,7 +57,7 @@ export default function RestockRequestsPage() {
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in-up">
       <PageHeader
         title="Restock Requests"
-        description="Customers who want to be notified when products are back in stock."
+        subtitle="Customers who want to be notified when products are back in stock."
       />
 
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-sm">

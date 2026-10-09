@@ -38,7 +38,7 @@ export default function MyAddressesPage() {
   const addresses = userProfile?.addresses || [];
 
   const slotAddress = (label: string): SavedAddress | undefined =>
-    addresses.find((a) => a.label.toLowerCase() === label.toLowerCase());
+    addresses.find((a) => (a.label || "").toLowerCase() === label.toLowerCase());
 
   useEffect(() => {
     fetch("/api/checkout/locations?type=states")
@@ -78,9 +78,9 @@ export default function MyAddressesPage() {
     setError("");
     try {
       const next = addresses.filter(
-        (a) => a.label.toLowerCase() !== editingLabel.toLowerCase()
+        (a) => (a.label || "").toLowerCase() !== editingLabel.toLowerCase()
       );
-      next.push({ ...formData, label: editingLabel, id: formData.id || editingLabel.toLowerCase() });
+      next.push({ ...formData, label: editingLabel, _id: formData.id || editingLabel.toLowerCase() });
       const headers = await authHeaders();
       const res = await fetch("/api/profile", {
         method: "PUT",

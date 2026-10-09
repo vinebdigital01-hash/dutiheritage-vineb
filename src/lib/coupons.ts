@@ -17,6 +17,7 @@ export type CouponDTO = {
   usedCount: number;
   active: boolean;
   expiresAt?: string | null;
+  isSecret?: boolean;
 };
 
 export type PublicCouponDTO = {
