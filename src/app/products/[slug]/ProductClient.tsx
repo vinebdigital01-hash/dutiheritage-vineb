@@ -152,9 +152,8 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
   const [isNavigating, setIsNavigating] = useState(false);
   const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor);
-  const handleNotifyMe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!notifyEmail || !notifyEmail.includes("@")) {
+  const submitNotifyRequest = async (emailToUse: string) => {
+    if (!emailToUse || !emailToUse.includes("@")) {
       setToastMessage("Please enter a valid email");
       return;
     }
@@ -163,17 +162,29 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
       const res = await fetch(`/api/products/${product.id}/notify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: notifyEmail, size: selectedSize || "" }),
+        body: JSON.stringify({ email: emailToUse, size: selectedSize || "" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to submit");
       setToastMessage(data.message || "You will be notified!");
       setShowNotifyForm(false);
-      setNotifyEmail("");
     } catch (err: any) {
       setToastMessage(err.message || "Failed to notify");
     } finally {
       setIsNotifying(false);
+    }
+  };
+
+  const handleNotifySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitNotifyRequest(notifyEmail);
+  };
+
+  const handleNotifyClick = () => {
+    if (user?.email) {
+      submitNotifyRequest(user.email);
+    } else {
+      setShowNotifyForm(true);
     }
   };
   const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize, selectedColor); };
@@ -570,7 +581,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
                   if (isTotallySoldOut || selectedSizeIsOutOfStock) {
                     return showNotifyForm ? (
-                      <form onSubmit={handleNotifyMe} className="flex flex-col gap-2 p-4 bg-gray-50 rounded-xl border border-gray-200 animate-fade-in-up">
+                      <form onSubmit={handleNotifySubmit} className="flex flex-col gap-2 p-4 bg-gray-50 rounded-xl border border-gray-200 animate-fade-in-up">
                         <p className="text-[13px] font-medium text-gray-700">
                           Get notified when {selectedSizeIsOutOfStock && selectedSize ? `size ${selectedSize} is` : 'this is'} back in stock:
                         </p>
@@ -593,10 +604,19 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                       </form>
                     ) : (
                       <button 
-                        onClick={() => setShowNotifyForm(true)}
-                        className="w-full py-4 rounded-xl bg-[#0f172a] text-white text-[14px] font-bold tracking-wide uppercase hover:bg-black transition-colors"
+                        onClick={handleNotifyClick}
+                        disabled={isNotifying}
+                        className="w-full py-4 rounded-xl bg-[#0f172a] text-white text-[14px] font-bold tracking-wide uppercase hover:bg-black transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
                       >
-                        NOTIFY ME WHEN RESTOCKED
+                        {isNotifying ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Submitting...
+                          </>
+                        ) : "NOTIFY ME WHEN RESTOCKED"}
                       </button>
                     );
                   }
