@@ -595,26 +595,26 @@ export default function AdminOrdersPage() {
                           onChange={() => toggleOrder(o.orderId)}
                         />
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="font-mono text-[12px]">{o.orderId}</p>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                          <p className="font-mono text-[12px]">{o.orderId}</p>
                         <p className="text-[11px] text-neutral-400">
                           {o.createdAt
                             ? new Date(o.createdAt).toLocaleString("en-IN")
                             : ""}
                         </p>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{o.customer.name}</p>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                          <p className="font-medium">{o.customer.name}</p>
                         <p className="text-[11px] text-neutral-400">{o.customer.phone}</p>
                       </td>
-                      <td className="px-4 py-3 text-neutral-600">
-                        {o.customer.city}
+                      <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
+                          {o.customer.city}
                         <span className="block text-[11px] text-neutral-400">
                           {o.customer.pinCode}
                         </span>
                       </td>
-                      <td className="px-4 py-3 capitalize">
-                        {o.paymentMethod}
+                      <td className="px-4 py-3 capitalize whitespace-nowrap">
+                          {o.paymentMethod}
                         <span className="block text-[11px] text-neutral-400">
                           {o.paymentStatus}
                         </span>
@@ -631,7 +631,8 @@ export default function AdminOrdersPage() {
                       <td className="px-4 py-3 font-mono text-[11px] text-neutral-500">
                         {o.trackingInfo?.awb || "—"}
                       </td>
-                      <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                      <td className="px-4 py-3 text-right">
+                          <div className="flex flex-col gap-2 items-end">
                         {o.status === "Confirmation Pending" || o.status === "On Hold" ? (
                           <button
                             type="button"
@@ -665,13 +666,9 @@ export default function AdminOrdersPage() {
                             Cancel order
                           </button>
                         ) : null}
-                        <Link
-                          href={`/admin/orders/${o.orderId}`}
-                          className="text-[11px] tracking-[1px] uppercase hover:underline font-medium"
-                        >
-                          Open order
-                        </Link>
-                      </td>
+                        <Link href={`/admin/orders/${o.orderId}`} className="text-[11px] tracking-[1px] uppercase hover:underline font-medium bg-neutral-100 px-3 py-1.5 rounded-sm">Open</Link>
+                          </div>
+                        </td>
                     </tr>
                   ))}
                 </tbody>
