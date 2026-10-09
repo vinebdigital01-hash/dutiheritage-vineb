@@ -1,3 +1,4 @@
+import { FaInstagram, FaFacebook, FaPinterest, FaWhatsapp, FaYoutube, FaTwitter, FaLinkedin, FaTiktok, FaLink } from "react-icons/fa";
 "use client";
 
 import React, { useState } from "react";
@@ -56,12 +57,27 @@ export const Footer = () => {
   const copyright =
     footer?.copyright?.trim() || `© ${year} ${companyName}`;
 
-  const socials = [
-    { href: footer?.instagramUrl, label: "Instagram", Icon: InstagramIcon },
-    { href: footer?.facebookUrl, label: "Facebook", Icon: FacebookIcon },
-    { href: footer?.pinterestUrl, label: "Pinterest", Icon: PinterestIcon },
-    { href: footer?.whatsappUrl, label: "WhatsApp", Icon: WhatsAppIcon },
-  ].filter((s) => (s.href || "").trim().length > 0);
+  const legacySocials = [
+    { href: footer?.instagramUrl },
+    { href: footer?.facebookUrl },
+    { href: footer?.pinterestUrl },
+    { href: footer?.whatsappUrl },
+  ];
+  const allSocials = [...legacySocials, ...(footer?.socialLinks?.map(l => ({ href: l.url })) || [])]
+    .filter((s) => (s.href || "").trim().length > 0);
+
+  const getSocialIcon = (url: string) => {
+    const u = url.toLowerCase();
+    if (u.includes('instagram.com')) return FaInstagram;
+    if (u.includes('facebook.com')) return FaFacebook;
+    if (u.includes('pinterest.com')) return FaPinterest;
+    if (u.includes('whatsapp.com') || u.includes('wa.me')) return FaWhatsapp;
+    if (u.includes('youtube.com')) return FaYoutube;
+    if (u.includes('twitter.com') || u.includes('x.com')) return FaTwitter;
+    if (u.includes('linkedin.com')) return FaLinkedin;
+    if (u.includes('tiktok.com')) return FaTiktok;
+    return FaLink;
+  };
 
   const [subscribeResult, setSubscribeResult] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +149,26 @@ export const Footer = () => {
             {subscribeResult && <p className="text-xs mt-2 text-green-600">{subscribeResult}</p>}
           </div>
         </div>
+
+            {allSocials.length > 0 ? (
+              <div className="flex flex-wrap gap-4 mt-8">
+                {allSocials.map(({ href }, idx) => {
+                  const Icon = getSocialIcon(href || "");
+                  return (
+                    <a
+                      key={idx}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                    >
+                      <Icon className="w-5 h-5" />
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
+
         <div className="flex flex-col text-sm">
           <h3 className="text-base tracking-[2px] uppercase mb-6">IMPORTANT LINKS</h3>
           <ul className="flex flex-col space-y-4 text-[var(--color-text-muted)]">
@@ -144,22 +180,7 @@ export const Footer = () => {
               </li>
             ))}
           </ul>
-          {socials.length > 0 ? (
-            <div className="flex flex-wrap gap-4 mt-8">
-              {socials.map(({ href, label, Icon }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-                >
-                  <Icon className="w-5 h-5" />
-                </a>
-              ))}
-            </div>
-          ) : null}
+          
         </div>
       </div>
       <div className="flex flex-col items-center justify-center text-xs text-[var(--color-text-muted)] gap-2">

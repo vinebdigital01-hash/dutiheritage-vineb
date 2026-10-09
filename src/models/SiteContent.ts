@@ -42,6 +42,7 @@ const FooterSchema = new Schema(
     facebookUrl: { type: String, default: "" },
     pinterestUrl: { type: String, default: "" },
     whatsappUrl: { type: String, default: "" },
+    socialLinks: [{ url: { type: String, default: "" }, _id: false }],
   },
   { _id: false }
 );

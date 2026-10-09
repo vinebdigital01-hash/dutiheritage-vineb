@@ -30,6 +30,7 @@ type SiteContent = {
     facebookUrl?: string;
     pinterestUrl?: string;
     whatsappUrl?: string;
+      socialLinks?: { url: string }[];
   };
 };
 
