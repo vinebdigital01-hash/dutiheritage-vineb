@@ -390,8 +390,8 @@ export default function MyOrdersPage() {
         }
         description={
           modalConfig.type === "cancel_request"
-            ? "Prepaid orders require support approval to cancel. Please submit your reason below."
-            : "Are you sure you want to cancel this order?"
+            ? "Prepaid orders require support approval to cancel. After approval, any online payment is refunded via Razorpay."
+            : "This cancels the order only. Cash on delivery — no online payment was taken, so there is no bank refund."
         }
         reasonLabel="Reason for request"
         confirmText={

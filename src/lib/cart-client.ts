@@ -24,11 +24,18 @@ export function getOrCreateSessionId(): string {
 export type SyncCartItem = {
   productId: string;
   size?: string;
+  color?: string;
   quantity: number;
   price?: number;
   name?: string;
   image?: string;
 };
+
+export type ServerCartItem = SyncCartItem;
+
+export function cartLineKey(productId: string, size?: string, color?: string) {
+  return color ? `${productId}-${size || ""}-${color}` : `${productId}-${size || ""}`;
+}
 
 /**
  * Debounced server cart sync for abandoned-cart automations.
@@ -63,4 +70,27 @@ export async function syncCartToServer(input: {
   } catch (e) {
     console.warn("[cart-sync]", e);
   }
+}
+
+/** Load the logged-in user's saved cart from the server (for restore after login). */
+export async function fetchServerCart(): Promise<ServerCartItem[]> {
+  try {
+    const user = auth.currentUser;
+    if (!user) return [];
+    const token = await user.getIdToken();
+    const res = await fetch("/api/cart/sync", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      cart?: { items?: ServerCartItem[] } | null;
+    };
+    return Array.isArray(data.cart?.items) ? data.cart!.items! : [];
+  } catch {
+    return [];
+  }
+}
+
+export function userCartStorageKey(uid: string) {
+  return `duti-heritage_cart_user_${uid}`;
 }

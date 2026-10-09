@@ -7,6 +7,28 @@ import type { AuthUser } from "@/lib/auth";
 
 export type RefundChannel = "razorpay" | "manual" | "cod_note";
 
+/** Cap refund to what Razorpay still holds on the payment (handles partial advance). */
+export async function onlineRefundableAmount(order: {
+  total?: number | null;
+  refundedAmount?: number | null;
+  razorpayPaymentId?: string | null;
+}): Promise<number> {
+  const remaining = Math.max(0, Number(order.total || 0) - Number(order.refundedAmount || 0));
+  if (remaining <= 0) return 0;
+  if (!order.razorpayPaymentId || !isRazorpayConfigured()) return remaining;
+  try {
+    const rzp = getRazorpay();
+    if (!rzp) return remaining;
+    const payment = await rzp.payments.fetch(order.razorpayPaymentId);
+    const paid = Number(payment.amount || 0) / 100;
+    const already = Number(payment.amount_refunded || 0) / 100;
+    const onlineLeft = Math.max(0, paid - already);
+    return Math.min(remaining, onlineLeft);
+  } catch {
+    return remaining;
+  }
+}
+
 export async function refundOrder(opts: {
   order: OrderDocument;
   amount: number;
@@ -15,8 +37,10 @@ export async function refundOrder(opts: {
   request: Request;
   /** Staff confirm money was sent outside Razorpay (cash / UPI / bank). */
   manualConfirmed?: boolean;
+  /** When true, skip order.save() — caller will save (e.g. approve-cancel). */
+  deferSave?: boolean;
 }) {
-  const { order, reason, actor, request, manualConfirmed } = opts;
+  const { order, reason, actor, request, manualConfirmed, deferSave } = opts;
   const amount = Number(opts.amount);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new ApiError("Refund amount must be greater than 0");
@@ -37,6 +61,11 @@ export async function refundOrder(opts: {
 
   if (paidOnline && isRazorpayConfigured() && !manualConfirmed) {
     const rzp = getRazorpay();
+    if (!rzp) {
+      throw new ApiError(
+        "Razorpay keys are not on the server. Confirm you already refunded outside Razorpay, or add keys."
+      );
+    }
     const refund = await rzp.payments.refund(order.razorpayPaymentId as string, {
       amount: toPaise(amount),
       notes: { orderId: order.orderId, reason },
@@ -60,16 +89,20 @@ export async function refundOrder(opts: {
   order.refundedAmount = nextRefunded;
   order.paymentStatus =
     nextRefunded >= Number(order.total) - 0.01 ? "refunded" : "partially_paid";
-  if (!Array.isArray(order.refunds)) order.refunds = [];
-  order.refunds.push({
+  if (!Array.isArray(order.refunds)) {
+    (order as { refunds: unknown[] }).refunds = [];
+  }
+  (order.refunds as unknown as Array<Record<string, unknown>>).push({
     amount,
     reason,
     actor: actor.email || actor.uid,
     razorpayRefundId,
     channel,
     at: new Date(),
-  } as OrderDocument["refunds"][number]);
-  order.markModified("refunds");
+  });
+  if (typeof (order as unknown as { markModified?: (k: string) => void }).markModified === "function") {
+    (order as unknown as { markModified: (k: string) => void }).markModified("refunds");
+  }
 
   const channelNote =
     channel === "razorpay"
@@ -84,8 +117,12 @@ export async function refundOrder(opts: {
     message: `₹${amount} ${channelNote}${reason ? ` — ${reason}` : ""}`,
     internal: true,
   });
-  order.markModified("timeline");
-  await order.save();
+  if (typeof (order as unknown as { markModified?: (k: string) => void }).markModified === "function") {
+    (order as unknown as { markModified: (k: string) => void }).markModified("timeline");
+  }
+  if (!deferSave && typeof (order as unknown as { save?: () => Promise<unknown> }).save === "function") {
+    await (order as unknown as { save: () => Promise<unknown> }).save();
+  }
 
   await logAdminAction({
     request,

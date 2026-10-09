@@ -121,7 +121,12 @@ const OrderSchema = new Schema(
     notes: { type: String },
     tags: { type: [String], default: [] },
     statusReason: { type: String },
-    cancelRequestState: { type: String, enum: ["none", "requested", "rejected", "accepted"], default: "none" },
+    cancelRequestState: {
+      type: String,
+      enum: ["none", "requested", "rejected", "accepted"],
+      default: "none",
+      index: true,
+    },
     cancelRejectReason: { type: String },
     timeline: { type: [TimelineEventSchema], default: [] },
   },

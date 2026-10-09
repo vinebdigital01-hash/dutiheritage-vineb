@@ -40,6 +40,8 @@ const FooterSchema = new Schema(
     gstin: { type: String, default: "" },
     instagramUrl: { type: String, default: "" },
     facebookUrl: { type: String, default: "" },
+    pinterestUrl: { type: String, default: "" },
+    whatsappUrl: { type: String, default: "" },
   },
   { _id: false }
 );

@@ -5,9 +5,23 @@ import {
   Order,
   type AutomationFlowKey,
 } from "@/models";
-import { sendEmail, emailLayout, isEmailConfigured } from "@/lib/email";
+import {
+  sendEmail,
+  emailLayout,
+  isEmailConfigured,
+  emailEyebrow,
+  emailLead,
+  emailNote,
+  emailPromoCode,
+  emailButton,
+  emailMetricRow,
+  escHtml,
+} from "@/lib/email";
 import { sendWhatsApp, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { getPublicSiteUrl } from "@/lib/utils";
+
+/** Re-export for account-merge callers that historically looked here */
+export { sendMergeOtpEmail } from "@/lib/account-merge";
 
 const SITE = () => getPublicSiteUrl();
 
@@ -202,14 +216,24 @@ export async function sendWelcome(input: {
       const link = await auth.generatePasswordResetLink(input.email, {
         url: `${SITE()}/account`,
       });
-      loginHtml = `<br/><br/>To access your account and track orders, please <a href="${link}">click here to set your password</a>.`;
+      loginHtml = link;
     } catch (err) {
       console.error("[sendWelcome] Failed to generate auth link", err);
     }
   }
 
   const subject = "Welcome to Duti Heritage";
-  const body = `Hi ${name},<br/><br/>Welcome to Duti Heritage! Enjoy <strong>10% off</strong> your first order with code <strong>WELCOME10</strong>.${loginHtml}`;
+  const body =
+    emailEyebrow("You're in") +
+    emailLead(
+      `Hi ${escHtml(name)},<br/><br/>Welcome to Duti Heritage — handcrafted pieces made with care in India. Enjoy <strong>10% off</strong> your first order.`
+    ) +
+    emailPromoCode("WELCOME10", "Your welcome code") +
+    (loginHtml
+      ? emailNote(
+          `To track orders, <a href="${escHtml(loginHtml)}" style="color:#1a1a1a;font-weight:600;">set your password here</a>.`
+        )
+      : "");
   const text = `Hi ${name}, Welcome to Duti Heritage. Use code WELCOME10 for 10% off your first order.`;
   const wa = `Welcome to Duti Heritage! Use code WELCOME10 for 10% off your first order. Shop: ${SITE()}`;
 
@@ -217,12 +241,17 @@ export async function sendWelcome(input: {
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, body),
+    html: emailLayout(subject, body, {
+      preheader: "10% off your first order with WELCOME10",
+      primaryCta: { label: "Shop the collection", href: SITE() },
+      secondaryCta: { label: "Your account", href: `${SITE()}/account` },
+      kind: "marketing",
+    }),
     text,
     waMessage: wa,
     waTemplate: process.env.WA_TEMPLATE_WELCOME,
     waParams: [name, "WELCOME10"],
-    emailType: "auth", // Use auth Resend key
+    emailType: "auth",
   });
 
   if (!result.emailOk && !result.waOk) {
@@ -252,19 +281,26 @@ export async function sendOrderPlaced(input: {
   if (!claimed) return { sent: false, reason: "already_sent" };
 
   const name = input.name || "there";
-  const subject = `Order ${input.orderId} Confirmed`;
-  const intro = `Hi ${name},<br/><br/>Your order <strong>${input.orderId}</strong> is confirmed (₹${input.total}). We're preparing it with care.`;
-  const nextStep = "We are currently packing your items. You will receive another email with tracking details once your order has been shipped.";
+  const subject = `We received your order ${input.orderId}`;
+  const intro =
+    emailEyebrow("Order placed") +
+    `Hi ${escHtml(name)},<br/><br/>Thank you — we received your order <strong>${escHtml(input.orderId)}</strong> (₹${rupees(input.total)}). Our team will confirm and pack it with care.`;
+  const nextStep =
+    "We will email you when the order is confirmed. Tracking arrives after it ships.";
   const bodyHtml = await buildOrderEmailHtml(input.orderId, "Confirmed", intro, nextStep);
 
-  const text = `Order ${input.orderId} confirmed. Total ₹${input.total}. Track at ${SITE()}/account`;
-  const wa = `Your order ${input.orderId} is confirmed! ✅ Total ₹${input.total}. Track anytime from your account.`;
+  const text = `Order ${input.orderId} placed. Total ₹${input.total}. Track at ${SITE()}/account`;
+  const wa = `We received your order ${input.orderId}! Total ₹${input.total}. Track anytime from your account.`;
 
   const result = await notifyChannels({
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, bodyHtml),
+    html: emailLayout(subject, bodyHtml, {
+      preheader: `Order ${input.orderId} · ₹${rupees(input.total)}`,
+      primaryCta: { label: "View order", href: `${SITE()}/account/orders` },
+      secondaryCta: { label: "Shop more", href: SITE() },
+    }),
     text,
     waMessage: wa,
     waTemplate: process.env.WA_TEMPLATE_ORDER_PLACED,
@@ -294,68 +330,72 @@ export async function sendAdminNewOrderAlert(orderId: string) {
   const invoiceLink = `${SITE()}/admin/orders/${mongoId}/invoice`;
   const adminOrderLink = `${SITE()}/admin/orders/${mongoId}`;
   
-  let itemsHtml = `<table width="100%" border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; border-color: #ddd; font-family: sans-serif; font-size: 14px;">
-    <tr style="background: #f9f9f9;">
-      <th align="left">Item</th>
-      <th align="center">Qty</th>
-      <th align="right">Price</th>
-    </tr>`;
-  
-  (order.items || []).forEach((item: { name?: string; size?: string; quantity?: number; price?: number; salePrice?: number | null }) => {
-    const qty = Number(item.quantity) || 0;
-    const line = lineUnit(item) * qty;
-    itemsHtml += `
-      <tr>
-        <td>${esc(item.name)}${item.size ? ` (Size: ${esc(item.size)})` : ""}</td>
-        <td align="center">${qty}</td>
-        <td align="right">₹${rupees(line)}</td>
+  let itemsHtml = `<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0 8px;border-top:1px solid #e8e4df;">`;
+  (order.items || []).forEach(
+    (item: {
+      name?: string;
+      size?: string;
+      quantity?: number;
+      price?: number;
+      salePrice?: number | null;
+    }) => {
+      const qty = Number(item.quantity) || 0;
+      const line = lineUnit(item) * qty;
+      itemsHtml += `<tr>
+        <td style="padding:12px 0;border-bottom:1px solid #e8e4df;font-size:14px;">${esc(item.name)}${item.size ? ` <span style="color:#6b6560;">· ${esc(item.size)}</span>` : ""}</td>
+        <td align="center" style="padding:12px 8px;border-bottom:1px solid #e8e4df;color:#6b6560;">×${qty}</td>
+        <td align="right" style="padding:12px 0;border-bottom:1px solid #e8e4df;font-weight:600;">₹${rupees(line)}</td>
       </tr>`;
-  });
+    }
+  );
   itemsHtml += `</table>`;
 
-  const couponText = discount > 0 
-    ? `<div style="color: #059669; font-weight: bold; margin-top: 10px;">Coupon${order.couponCode ? ` ${esc(order.couponCode)}` : ""} applied. Discount: ₹${rupees(discount)}</div>`
-    : "";
+  const couponText =
+    discount > 0
+      ? emailNote(
+          `Coupon${order.couponCode ? ` <strong>${esc(order.couponCode)}</strong>` : ""} · discount ₹${rupees(discount)}`
+        )
+      : "";
 
   const addressLine = [
     customer.address,
     customer.apartment,
     [customer.city, customer.state].filter(Boolean).join(", "),
     customer.pinCode,
-  ].filter(Boolean).join(", ");
+  ]
+    .filter(Boolean)
+    .join(", ");
 
-  const html = emailLayout(subject, `
-    <div style="font-family: sans-serif;">
-      <p>A new order has just been placed by <strong>${esc(customer.name || "Customer")}</strong>.</p>
-      
-      <div style="background: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <h2 style="margin-top: 0;">Order Summary</h2>
-        <p><strong>Order ID:</strong> ${esc(orderId)}<br/>
-        <strong>Payment Method:</strong> ${esc(PAYMENT_LABEL[order.paymentMethod] || order.paymentMethod || "—")}<br/>
-        <strong>Total Amount:</strong> ₹${rupees(total)}
-        ${shipping ? `<br/><strong>Shipping:</strong> ₹${rupees(shipping)}` : ""}
-        </p>
-        
-        ${couponText}
-        <br/>
-        
-        ${itemsHtml}
-        
-        <h3 style="margin-top: 30px;">Customer Details</h3>
-        <p>
-          Name: ${esc(customer.name || "—")}<br/>
-          Email: ${esc(customer.email || "N/A")}<br/>
-          Phone: ${esc(customer.phone || "—")}<br/>
-          Address: ${esc(addressLine || "—")}
-        </p>
-      </div>
-
-      <div style="margin-top: 30px;">
-        <a href="${invoiceLink}" style="display: inline-block; background: #1a1a1a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 10px;">View / Print Invoice</a>
-        <a href="${adminOrderLink}" style="display: inline-block; border: 1px solid #1a1a1a; color: #1a1a1a; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Manage Order</a>
-      </div>
-    </div>
-  `);
+  const html = emailLayout(
+    subject,
+    emailEyebrow("New order") +
+      emailLead(
+        `Placed by <strong>${esc(customer.name || "Customer")}</strong>.`
+      ) +
+      emailMetricRow([
+        { label: "Order", value: orderId },
+        {
+          label: "Payment",
+          value: PAYMENT_LABEL[order.paymentMethod] || order.paymentMethod || "—",
+        },
+        { label: "Total", value: `₹${rupees(total)}` },
+        ...(shipping
+          ? [{ label: "Shipping", value: `₹${rupees(shipping)}` }]
+          : []),
+      ]) +
+      couponText +
+      itemsHtml +
+      emailNote(
+        `<strong style="letter-spacing:1px;text-transform:uppercase;font-size:11px;color:#6b6560;">Ship to</strong><br/>${esc(customer.name || "—")}<br/>${esc(addressLine || "—")}<br/>${esc(customer.phone || "—")}<br/>${esc(customer.email || "")}`
+      ) +
+      `<p style="margin:20px 0 0;">${emailButton("Print invoice", invoiceLink)}${"&nbsp;".repeat(2)}${emailButton("Manage order", adminOrderLink, "outline")}</p>`,
+    {
+      kind: "staff",
+      hideDefaultCtas: true,
+      primaryCta: { label: "Open in admin", href: adminOrderLink },
+      preheader: `${orderId} · ₹${rupees(total)} · ${customer.name || "Customer"}`,
+    }
+  );
 
   for (const email of emails) {
     try {
@@ -381,9 +421,11 @@ export async function sendOrderConfirmed(input: {
 }) {
   const name = input.name || "there";
   const subject = `Order ${input.orderId} is confirmed`;
-  const intro = `Hi ${name},<br/><br/>Good news — we have confirmed your order <strong>${input.orderId}</strong> (₹${input.total}). We will pack it next.`;
+  const intro =
+    emailEyebrow("Confirmed") +
+    `Hi ${escHtml(name)},<br/><br/>Good news — we have confirmed your order <strong>${escHtml(input.orderId)}</strong> (₹${rupees(input.total)}). We will pack it next.`;
   const nextStep =
-    "You will receive tracking details by SMS/email after we hand it to the courier.";
+    "You will receive tracking details by email after we hand it to the courier.";
   const bodyHtml = await buildOrderEmailHtml(
     input.orderId,
     "Confirmed",
@@ -396,7 +438,10 @@ export async function sendOrderConfirmed(input: {
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, bodyHtml),
+    html: emailLayout(subject, bodyHtml, {
+      preheader: `Confirmed · ${input.orderId}`,
+      primaryCta: { label: "Track order", href: `${SITE()}/account/orders` },
+    }),
     text: `Order ${input.orderId} confirmed. Total ₹${input.total}.`,
     waMessage: wa,
     emailType: "orders",
@@ -413,14 +458,22 @@ export async function sendOrderOnHold(input: {
   customerId?: string;
 }) {
   const name = input.name || "there";
-  const reason = input.reason
-    ? `<p>Reason: ${String(input.reason).replace(/[<>]/g, "")}</p>`
-    : "<p>Our team is reviewing a few details before we continue.</p>";
   const subject = `Order ${input.orderId} is on hold`;
-  const html = emailLayout(
-    subject,
-    `<p>Hi ${name},</p><p>Your order <strong>${input.orderId}</strong> is temporarily on hold.</p>${reason}<p>We will update you as soon as it moves forward.</p>`
-  );
+  const body =
+    emailEyebrow("On hold") +
+    emailLead(
+      `Hi ${escHtml(name)},<br/><br/>Your order <strong>${escHtml(input.orderId)}</strong> is temporarily on hold.`
+    ) +
+    emailNote(
+      input.reason
+        ? `<strong>Reason:</strong> ${escHtml(input.reason)}`
+        : "Our team is reviewing a few details before we continue."
+    ) +
+    `<p style="margin:0;font-size:14px;color:#6b6560;">We will update you as soon as it moves forward.</p>`;
+  const html = emailLayout(subject, body, {
+    preheader: `Order ${input.orderId} paused`,
+    primaryCta: { label: "View order", href: `${SITE()}/account/orders` },
+  });
   const wa = `Your order ${input.orderId} is on hold${input.reason ? `: ${input.reason}` : ""}. We will update you shortly.`;
 
   const result = await notifyChannels({
@@ -461,19 +514,25 @@ export async function sendOrderShipped(input: {
     input.trackingUrl ||
     (input.awb ? `AWB ${input.awb}` : `${SITE()}/account`);
   const courier = input.courier ? ` via ${input.courier}` : "";
-  const subject = `Order ${input.orderId} Has Shipped`;
-  
-  const intro = `Great news! Your order <strong>${input.orderId}</strong> has been shipped${courier}.`;
-  const nextStep = `Your order is on its way to you! You can track your package here: <a href="${input.trackingUrl || SITE() + "/account"}">${track}</a>`;
+  const subject = `Order ${input.orderId} has shipped`;
+  const trackHref = input.trackingUrl || `${SITE()}/account/orders`;
+  const intro =
+    emailEyebrow("On the way") +
+    `Great news — your order <strong>${escHtml(input.orderId)}</strong> has been shipped${escHtml(courier)}.`;
+  const nextStep = `Track your package: <a href="${escHtml(trackHref)}" style="color:#1a1a1a;font-weight:600;">${escHtml(String(track))}</a>`;
   const bodyHtml = await buildOrderEmailHtml(input.orderId, "Shipped", intro, nextStep);
 
-  const wa = `Your order ${input.orderId} has shipped${courier}! 📦 Track: ${track}`;
+  const wa = `Your order ${input.orderId} has shipped${courier}! Track: ${track}`;
 
   const result = await notifyChannels({
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, bodyHtml),
+    html: emailLayout(subject, bodyHtml, {
+      preheader: `Shipped${courier} · ${input.orderId}`,
+      primaryCta: { label: "Track shipment", href: trackHref },
+      secondaryCta: { label: "Your account", href: `${SITE()}/account` },
+    }),
     text: `Order ${input.orderId} shipped${courier}. Track: ${track}`,
     waMessage: wa,
     waTemplate: process.env.WA_TEMPLATE_ORDER_SHIPPED,
@@ -502,18 +561,24 @@ export async function sendOrderDelivered(input: {
   });
   if (!claimed) return { sent: false, reason: "already_sent" };
 
-  const subject = `Order ${input.orderId} Delivered`;
-  const intro = `Your order <strong>${input.orderId}</strong> has been delivered. We hope you love it!`;
-  const nextStep = `Enjoy your purchase! <a href="${SITE()}/account">Leave a review</a> when you're ready and get rewarded for your next purchase.`;
+  const subject = `Order ${input.orderId} delivered`;
+  const intro =
+    emailEyebrow("Delivered") +
+    `Your order <strong>${escHtml(input.orderId)}</strong> has been delivered. We hope you love it.`;
+  const nextStep = `When you are ready, <a href="${SITE()}/account" style="color:#1a1a1a;font-weight:600;">leave a review</a> — it helps other shoppers and earns love for your next order.`;
   const bodyHtml = await buildOrderEmailHtml(input.orderId, "Delivered", intro, nextStep);
 
-  const wa = `Your order ${input.orderId} has been delivered! 🎁 Enjoy — and leave a review from your account when ready.`;
+  const wa = `Your order ${input.orderId} has been delivered! Enjoy — leave a review from your account when ready.`;
 
   const result = await notifyChannels({
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, bodyHtml),
+    html: emailLayout(subject, bodyHtml, {
+      preheader: `Delivered · ${input.orderId}`,
+      primaryCta: { label: "Leave a review", href: `${SITE()}/account` },
+      secondaryCta: { label: "Shop again", href: SITE() },
+    }),
     text: `Order ${input.orderId} delivered. Leave a review from your account.`,
     waMessage: wa,
     waTemplate: process.env.WA_TEMPLATE_ORDER_DELIVERED,
@@ -530,31 +595,173 @@ export async function sendOrderCancelled(input: {
   orderId: string;
   total: number;
   customerId?: string;
+  paymentMethod?: string | null;
+  /** Amount actually refunded / recorded in this cancel flow */
+  refundAmount?: number | null;
+  refundChannel?: "razorpay" | "manual" | "cod_note" | null;
 }) {
   const name = input.name || "there";
   const subject = `Order ${input.orderId} Cancelled`;
-  
-  const bodyHtml = `
-    <p style="margin:0 0 20px;">
-      Hi ${name},<br/><br/>
-      We're writing to let you know that your order <strong>${input.orderId}</strong> has been cancelled.
-    </p>
-    <p style="margin:0 0 20px;">
-      If you have already paid for this order, the refund will be started shortly. The amount (₹${input.total}) usually returns to your original payment method within 5–7 business days.
-    </p>
-    <p style="margin:0;">
-      If you did not ask for this cancellation, reply to this email or write to support.
-    </p>
-  `;
+  const method = String(input.paymentMethod || "").toLowerCase();
+  const refundAmt = Number(input.refundAmount || 0);
+  const channel = input.refundChannel || null;
 
-  const text = `Order ${input.orderId} cancelled. If prepaid, refund will be processed in 5-7 days.`;
-  const wa = `Your order ${input.orderId} has been cancelled. If you prepaid, your refund will be processed shortly.`;
+  let moneyHtml: string;
+  let textExtra: string;
+  let waExtra: string;
+
+  if (method === "cod") {
+    moneyHtml = emailNote(
+      "This was cash on delivery. No online payment was collected, so <strong>there is no bank refund</strong> — only the order is cancelled."
+    );
+    textExtra = "COD order — no bank refund (status only).";
+    waExtra = "COD order cancelled — no online payment to refund.";
+  } else if (channel === "razorpay" && refundAmt > 0) {
+    moneyHtml = emailNote(
+      `We started a refund of <strong>₹${rupees(refundAmt)}</strong> via Razorpay to your original payment method. It usually appears in 5–7 business days.`
+    );
+    textExtra = `Refund of ₹${rupees(refundAmt)} started via Razorpay (5–7 days).`;
+    waExtra = `Refund of ₹${rupees(refundAmt)} started to your original payment method.`;
+  } else if (channel === "manual" && refundAmt > 0) {
+    moneyHtml = emailNote(
+      `Staff recorded a refund of <strong>₹${rupees(refundAmt)}</strong> outside Razorpay (cash, UPI, or bank). Write to support if you do not see it.`
+    );
+    textExtra = `Refund of ₹${rupees(refundAmt)} recorded by staff (outside Razorpay).`;
+    waExtra = `Refund of ₹${rupees(refundAmt)} recorded by our team.`;
+  } else if (method === "prepaid" || method === "partial") {
+    moneyHtml = emailNote(
+      "If you paid online, our team will process the refund. Amounts usually return in 5–7 business days."
+    );
+    textExtra = "If you paid online, a refund will be processed in 5–7 days.";
+    waExtra = "If you prepaid, your refund will be processed shortly.";
+  } else {
+    moneyHtml = emailNote("If you paid for this order, our team will handle any refund separately.");
+    textExtra = "Any refund will be handled by our team.";
+    waExtra = "Any refund will be handled separately.";
+  }
+
+  const bodyHtml =
+    emailEyebrow("Cancelled") +
+    emailLead(
+      `Hi ${esc(name)},<br/><br/>Your order <strong>${esc(input.orderId)}</strong> has been cancelled.`
+    ) +
+    moneyHtml +
+    `<p style="margin:0;font-size:13px;color:#6b6560;">If you did not ask for this, reply to this email or write to support.</p>`;
+
+  const text = `Order ${input.orderId} cancelled. ${textExtra}`;
+  const wa = `Your order ${input.orderId} has been cancelled. ${waExtra}`;
 
   const result = await notifyChannels({
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, bodyHtml),
+    html: emailLayout(subject, bodyHtml, {
+      preheader: `Order ${input.orderId} cancelled`,
+      primaryCta: { label: "Continue shopping", href: SITE() },
+      secondaryCta: { label: "Your account", href: `${SITE()}/account` },
+    }),
+    text,
+    waMessage: wa,
+    emailType: "orders",
+  });
+  return { sent: true, detail: result.detail };
+}
+
+async function staffAlertRecipients(): Promise<string[]> {
+  const fromEnv = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  try {
+    const { getStoreSettings } = await import("@/lib/store-settings");
+    const store = await getStoreSettings();
+    const support = String(store.supportEmail || "").trim();
+    if (support && support.includes("@")) fromEnv.push(support);
+  } catch {
+    /* ignore */
+  }
+  return [...new Set(fromEnv.map((e) => e.toLowerCase()))];
+}
+
+/** Email staff when a customer requests prepaid/partial cancellation */
+export async function sendAdminCancelRequestAlert(input: {
+  orderId: string;
+  reason: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  total: number;
+  paymentMethod?: string | null;
+}) {
+  const emails = await staffAlertRecipients();
+  if (emails.length === 0) {
+    console.info("[cancel-request] no ADMIN_EMAILS / supportEmail — skip staff alert");
+    return { sent: false, reason: "no_recipients" as const };
+  }
+
+  const subject = `Cancel request: ${input.orderId}`;
+  const adminLink = `${SITE()}/admin/orders/${encodeURIComponent(input.orderId)}`;
+  const html = emailLayout(
+    subject,
+    emailEyebrow("Action needed") +
+      emailLead(
+        `A customer asked to cancel a <strong>${esc(input.paymentMethod || "prepaid")}</strong> order.`
+      ) +
+      emailMetricRow([
+        { label: "Order", value: input.orderId },
+        { label: "Total", value: `₹${rupees(input.total)}` },
+        {
+          label: "Customer",
+          value: `${input.customerName || "—"} ${input.customerEmail || ""}`.trim(),
+        },
+      ]) +
+      emailNote(`<strong>Reason:</strong> ${esc(input.reason)}`),
+    {
+      kind: "staff",
+      hideDefaultCtas: true,
+      primaryCta: { label: "Review in admin", href: adminLink },
+      preheader: `Cancel request · ${input.orderId}`,
+    }
+  );
+
+  const results = await Promise.all(
+    emails.map((to) =>
+      sendEmail({ to, subject, html, type: "orders" }).catch((e) => {
+        console.error("[cancel-request] staff email", to, e);
+        return { ok: false as const };
+      })
+    )
+  );
+  return { sent: results.some((r) => r.ok), count: emails.length };
+}
+
+export async function sendCancelRequestDeclined(input: {
+  email?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  orderId: string;
+  reason: string;
+  customerId?: string;
+}) {
+  const name = input.name || "there";
+  const subject = `Cancellation request declined — ${input.orderId}`;
+  const bodyHtml =
+    emailEyebrow("Still active") +
+    emailLead(
+      `Hi ${esc(name)},<br/><br/>We reviewed your request to cancel order <strong>${esc(input.orderId)}</strong> and cannot cancel it at this time.`
+    ) +
+    emailNote(`<strong>Reason:</strong> ${esc(input.reason)}`) +
+    `<p style="margin:0;font-size:14px;color:#6b6560;">Your order is still active. Reply to this email if you need help.</p>`;
+  const text = `Cancellation of ${input.orderId} was declined. Reason: ${input.reason}`;
+  const wa = `We could not cancel order ${input.orderId}. Reason: ${input.reason}`;
+
+  const result = await notifyChannels({
+    email: input.email,
+    phone: input.phone,
+    subject,
+    html: emailLayout(subject, bodyHtml, {
+      preheader: `We could not cancel ${input.orderId}`,
+      primaryCta: { label: "View order", href: `${SITE()}/account/orders` },
+    }),
     text,
     waMessage: wa,
     emailType: "orders",
@@ -584,22 +791,37 @@ export async function sendCartAbandoned(input: {
   if (!claimed) return { sent: false, reason: "already_sent" };
 
   const cartUrl = `${SITE()}/checkout`;
-  const items = input.itemSummary || "your items";
+  const items = escHtml(input.itemSummary || "your items");
+  const name = escHtml(input.name || "there");
 
   const copy = {
     "1h": {
       subject: "You left something behind",
-      body: `Your cart is waiting with ${items}. <a href="${cartUrl}">Complete your order</a>`,
-      wa: `You left something behind! Your cart is waiting 🛒 ${cartUrl}`,
+      body:
+        emailEyebrow("Your cart") +
+        emailLead(
+          `Hi ${name},<br/><br/>Your bag is still waiting with ${items}.`
+        ) +
+        emailNote("Complete checkout before sizes sell out."),
+      wa: `You left something behind! Your cart is waiting — ${cartUrl}`,
     },
     "24h": {
       subject: "Still thinking?",
-      body: `Your items are still available: ${items}. <a href="${cartUrl}">Checkout now</a>`,
-      wa: `Still thinking? Your items are selling fast ⚡ ${cartUrl}`,
+      body:
+        emailEyebrow("Still available") +
+        emailLead(
+          `Hi ${name},<br/><br/>Your items are still available: ${items}.`
+        ),
+      wa: `Still thinking? Your items are selling fast — ${cartUrl}`,
     },
     "72h": {
       subject: "Last chance — 5% off",
-      body: `Complete your order with code <strong>COMEBACK5</strong> for 5% off. <a href="${cartUrl}">Return to cart</a>`,
+      body:
+        emailEyebrow("A little nudge") +
+        emailLead(
+          `Hi ${name},<br/><br/>Complete your order with 5% off.`
+        ) +
+        emailPromoCode("COMEBACK5", "Use this code at checkout"),
       wa: `Last chance! Use COMEBACK5 for 5% off — ${cartUrl}`,
     },
   }[input.stage];
@@ -608,7 +830,12 @@ export async function sendCartAbandoned(input: {
     email: input.email,
     phone: input.phone,
     subject: copy.subject,
-    html: emailLayout(copy.subject, copy.body),
+    html: emailLayout(copy.subject, copy.body, {
+      kind: "marketing",
+      preheader: copy.subject,
+      primaryCta: { label: "Return to cart", href: cartUrl },
+      secondaryCta: { label: "Keep browsing", href: SITE() },
+    }),
     text: copy.wa,
     waMessage: copy.wa,
     waTemplate: process.env.WA_TEMPLATE_CART_ABANDONED,
@@ -638,14 +865,24 @@ export async function sendReviewReminder(input: {
   if (!claimed) return { sent: false, reason: "already_sent" };
 
   const subject = "How was your experience?";
-  const body = `Order <strong>${input.orderId}</strong> — we'd love a review. Leave one from your account and enjoy ₹100 off your next order.`;
+  const body =
+    emailEyebrow("A quick ask") +
+    emailLead(
+      `Order <strong>${escHtml(input.orderId)}</strong> — we would love a short review.`
+    ) +
+    emailNote("Leave one from your account and enjoy ₹100 off your next order.");
   const result = await notifyChannels({
     email: input.email,
     phone: input.phone,
     subject,
-    html: emailLayout(subject, body),
+    html: emailLayout(subject, body, {
+      kind: "marketing",
+      preheader: "Share a review · ₹100 off next order",
+      primaryCta: { label: "Leave a review", href: `${SITE()}/account` },
+    }),
     text: `How was order ${input.orderId}? Leave a review from your account.`,
-    waMessage: `How was your Duti Heritage order ${input.orderId}? Leave a review from your account 💫`,
+    waMessage: `How was your Duti Heritage order ${input.orderId}? Leave a review from your account.`,
+    emailType: "marketing",
   });
   return { sent: true, detail: result.detail };
 }
@@ -668,17 +905,25 @@ export async function sendWinback(input: {
   });
   if (!claimed) return { sent: false, reason: "already_sent" };
 
+  const name = escHtml(input.name || "there");
   const copy =
     input.stage === "30d"
       ? {
           subject: "We miss you at Duti Heritage",
-          body: `Hi ${input.name || "there"}, it's been a while — here's what's new. <a href="${SITE()}">Explore the latest</a>`,
-          wa: `We miss you! Here's what's new at Duti Heritage 🌟 ${SITE()}`,
+          body:
+            emailEyebrow("Come say hello") +
+            emailLead(
+              `Hi ${name}, it has been a while — the latest pieces are waiting.`
+            ),
+          wa: `We miss you! Here's what's new at Duti Heritage — ${SITE()}`,
           code: undefined as string | undefined,
         }
       : {
           subject: "Come back with 15% off",
-          body: `It's been a while. Enjoy <strong>15% off</strong> with code <strong>MISSYOU15</strong>. <a href="${SITE()}">Shop now</a>`,
+          body:
+            emailEyebrow("A gift for you") +
+            emailLead(`Hi ${name}, it has been a while. Enjoy <strong>15% off</strong>.`) +
+            emailPromoCode("MISSYOU15", "Your win-back code"),
           wa: `It's been a while! Come back with 15% off — code MISSYOU15 ${SITE()}`,
           code: "MISSYOU15",
         };
@@ -687,11 +932,16 @@ export async function sendWinback(input: {
     email: input.email,
     phone: input.phone,
     subject: copy.subject,
-    html: emailLayout(copy.subject, copy.body),
+    html: emailLayout(copy.subject, copy.body, {
+      kind: "marketing",
+      preheader: copy.subject,
+      primaryCta: { label: "Explore the latest", href: SITE() },
+    }),
     text: copy.wa,
     waMessage: copy.wa,
     waTemplate: process.env.WA_TEMPLATE_WINBACK,
     waParams: [input.name || "friend", copy.code || ""],
+    emailType: "marketing",
   });
   return { sent: true, detail: result.detail };
 }
@@ -711,28 +961,28 @@ async function buildOrderEmailHtml(
   const steps = ["Confirmed", "Shipped", "Delivered"];
   const currentIndex = steps.indexOf(highlightStep);
 
-  let trackerHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 28px 0;"><tr>`;
+  let trackerHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 24px 0 28px;"><tr>`;
   steps.forEach((step, idx) => {
     const isCompleted = idx <= currentIndex;
     const isCurrent = idx === currentIndex;
-    const color = isCompleted ? "#111111" : "#e0e0e0";
-    const textColor = isCompleted ? "#000000" : "#6b6b6b";
+    const color = isCompleted ? "#1a1a1a" : "#e8e4df";
+    const textColor = isCompleted ? "#1a1a1a" : "#6b6560";
     const icon = isCompleted ? "●" : "○";
-    const weight = isCurrent ? "600" : "400";
-    
+    const weight = isCurrent ? "700" : "400";
+
     trackerHtml += `
-      <td align="center" style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:11px;width:33.33%;">
+      <td align="center" style="font-family:Georgia,Helvetica,Arial,sans-serif;font-size:11px;width:33.33%;">
         <div style="font-size:18px;margin-bottom:8px;color:${color};line-height:1;">${icon}</div>
         <div style="font-weight:${weight};text-transform:uppercase;letter-spacing:1.5px;color:${textColor};">${step}</div>
       </td>`;
   });
   trackerHtml += `</tr></table>`;
 
-  const nextStepHtml = nextStepText 
-    ? `<div style="background:#f5f5f5;padding:16px 18px;border-left:3px solid #111111;font-family:Outfit,Helvetica,Arial,sans-serif;font-size:14px;font-weight:300;margin-bottom:28px;line-height:1.55;color:#333333;">
-        <strong style="text-transform:uppercase;font-size:11px;letter-spacing:2px;color:#6b6b6b;display:block;margin-bottom:6px;font-weight:500;">Next step</strong>
+  const nextStepHtml = nextStepText
+    ? `<div style="background:#f0ebe3;padding:16px 18px;border-left:3px solid #8b6914;font-family:Georgia,Helvetica,Arial,sans-serif;font-size:14px;margin-bottom:28px;line-height:1.55;color:#1a1a1a;">
+        <strong style="text-transform:uppercase;font-size:11px;letter-spacing:2px;color:#6b6560;display:block;margin-bottom:6px;font-weight:600;">Next step</strong>
         ${nextStepText}
-       </div>` 
+       </div>`
     : "";
 
   let itemsHtml = `<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-family:Outfit,Helvetica,Arial,sans-serif;font-size:14px;margin-bottom:24px;border-top:1px solid #e0e0e0;">`;
@@ -841,16 +1091,23 @@ export async function sendWishlistReminder(input: {
 
   const url = `${SITE()}/products/${input.productSlug}`;
 
+  const pname = escHtml(input.productName);
   const copy = {
     "3d": {
       subject: `Still eyeing ${input.productName}?`,
-      body: `Your wishlisted ${input.productName} is waiting for you! <a href="${url}">Grab it now</a>`,
-      wa: `Still eyeing ${input.productName}? It's waiting for you 👀 – ${url}`,
+      body:
+        emailEyebrow("Wishlist") +
+        emailLead(`Your saved piece <strong>${pname}</strong> is still waiting.`) +
+        emailNote("Sizes move quickly — claim it while it is in stock."),
+      wa: `Still eyeing ${input.productName}? It's waiting for you — ${url}`,
     },
     "7d": {
       subject: `Your wishlist is running low`,
-      body: `Your wishlisted ${input.productName} is selling fast. <a href="${url}">Grab it before it's gone</a>`,
-      wa: `Your wishlisted ${input.productName} is running low! Grab it before it's gone! 🏃‍♀️💨 – ${url}`,
+      body:
+        emailEyebrow("Almost gone") +
+        emailLead(`Your wishlisted <strong>${pname}</strong> is selling fast.`) +
+        emailNote("Grab it before the last sizes go."),
+      wa: `Your wishlisted ${input.productName} is running low — ${url}`,
     },
   }[input.stage];
 
@@ -858,7 +1115,12 @@ export async function sendWishlistReminder(input: {
     email: input.email,
     phone: input.phone,
     subject: copy.subject,
-    html: emailLayout(copy.subject, copy.body),
+    html: emailLayout(copy.subject, copy.body, {
+      kind: "marketing",
+      preheader: copy.subject,
+      primaryCta: { label: "View product", href: url },
+      secondaryCta: { label: "Wishlist", href: `${SITE()}/account/wishlist` },
+    }),
     text: copy.wa,
     waMessage: copy.wa,
     waTemplate: process.env.WA_TEMPLATE_WISHLIST_REMINDER,

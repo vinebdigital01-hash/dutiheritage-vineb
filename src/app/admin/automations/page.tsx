@@ -8,6 +8,7 @@ import {
   EmptyState,
   useToast,
 } from "@/components/admin/ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type FlowKey =
   | "welcome"
@@ -63,6 +64,7 @@ type LogRow = {
 
 export default function AdminAutomationsPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [settings, setSettings] = useState<
     Record<FlowKey, { enabled: boolean }> | null
   >(null);
@@ -97,7 +99,12 @@ export default function AdminAutomationsPage() {
   const toggle = async (key: FlowKey) => {
     if (!settings) return;
     const next = !settings[key]?.enabled;
-    if (!window.confirm(`Are you sure you want to ${next ? "enable" : "disable"} this automation?`)) return;
+    if (!(await confirm({
+      title: next ? "Enable automation" : "Disable automation",
+      description: `Are you sure you want to ${next ? "enable" : "disable"} this automation?`,
+      confirmText: next ? "Enable" : "Disable",
+      confirmStyle: next ? "primary" : "danger",
+    }))) return;
     setSaving(key);
     try {
       await adminFetch("/api/settings/automations", {
@@ -116,6 +123,7 @@ export default function AdminAutomationsPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader
         title="Auto messages"
         subtitle="On/off for order placed, shipped, cart left unpaid, and similar"

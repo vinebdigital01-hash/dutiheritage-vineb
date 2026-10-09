@@ -30,8 +30,14 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
   return (
     <Link 
       href={`/products/${product.slug}`} 
-      className="group flex flex-col h-full animate-fade-in-up opacity-0"
-      style={{ animationDelay: `${Math.min(index, 8) * 0.05}s` }}
+      className={`group flex flex-col h-full ${
+        priority ? "" : "animate-fade-in-up opacity-0"
+      }`}
+      style={
+        priority
+          ? undefined
+          : { animationDelay: `${Math.min(index, 8) * 0.05}s` }
+      }
     >
       <div className="relative w-full aspect-[3/4] overflow-hidden bg-[var(--color-surface)] mb-2">
         <button 
@@ -67,11 +73,29 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
           </div>
         )}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
-          {product.trackInventory && (!product.inventory || product.inventory.every(i => i.stock === 0)) && (
-            <div className="bg-red-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
-              SOLD OUT
-            </div>
-          )}
+          {(() => {
+            const rows = product.inventory || [];
+            const tracking = Boolean(product.trackInventory) || rows.length > 0;
+            if (!tracking) return null;
+            const stocks = rows.map((r) => Number(r.stock || 0));
+            const total = stocks.reduce((a, b) => a + b, 0);
+            const threshold = product.lowStockThreshold ?? 3;
+            if (total <= 0) {
+              return (
+                <div className="bg-red-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
+                  SOLD OUT
+                </div>
+              );
+            }
+            if (total <= threshold || product.stockStatus === "low_stock") {
+              return (
+                <div className="bg-amber-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
+                  Only {total} left
+                </div>
+              );
+            }
+            return null;
+          })()}
           {product.tags && product.tags.map(tag => (
              <div key={tag} className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
                {tag}

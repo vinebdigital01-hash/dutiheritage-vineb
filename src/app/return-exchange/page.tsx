@@ -3,8 +3,9 @@ import { PolicyPageShell } from "@/components/PolicyPageShell";
 import { getPageContent } from "@/lib/site-content-server";
 
 export const metadata: Metadata = {
-  title: "Exchange Policy | Duti Heritage",
-  description: "Exchange policy for Duti Heritage. No returns accepted. Size exchange and defective product exchange available within 24 hours of delivery.",
+  title: "Cancellation, Return & Refund | Duti Heritage",
+  description:
+    "No returns on sold items. Size and defective exchanges within 24 hours of delivery. How to cancel prepaid or COD orders.",
 };
 
 export default async function ReturnExchangePage() {
@@ -12,13 +13,13 @@ export default async function ReturnExchangePage() {
 
   return (
     <PolicyPageShell
-      title={live?.title || "Exchange Policy"}
+      title={live?.title || "Cancellation, Return & Refund"}
       content={live?.content}
     >
       <div className="space-y-10 text-[var(--color-text-muted)] leading-relaxed">
         <section>
           <h2 className="text-xl font-medium text-[var(--color-text)] mb-6 uppercase tracking-wider">
-            Our Exchange Policy
+            Returns &amp; exchanges
           </h2>
           <div className="space-y-5">
             <p>
@@ -66,16 +67,19 @@ export default async function ReturnExchangePage() {
 
         <section>
           <h2 className="text-xl font-medium text-[var(--color-text)] mb-4 uppercase tracking-wider">
-            Order Cancellation
+            Order cancellation
           </h2>
           <div className="space-y-3">
             <p>
-              <strong>Prepaid orders</strong> once placed are <strong>not eligible for cancellation</strong>.
-              We begin processing orders immediately to ensure fast delivery.
+              <strong>Prepaid orders:</strong> you may request cancellation from your account or by
+              contacting us before the order is packed/dispatched. If we approve, any eligible refund
+              is processed to the original payment method via Razorpay (bank timelines apply).
+              Requests after dispatch may be declined.
             </p>
             <p>
-              <strong>COD (Cash on Delivery) orders</strong> may be cancelled before dispatch by contacting
-              us via WhatsApp or email.
+              <strong>COD (Cash on Delivery) orders:</strong> you may cancel before dispatch via your
+              account, WhatsApp, or email. There is no bank refund for COD — the order is simply not
+              collected.
             </p>
           </div>
         </section>

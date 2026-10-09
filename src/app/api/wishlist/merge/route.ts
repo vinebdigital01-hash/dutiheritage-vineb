@@ -22,12 +22,13 @@ export async function POST(request: Request) {
     }
 
     await connectDB();
+    const ids = productIds as string[];
     const existing = await Wishlist.find({
       firebaseUid: auth.uid,
-      productId: { $in: productIds },
-    }).lean();
+      productId: { $in: ids },
+    } as Record<string, unknown>).lean();
     const have = new Set(existing.map((w) => String(w.productId)));
-    const toInsert = productIds.filter((id) => !have.has(id));
+    const toInsert = ids.filter((id: string) => !have.has(id));
 
     if (toInsert.length > 0) {
       await Wishlist.insertMany(

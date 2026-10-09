@@ -2,11 +2,11 @@ import { CollectionSection } from "@/components/CollectionSection/CollectionSect
 import { OfflineSync } from "@/components/OfflineSync/OfflineSync";
 import { PromoBanner } from "@/components/PromoBanner/PromoBanner";
 import { HomepageHero } from "@/components/HomepageHero/HomepageHero";
-import { db } from "@/services/db";
 import {
   getSiteContent,
   resolveHomepageSlugs,
 } from "@/lib/site-content-server";
+import { resolveCollectionBrowse } from "@/lib/smart-collections";
 
 export const revalidate = 60;
 
@@ -16,14 +16,17 @@ export default async function Home() {
 
   const collectionsData = await Promise.all(
     slugs.map(async (slug) => {
-      const collection = await db.getCollectionBySlug(slug);
-      if (!collection) return null;
-      const products = await db.getProductsByCollectionId(collection.id);
-      return { collection, products };
+      const resolved = await resolveCollectionBrowse(slug);
+      if (!resolved) return null;
+      return {
+        collection: resolved.collection,
+        products: resolved.products,
+        smart: resolved.smart,
+      };
     })
   );
 
-  const allProducts = collectionsData.flatMap(d => d ? d.products : []);
+  const allProducts = collectionsData.flatMap((d) => (d ? d.products : []));
 
   return (
     <>
@@ -43,7 +46,7 @@ export default async function Home() {
 
         return (
           <CollectionSection
-            key={data.collection.id}
+            key={data.collection.id || data.collection.slug}
             collection={data.collection}
             products={data.products}
             gridClass={gridClass}

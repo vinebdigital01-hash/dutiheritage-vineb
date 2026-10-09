@@ -8,6 +8,7 @@ import {
   sendOrderCancelled,
   sendOrderConfirmed,
   sendOrderOnHold,
+  sendCancelRequestDeclined,
 } from "@/lib/automations";
 import {
   handleApiError,
@@ -119,16 +120,25 @@ export async function PUT(request: Request, { params }: Params) {
       }
     }
 
+    let cancelWasRejected = false;
+    let cancelRejectReasonText = "";
     if (body.cancelRequestState !== undefined) {
       order.cancelRequestState = body.cancelRequestState;
       if (body.cancelRejectReason !== undefined) {
         order.cancelRejectReason = body.cancelRejectReason;
       }
       if (body.cancelRequestState === "rejected") {
+        cancelWasRejected = true;
+        cancelRejectReasonText = String(
+          body.cancelRejectReason || order.cancelRejectReason || "Not approved"
+        ).trim();
+        if (!cancelRejectReasonText) {
+          throw new ApiError("A reason is required to decline a cancellation request");
+        }
         appendTimeline(order, {
           actor,
           action: "cancel_rejected",
-          message: `Cancellation request declined. Reason: ${body.cancelRejectReason}`,
+          message: `Cancellation request declined. Reason: ${cancelRejectReasonText}`,
           internal: false,
         });
       }
@@ -241,6 +251,20 @@ export async function PUT(request: Request, { params }: Params) {
         courier: order.trackingInfo?.courier,
         awb: order.trackingInfo?.awb,
       }).catch((e) => console.error("[order_shipped]", e));
+
+      const track =
+        order.trackingInfo?.trackingUrl ||
+        (order.trackingInfo?.awb
+          ? `AWB ${order.trackingInfo.awb}${order.trackingInfo.courier ? ` (${order.trackingInfo.courier})` : ""}`
+          : `${process.env.NEXT_PUBLIC_SITE_URL || "https://dutiheritage.co.in"}/track`);
+      void import("@/lib/bot-notify")
+        .then(({ notifyBot }) =>
+          notifyBot({
+            phone: String(order.customer?.phone || ""),
+            message: `Great news! 🚚 Your outfit has shipped. Track it here: ${track}`,
+          })
+        )
+        .catch((e) => console.error("[order_shipped_bot]", e));
     }
 
     if (order.status === "Delivered" && prevStatus !== "Delivered") {
@@ -263,7 +287,15 @@ export async function PUT(request: Request, { params }: Params) {
       void sendOrderCancelled({
         ...notifyBase,
         total: order.total,
+        paymentMethod: order.paymentMethod,
       }).catch((e) => console.error("[order_cancelled]", e));
+    }
+
+    if (cancelWasRejected) {
+      void sendCancelRequestDeclined({
+        ...notifyBase,
+        reason: cancelRejectReasonText,
+      }).catch((e) => console.error("[cancel_declined]", e));
     }
 
     if (order.status === "Returned" && prevStatus !== "Returned") {

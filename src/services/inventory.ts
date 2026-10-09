@@ -129,6 +129,18 @@ export async function logInventoryDiff(
       reason: meta.reason,
       actor: meta.actor,
     });
+    try {
+      const { notifyBotWaitlistOnRestock } = await import("@/lib/bot-waitlist-notify");
+      await notifyBotWaitlistOnRestock({
+        productId,
+        productName,
+        size,
+        prevStock: before,
+        nextStock: after,
+      });
+    } catch (e) {
+      console.error("[bot-waitlist-restock]", e);
+    }
   }
 }
 
@@ -168,13 +180,34 @@ export async function setAbsoluteStock(
     product.trackInventory = true;
     product.stockStatus = computeStockStatus(product);
     await product.save();
+    const nextRows = (product.inventory || []).map((r) => ({
+      size: r.size,
+      stock: r.stock,
+      sku: r.sku,
+    }));
     await logInventoryDiff(
       product._id.toString(),
       product.name,
       prev,
-      (product.inventory || []).map((r) => ({ size: r.size, stock: r.stock, sku: r.sku })),
+      nextRows,
       meta
     );
+
+    try {
+      const { notifyBotWaitlistOnRestock } = await import("@/lib/bot-waitlist-notify");
+      const before = Number(prev.find((r) => (r.size || "") === size)?.stock || 0);
+      const after = Number(nextRows.find((r) => (r.size || "") === size)?.stock || 0);
+      await notifyBotWaitlistOnRestock({
+        productId: product._id.toString(),
+        productName: product.name,
+        size,
+        prevStock: before,
+        nextStock: after,
+      });
+    } catch (e) {
+      console.error("[bot-waitlist-restock]", e);
+    }
+
     updatedCount += 1;
   }
 
@@ -306,10 +339,29 @@ export async function adjustInventory(
         "";
     }
     if (emailTo) {
+      const { emailLayout, emailEyebrow, emailLead, emailNote, escHtml } =
+        await import("@/lib/email");
+      const list = alerts
+        .map((a) => `<li style="margin:0 0 8px;">${escHtml(a.replace(/^- /, ""))}</li>`)
+        .join("");
       await sendEmail({
         to: emailTo,
         subject: "Low stock alert — Duti Heritage",
-        html: `<p>These items are at or below the low-stock threshold:</p><ul>${alerts.map((a) => `<li>${a}</li>`).join("")}</ul><p><a href="${getPublicSiteUrl()}/admin/inventory">Open inventory</a></p>`,
+        html: emailLayout(
+          "Low stock alert",
+          emailEyebrow("Inventory") +
+            emailLead("These items are at or below the low-stock threshold:") +
+            `<ul style="margin:0 0 16px;padding-left:18px;font-size:14px;line-height:1.5;">${list}</ul>` +
+            emailNote("Restock soon so checkout does not oversell."),
+          {
+            kind: "staff",
+            hideDefaultCtas: true,
+            primaryCta: {
+              label: "Open inventory",
+              href: `${getPublicSiteUrl()}/admin/inventory`,
+            },
+          }
+        ),
         type: "orders",
       });
     }

@@ -88,11 +88,18 @@ export async function POST(request: Request) {
     const productId = String(body.productId || "").trim();
     const rating = Number(body.rating);
     const comment = String(body.comment || "").trim();
-    const images = Array.isArray(body.images) ? body.images.map(String) : [];
+    const rawImages = Array.isArray(body.images) ? body.images.map(String) : [];
+    const images = rawImages
+      .map((u: string) => u.trim())
+      .filter((u: string) => u.startsWith("http"))
+      .slice(0, 5);
 
     if (!productId) throw new ApiError("productId is required");
     if (!rating || rating < 1 || rating > 5) {
       throw new ApiError("rating must be 1–5");
+    }
+    if (rawImages.length > 5) {
+      throw new ApiError("Maximum 5 photos per review");
     }
 
     const eligibility = await assertCanReview({

@@ -1,5 +1,8 @@
 import { requireAuth } from "@/lib/auth";
-import { generateMonthlyReport } from "@/lib/report-generator";
+import {
+  generateMonthlyReport,
+  buildMonthlyReportData,
+} from "@/lib/report-generator";
 import { getStoreSettings } from "@/lib/store-settings";
 import { handleApiError, jsonOk, ApiError } from "@/lib/api";
 
@@ -22,9 +25,16 @@ export async function GET(request: Request) {
     const isCronRequest = Boolean(
       cronSecret && authHeader === `Bearer ${cronSecret}`
     );
+    const { searchParams } = new URL(request.url);
+    const preview = searchParams.get("preview") === "1";
 
     if (!isCronRequest) {
       await requireAuth(request, { admin: true });
+    }
+
+    if (preview && !isCronRequest) {
+      const { snapshot } = await buildMonthlyReportData();
+      return jsonOk({ success: true, snapshot });
     }
 
     const email = await defaultReportEmail();

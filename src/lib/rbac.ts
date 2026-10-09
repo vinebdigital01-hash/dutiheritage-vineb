@@ -31,6 +31,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: "/admin/orders", roles: OPS_WRITE, section: "daily" },
   { href: "/admin/returns", roles: OPS_WRITE, section: "daily" },
   { href: "/admin/inventory", roles: OPS_WRITE, section: "daily" },
+  { href: "/admin/offline-sales", roles: OPS_WRITE, section: "daily" },
   { href: "/admin/customers", roles: OPS_WRITE, section: "daily" },
   { href: "/admin/reviews", roles: OPS_WRITE, section: "daily" },
   { href: "/admin/whatsapp", roles: OPS_WRITE, section: "daily" },

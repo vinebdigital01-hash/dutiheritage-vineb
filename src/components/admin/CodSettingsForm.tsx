@@ -9,10 +9,12 @@ import {
   AdminTextarea,
   useToast,
 } from "@/components/admin/ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 import type { CheckoutSettings } from "@/services/checkout";
 
 export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -58,7 +60,7 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm("Save COD & shipping settings?")) return;
+    if (!(await confirm({ title: "Save settings", description: "Save COD & shipping settings?", confirmText: "Save" }))) return;
     setSaving(true);
     try {
       const split = (s: string) =>
@@ -100,6 +102,7 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
   return (
     <div>
       {!embedded && Toast}
+      {ConfirmDialog}
       {embedded && Toast}
       <form
         onSubmit={save}

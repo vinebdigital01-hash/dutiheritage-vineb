@@ -12,6 +12,7 @@ import {
   EmptyState,
   useToast,
 } from "@/components/admin/ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type Group = {
   id: string;
@@ -53,6 +54,7 @@ const SMART_PRESETS = [
 
 export default function AdminGroupsPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [groups, setGroups] = useState<Group[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +96,7 @@ export default function AdminGroupsPage() {
   const createGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-    if (!window.confirm("Are you sure you want to create this group?")) return;
+    if (!(await confirm({ title: "Create group", description: "Create this customer group?", confirmText: "Create" }))) return;
     setCreating(true);
     try {
       const preset = SMART_PRESETS[Number(form.preset)];
@@ -120,7 +122,7 @@ export default function AdminGroupsPage() {
   const sendCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!campaignForm.groupId) return;
-    if (!window.confirm("Are you sure you want to send this campaign? This action cannot be undone.")) return;
+    if (!(await confirm({ title: "Send campaign", description: "Send this campaign now? This cannot be undone.", confirmText: "Send", confirmStyle: "danger" }))) return;
     setSending(true);
     try {
       const data = await adminFetch<{ sent: number; failed: number }>(
@@ -149,6 +151,7 @@ export default function AdminGroupsPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader
         title="Customer lists"
         subtitle="Groups of people you can email or WhatsApp together"
@@ -224,7 +227,7 @@ export default function AdminGroupsPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!confirm("Delete this group permanently?")) return;
+                    if (!(await confirm({ title: "Delete group", description: "Delete this group permanently?", confirmText: "Delete", confirmStyle: "danger" }))) return;
                     try {
                       await adminFetch(`/api/groups/${g.id}`, { method: 'DELETE' });
                       show("Group deleted");

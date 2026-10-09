@@ -57,8 +57,8 @@ export async function getCrossSellProducts(input: {
   if (wish.length) {
     const wishDocs = await ProductModel.find({
       isActive: true,
-      _id: { $in: wish },
-    })
+      _id: { $in: wish.map((id) => new mongoose.Types.ObjectId(id)) },
+    } as Record<string, unknown>)
       .limit(limit)
       .lean();
     if (wishDocs.length) {
@@ -72,8 +72,10 @@ export async function getCrossSellProducts(input: {
       ? await ProductModel.find({
           isActive: true,
           collectionId: { $in: collectionIds },
-          ...(exclude.length ? { _id: { $nin: exclude } } : {}),
-        })
+          ...(exclude.length
+            ? { _id: { $nin: exclude.map((id) => new mongoose.Types.ObjectId(id)) } }
+            : {}),
+        } as Record<string, unknown>)
           .limit(limit)
           .lean()
       : [];
@@ -86,8 +88,10 @@ export async function getCrossSellProducts(input: {
     const extra = await ProductModel.find({
       isActive: true,
       tags: "Bestseller",
-      ...(extraExclude.length ? { _id: { $nin: extraExclude } } : {}),
-    })
+      ...(extraExclude.length
+        ? { _id: { $nin: extraExclude.map((id) => new mongoose.Types.ObjectId(id)) } }
+        : {}),
+    } as Record<string, unknown>)
       .limit(limit - products.length)
       .lean();
     products = [...products, ...(extra.map(toProduct as any) as Product[])];

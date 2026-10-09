@@ -9,6 +9,7 @@ import {
   AdminTextarea,
   useToast,
 } from "@/components/admin/ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { ImageUploader } from "@/components/admin/ImageUploader";
 import type { HeroBanner } from "@/lib/site-content-shared";
 
@@ -27,18 +28,23 @@ type SiteContent = {
     gstin?: string;
     instagramUrl?: string;
     facebookUrl?: string;
+    pinterestUrl?: string;
+    whatsappUrl?: string;
   };
 };
 
 const POLICY_SLUGS = [
+  { slug: "about", title: "About Us" },
+  { slug: "contact-us", title: "Contact Us" },
   { slug: "privacy-policy", title: "Privacy Policy" },
-  { slug: "return-exchange", title: "Return & Exchange" },
-  { slug: "shipping", title: "Shipping" },
+  { slug: "return-exchange", title: "Cancellation, Return & Refund" },
+  { slug: "shipping", title: "Delivery & Shipping" },
   { slug: "terms-conditions", title: "Terms & Conditions" },
 ];
 
 export default function AdminContentPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [content, setContent] = useState<SiteContent>({});
@@ -90,7 +96,7 @@ export default function AdminContentPage() {
 
   const saveContent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm("Are you sure you want to update the site content?")) return;
+    if (!(await confirm({ title: "Update site content", description: "Save homepage and footer content?", confirmText: "Save" }))) return;
     setSaving(true);
     try {
       const headerNavLinks = navText
@@ -126,7 +132,7 @@ export default function AdminContentPage() {
   };
 
   const savePolicy = async () => {
-    if (!window.confirm("Are you sure you want to save this policy page?")) return;
+    if (!(await confirm({ title: "Save policy page", description: "Publish this policy page?", confirmText: "Save" }))) return;
     setSavingPolicy(true);
     try {
       await adminFetch(`/api/pages/${policySlug}`, {
@@ -150,6 +156,7 @@ export default function AdminContentPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader
         title="Homepage"
         subtitle="Banners, top menu, announcement bar, and policy pages — no developer needed"
@@ -404,7 +411,31 @@ export default function AdminContentPage() {
               }))
             }
           />
+          <AdminInput
+            label="Pinterest URL"
+            value={content.footer?.pinterestUrl || ""}
+            onChange={(e) =>
+              setContent((c) => ({
+                ...c,
+                footer: { ...c.footer, pinterestUrl: e.target.value },
+              }))
+            }
+          />
+          <AdminInput
+            label="WhatsApp URL"
+            value={content.footer?.whatsappUrl || ""}
+            onChange={(e) =>
+              setContent((c) => ({
+                ...c,
+                footer: { ...c.footer, whatsappUrl: e.target.value },
+              }))
+            }
+            placeholder="https://wa.me/917017194982"
+          />
         </div>
+        <p className="text-xs text-[var(--color-text-muted)] -mt-2">
+          Empty social URLs hide the icon in the storefront footer. Use full https links.
+        </p>
         <AdminTextarea
           label="Footer address"
           value={content.footer?.address || ""}

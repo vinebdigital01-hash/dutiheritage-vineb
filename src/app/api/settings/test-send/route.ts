@@ -1,7 +1,14 @@
 import { requireAuth } from "@/lib/auth";
 import { SETTINGS_WRITE } from "@/lib/rbac";
 import { handleApiError, jsonOk, requireMongo, ApiError } from "@/lib/api";
-import { sendEmail, emailLayout, isEmailConfigured } from "@/lib/email";
+import {
+  sendEmail,
+  emailLayout,
+  isEmailConfigured,
+  emailEyebrow,
+  emailLead,
+  emailNote,
+} from "@/lib/email";
 import { sendWhatsApp, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { getStoreSettings } from "@/lib/store-settings";
 
@@ -24,7 +31,10 @@ export async function POST(request: Request) {
         subject: `${name} — test email`,
         html: emailLayout(
           "Test email",
-          `<p>This is a test from the admin Settings hub.</p><p>If you received this, Resend is working.</p>`
+          emailEyebrow("Settings") +
+            emailLead("This is a test from the admin Settings hub.") +
+            emailNote("If you received this, Resend is working with the premium layout."),
+          { preheader: "Resend test from Duti Heritage admin" }
         ),
         type: "orders",
       });

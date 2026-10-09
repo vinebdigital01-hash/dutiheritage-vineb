@@ -12,7 +12,7 @@ export function getStoreIdentity() {
     address:
       process.env.NEXT_PUBLIC_STORE_ADDRESS ||
       process.env.STORE_ADDRESS ||
-      "Flat 103, 10th Floor, DLF Express Green M1, IMT Manesar, Gurugram, Haryana - 122052",
+      "103, Block D, DLF Express Green M1, IMT Manesar, Gurugram, Haryana - 122052",
     state:
       process.env.NEXT_PUBLIC_STORE_STATE || process.env.STORE_STATE || "Haryana",
     stateCode:
@@ -24,7 +24,7 @@ export function getStoreIdentity() {
     supportPhone:
       process.env.NEXT_PUBLIC_STORE_SUPPORT_PHONE ||
       process.env.STORE_SUPPORT_PHONE ||
-      "",
+      "91-7017194982",
   };
 }
 

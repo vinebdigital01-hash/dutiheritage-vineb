@@ -11,6 +11,7 @@ import {
   Badge,
   useToast,
 } from "@/components/admin/ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 import type { CustomerDTO } from "@/lib/analytics";
 
 type Profile = {
@@ -55,6 +56,7 @@ export default function AdminCustomerDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [tagInput, setTagInput] = useState("");
@@ -101,7 +103,7 @@ export default function AdminCustomerDetailPage() {
   const addTag = async () => {
     const tag = tagInput.trim();
     if (!tag || !profile) return;
-    if (!window.confirm("Are you sure you want to add this tag?")) return;
+    if (!(await confirm({ title: "Add tag", description: "Add this tag to the customer?", confirmText: "Add tag" }))) return;
     setSaving(true);
     try {
       const data = await adminFetch<{ customer: CustomerDTO }>(
@@ -145,6 +147,7 @@ export default function AdminCustomerDetailPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader
         title={c.name || "Customer"}
         subtitle={c.email || c.phone || c.id}
@@ -313,8 +316,18 @@ export default function AdminCustomerDetailPage() {
               <AdminButton
                 variant={c.frozen ? "secondary" : "danger"}
                 disabled={saving}
-                onClick={() => {
-                  if (!c.frozen && !window.confirm("Freeze this customer? They cannot place orders.")) return;
+                onClick={async () => {
+                  if (
+                    !c.frozen &&
+                    !(await confirm({
+                      title: "Freeze customer",
+                      description: "They cannot place orders until unfrozen.",
+                      confirmText: "Freeze",
+                      confirmStyle: "danger",
+                    }))
+                  ) {
+                    return;
+                  }
                   patchCustomer(
                     { frozen: !c.frozen, blockReason },
                     c.frozen ? "Account unfrozen" : "Account frozen"

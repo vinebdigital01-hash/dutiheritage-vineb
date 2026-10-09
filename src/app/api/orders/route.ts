@@ -43,6 +43,7 @@ export async function GET(request: Request) {
         city: searchParams.get("city"),
         from: searchParams.get("from"),
         to: searchParams.get("to"),
+        cancelRequestState: searchParams.get("cancelRequestState"),
       });
     } else {
       filter = { firebaseUid: authUser.uid };

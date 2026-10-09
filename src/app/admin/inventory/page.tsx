@@ -219,7 +219,7 @@ export default function AdminInventoryPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-[13px]">
+                <table className="w-full text-left text-[13px] min-w-[640px]">
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
                       <th className="px-5 py-3">Product</th>
@@ -320,7 +320,7 @@ export default function AdminInventoryPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-[13px]">
+                <table className="w-full text-left text-[13px] min-w-[640px]">
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
                       <th className="px-5 py-3">Product</th>
@@ -362,7 +362,7 @@ export default function AdminInventoryPage() {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-[13px]">
+                <table className="w-full text-left text-[13px] min-w-[640px]">
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
                       <th className="px-5 py-3">When</th>

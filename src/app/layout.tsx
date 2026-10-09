@@ -8,6 +8,7 @@ import { FacebookPixel } from "@/components/FacebookPixel/FacebookPixel";
 import { StoreShell } from "@/components/StoreShell";
 import { SiteContentProvider } from "@/context/SiteContentContext";
 import { getSiteContent } from "@/lib/site-content-server";
+import { ToastProvider } from "@/components/ToastProvider";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -44,6 +45,8 @@ function enrichSiteContent(
         content.footer?.copyright?.trim() || `© ${year} ${company}`,
       instagramUrl: content.footer?.instagramUrl?.trim() || "",
       facebookUrl: content.footer?.facebookUrl?.trim() || "",
+      pinterestUrl: content.footer?.pinterestUrl?.trim() || "",
+      whatsappUrl: content.footer?.whatsappUrl?.trim() || "",
     },
   };
 }
@@ -52,6 +55,8 @@ function sameAsFromContent(content: SiteContentData): string[] {
   const urls = [
     content.footer?.instagramUrl,
     content.footer?.facebookUrl,
+    content.footer?.pinterestUrl,
+    content.footer?.whatsappUrl,
   ]
     .map((u) => String(u || "").trim())
     .filter((u) => u.startsWith("http"));
@@ -214,9 +219,11 @@ export default async function RootLayout({
           <FacebookPixel />
         </Suspense>
         <AppProvider>
-          <SiteContentProvider content={siteContent}>
-            <StoreShell>{children}</StoreShell>
-          </SiteContentProvider>
+          <ToastProvider>
+            <SiteContentProvider content={siteContent}>
+              <StoreShell>{children}</StoreShell>
+            </SiteContentProvider>
+          </ToastProvider>
         </AppProvider>
       </body>
     </html>

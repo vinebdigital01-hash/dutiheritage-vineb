@@ -37,6 +37,7 @@ export function buildAdminOrderFilter(params: {
   city?: string | null;
   from?: string | null;
   to?: string | null;
+  cancelRequestState?: string | null;
 }): Record<string, unknown> {
   const filter: Record<string, unknown> = {};
   const status = params.status?.trim();
@@ -45,6 +46,14 @@ export function buildAdminOrderFilter(params: {
   const paymentMethod = params.paymentMethod?.trim();
   if (paymentMethod && ["prepaid", "cod", "partial"].includes(paymentMethod)) {
     filter.paymentMethod = paymentMethod;
+  }
+
+  const cancelRequestState = params.cancelRequestState?.trim();
+  if (
+    cancelRequestState &&
+    ["none", "requested", "rejected", "accepted"].includes(cancelRequestState)
+  ) {
+    filter.cancelRequestState = cancelRequestState;
   }
 
   const city = params.city?.trim();

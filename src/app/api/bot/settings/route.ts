@@ -6,7 +6,7 @@ import { validateBotApiKey } from "@/lib/bot-auth";
 
 export async function GET(request: Request) {
   try {
-    await await validateBotApiKey(request);
+    await validateBotApiKey(request);
     await connectDB();
     
     let settings = await Settings.findById("cod");

@@ -13,16 +13,19 @@ import {
   useToast,
 } from "@/components/admin/ui";
 import type { Product } from "@/types";
+import { useConfirm, usePrompt } from "@/components/ConfirmDialog";
 
 export default function AdminProductsPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
+  const { prompt, PromptDialog } = usePrompt();
   const [products, setProducts] = useState<(Product & { isActive?: boolean })[]>(
     []
   );
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
-const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const toggleAll = () => {
@@ -46,22 +49,38 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     let action = 'update';
     let updates: any = {};
     
-    if (actionType === 'delete') {
-      if (!window.confirm("Are you sure you want to delete " + selectedIds.size + " products?")) return;
-      action = 'delete';
-    } else if (actionType === 'activate') {
+    if (actionType === "delete") {
+      const ok = await confirm({
+        title: "Delete products",
+        description: `Permanently delete ${selectedIds.size} product(s)? This cannot be undone.`,
+        confirmText: "Delete",
+        confirmStyle: "danger",
+      });
+      if (!ok) return;
+      action = "delete";
+    } else if (actionType === "activate") {
       updates = { isActive: true };
-    } else if (actionType === 'deactivate') {
+    } else if (actionType === "deactivate") {
       updates = { isActive: false };
-    } else if (actionType === 'enable_cod') {
+    } else if (actionType === "enable_cod") {
       updates = { codAvailable: true };
-    } else if (actionType === 'disable_cod') {
+    } else if (actionType === "disable_cod") {
       updates = { codAvailable: false };
-    } else if (actionType === 'enable_partial_cod') {
-      const amt = window.prompt("Enter Partial COD Advance amount (e.g. 500):", "500");
+    } else if (actionType === "enable_partial_cod") {
+      const amt = await prompt({
+        title: "Partial COD advance",
+        description: "Advance amount customers pay online (₹).",
+        label: "Advance ₹",
+        defaultValue: "500",
+        confirmText: "Apply",
+      });
       if (amt === null) return;
-      updates = { isPartialCOD: true, partialCODAdvance: Number(amt) || 0, codAvailable: true };
-    } else if (actionType === 'disable_partial_cod') {
+      updates = {
+        isPartialCOD: true,
+        partialCODAdvance: Number(amt) || 0,
+        codAvailable: true,
+      };
+    } else if (actionType === "disable_partial_cod") {
       updates = { isPartialCOD: false, partialCODAdvance: 0 };
     }
 
@@ -170,7 +189,13 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   }, [products, q]);
 
   const softDelete = async (id: string) => {
-    if (!confirm("Deactivate this product? It will hide from the store.")) return;
+    const ok = await confirm({
+      title: "Deactivate product",
+      description: "It will hide from the store. You can turn it back on later.",
+      confirmText: "Deactivate",
+      confirmStyle: "danger",
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       await adminFetch(`/api/products/${id}`, { method: "DELETE" });
@@ -186,6 +211,8 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
+      {PromptDialog}
       <PageHeader
         title="Products"
         subtitle={`${products.length} products · photos, price (GST included), sizes, stock`}
@@ -259,7 +286,7 @@ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
           )}
           <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
+            <table className="w-full text-left text-[13px] min-w-[720px]">
               <thead className="bg-neutral-50 text-[11px] tracking-[1px] uppercase text-neutral-500">
                 <tr>
                   <th className="px-4 py-3 w-10"><input type="checkbox" className="accent-black w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} /></th><th className="px-4 py-3 font-medium">Product</th>

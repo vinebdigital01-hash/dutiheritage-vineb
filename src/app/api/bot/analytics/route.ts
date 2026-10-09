@@ -1,13 +1,12 @@
 import { connectDB } from "@/lib/mongodb";
 import { ChatSession } from "@/models/ChatSession";
 import { ChatMessage } from "@/models/ChatMessage";
-import { requireAuth } from "@/lib/auth";
-import { OPS_WRITE } from "@/lib/rbac";
 import { handleApiError, jsonOk } from "@/lib/api";
+import { validateBotApiKey } from "@/lib/bot-auth";
 
 export async function GET(request: Request) {
   try {
-    await requireAuth(request, { admin: true, roles: OPS_WRITE });
+    await validateBotApiKey(request);
     await connectDB();
 
     const [

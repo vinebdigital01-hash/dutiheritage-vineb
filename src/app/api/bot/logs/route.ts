@@ -1,16 +1,15 @@
 import { connectDB } from "@/lib/mongodb";
 import { ChatMessage } from "@/models/ChatMessage";
-import { requireAuth } from "@/lib/auth";
-import { OPS_WRITE } from "@/lib/rbac";
 import { handleApiError, jsonOk, requireMongo } from "@/lib/api";
+import { validateBotApiKey } from "@/lib/bot-auth";
 
 /**
- * GET /api/bot/logs — staff WhatsApp send history (Firebase admin auth).
+ * GET /api/bot/logs — staff WhatsApp send history (bot key or admin session).
  */
 export async function GET(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true, roles: OPS_WRITE });
+    await validateBotApiKey(request);
     await connectDB();
 
     const docs = await ChatMessage.find().sort({ createdAt: -1 }).limit(100).lean();

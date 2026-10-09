@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AdminButton, AdminInput, AdminSelect, AdminTextarea } from "@/components/admin/ui";
+import { AdminButton, AdminInput, AdminSelect, AdminTextarea, useToast } from "@/components/admin/ui";
 import { adminFetch, AdminApiError } from "@/lib/admin-api";
-import { useToast } from "@/components/admin/Toast";
 import Link from "next/link";
 
 export default function BroadcastPage() {
-  const { show } = useToast();
+  const { show, Toast } = useToast();
   const [audience, setAudience] = useState("all");
   const [phones, setPhones] = useState("");
   const [message, setMessage] = useState("");
@@ -66,6 +65,7 @@ export default function BroadcastPage() {
 
   return (
     <div className="max-w-xl space-y-4">
+      {Toast}
       <h1 className="font-serif text-2xl">Send to many</h1>
       <p className="text-[13px] text-neutral-600">
         This sends real WhatsApp. If keys are missing, the button stays off — we will not show a fake success.         For a saved group, use{" "}

@@ -38,6 +38,7 @@ export default function AdminOrderDetailPage({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [refundManual, setRefundManual] = useState(false);
+  const [approveManual, setApproveManual] = useState(false);
   const [dialog, setDialog] = useState<
     null | "hold" | "cancel" | "decline" | "file" | "refund" | "approve-cancel"
   >(null);
@@ -164,26 +165,34 @@ export default function AdminOrderDetailPage({
         }
       />
 
-      {(order as any).cancelRequestState === "requested" && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+      {order.cancelRequestState === "requested" && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-amber-800 text-[14px]">Cancellation Request Pending</h3>
+            <h3 className="font-bold text-amber-800 text-[14px]">Cancellation request pending</h3>
             <p className="text-amber-700 text-[13px] mt-1">
-              Customer has requested to cancel this prepaid order. Reason is logged in the timeline.
+              Customer asked to cancel this {order.paymentMethod} order. Approve will cancel and
+              refund ₹
+              {(order.total - (order.refundedAmount || 0)).toLocaleString("en-IN")} via Razorpay when
+              keys exist. Reason is in the timeline.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
+              type="button"
               onClick={() => setDialog("decline")}
               className="px-4 py-2 bg-white text-amber-900 border border-amber-300 rounded hover:bg-amber-100 text-[12px] font-bold"
             >
               Decline
             </button>
             <button
-              onClick={() => setDialog("approve-cancel")}
+              type="button"
+              onClick={() => {
+                setApproveManual(false);
+                setDialog("approve-cancel");
+              }}
               className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 text-[12px] font-bold"
             >
-              Approve & Cancel
+              Approve &amp; refund
             </button>
           </div>
         </div>
@@ -529,18 +538,50 @@ export default function AdminOrderDetailPage({
       <ActionModal
         isOpen={dialog === "approve-cancel"}
         onClose={() => setDialog(null)}
-        title="Approve cancellation"
-        description="This will cancel the order now."
+        title="Approve cancellation & refund"
+        description={`You are about to refund ₹${(order.total - (order.refundedAmount || 0)).toLocaleString("en-IN")} to the customer via Razorpay (when this order has an online payment and keys are configured), then cancel the order.`}
         requireReason={false}
-        confirmText="Cancel order"
+        confirmText="Cancel & refund"
         confirmStyle="danger"
+        extra={
+          <label className="flex items-start gap-2 text-[13px] text-gray-700">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={approveManual}
+              onChange={(e) => setApproveManual(e.target.checked)}
+            />
+            <span>
+              Money already sent outside Razorpay (cash / UPI / bank). Only tick if Razorpay cannot
+              refund this payment.
+            </span>
+          </label>
+        }
         onConfirm={async () => {
-          await save({
-            status: "Cancelled",
-            reason: "Approved customer cancellation request",
-            cancelRequestState: "accepted",
-            fromModal: true,
-          });
+          setSaving(true);
+          try {
+            const data = await adminFetch<{
+              order: OrderDTO;
+              channel?: string | null;
+              refundAmount?: number;
+            }>(`/api/orders/${order.orderId}/approve-cancel`, {
+              method: "POST",
+              body: JSON.stringify({ manualConfirmed: approveManual }),
+            });
+            applyOrder(data.order);
+            setApproveManual(false);
+            show(
+              data.channel === "razorpay"
+                ? `Cancelled · Razorpay refund ₹${Number(data.refundAmount || 0).toLocaleString("en-IN")}`
+                : data.channel === "manual"
+                  ? "Cancelled · refund recorded outside Razorpay"
+                  : "Cancelled"
+            );
+          } catch (e) {
+            throw e instanceof Error ? e : new Error("Approve cancel failed");
+          } finally {
+            setSaving(false);
+          }
         }}
       />
       <ActionModal

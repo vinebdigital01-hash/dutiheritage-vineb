@@ -15,11 +15,15 @@ import {
 } from "@/components/admin/ui";
 import type { ReviewDTO } from "@/lib/reviews";
 import Papa from "papaparse";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { ImageUploader } from "@/components/admin/ImageUploader";
+import Image from "next/image";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
 export default function AdminReviewsPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [reviews, setReviews] = useState<ReviewDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>("pending");
@@ -34,6 +38,7 @@ export default function AdminReviewsPage() {
     rating: 5,
     comment: "",
     createdAt: "",
+    images: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -59,7 +64,7 @@ export default function AdminReviewsPage() {
   }, [filter]);
 
   const setStatus = async (id: string, status: ReviewDTO["status"]) => {
-    if (!window.confirm(`Are you sure you want to change the status to ${status}?`)) return;
+    if (!(await confirm({ title: "Update review", description: `Change status to ${status}?`, confirmText: "Update" }))) return;
     setBusyId(id);
     try {
       await adminFetch(`/api/reviews/${id}`, {
@@ -82,7 +87,7 @@ export default function AdminReviewsPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this review permanently?")) return;
+    if (!(await confirm({ title: "Delete review", description: "Delete this review permanently?", confirmText: "Delete", confirmStyle: "danger" }))) return;
     setBusyId(id);
     try {
       await adminFetch(`/api/reviews/${id}`, { method: "DELETE" });
@@ -133,7 +138,14 @@ export default function AdminReviewsPage() {
       });
       show("Marketing review published!");
       setIsModalOpen(false);
-      setForm({ productId: products[0]?.id || "", userName: "", rating: 5, comment: "", createdAt: "" });
+      setForm({
+        productId: products[0]?.id || "",
+        userName: "",
+        rating: 5,
+        comment: "",
+        createdAt: "",
+        images: [],
+      });
       load();
     } catch (e) {
       show(e instanceof AdminApiError ? e.message : "Failed to add review", "error");
@@ -166,11 +178,11 @@ export default function AdminReviewsPage() {
     }
   };
 
-  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!window.confirm("Upload reviews from this CSV? They will be immediately approved and published.")) {
+    if (!(await confirm({ title: "Upload reviews CSV", description: "Reviews will be immediately approved and published.", confirmText: "Upload" }))) {
       e.target.value = "";
       return;
     }
@@ -201,6 +213,7 @@ export default function AdminReviewsPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader
         title="Reviews"
         subtitle="New reviews wait here until you allow them on the product page"
@@ -330,6 +343,21 @@ export default function AdminReviewsPage() {
                   No written comment
                 </p>
               )}
+              {r.images && r.images.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {r.images.map((src) => (
+                    <a
+                      key={src}
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="relative w-14 h-16 border border-[var(--color-border)] overflow-hidden"
+                    >
+                      <Image src={src} alt="" fill className="object-cover" sizes="56px" />
+                    </a>
+                  ))}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -391,6 +419,47 @@ export default function AdminReviewsPage() {
                 onChange={(e) => setForm({ ...form, createdAt: e.target.value })}
                 placeholder="Leave empty for current time"
               />
+
+              <div>
+                <p className="text-[12px] tracking-[1px] uppercase text-neutral-500 mb-2">
+                  Photos (optional, up to 5)
+                </p>
+                {form.images.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {form.images.map((src) => (
+                      <div key={src} className="relative w-14 h-16 border">
+                        <Image src={src} alt="" fill className="object-cover" sizes="56px" />
+                        <button
+                          type="button"
+                          className="absolute -top-1 -right-1 bg-black text-white w-5 h-5 text-[10px] rounded-full"
+                          onClick={() =>
+                            setForm((f) => ({
+                              ...f,
+                              images: f.images.filter((u) => u !== src),
+                            }))
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {form.images.length < 5 ? (
+                  <ImageUploader
+                    label="Add review photo"
+                    folder="dutiheritage/reviews"
+                    onChange={() => {}}
+                    multiple
+                    onAdd={(url) =>
+                      setForm((f) => ({
+                        ...f,
+                        images: [...f.images, url].slice(0, 5),
+                      }))
+                    }
+                  />
+                ) : null}
+              </div>
 
               <div className="pt-2 flex justify-end gap-2">
                 <AdminButton variant="ghost" onClick={() => setIsModalOpen(false)}>

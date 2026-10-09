@@ -1,8 +1,6 @@
 import { connectDB } from "@/lib/mongodb";
 import { Customer } from "@/models";
 import { ChatSession } from "@/models/ChatSession";
-import { requireAuth } from "@/lib/auth";
-import { OPS_WRITE } from "@/lib/rbac";
 import { isWhatsAppConfigured, sendWhatsApp } from "@/lib/whatsapp";
 import { applyRateLimit } from "@/lib/rate-limit";
 import {
@@ -11,12 +9,13 @@ import {
   requireMongo,
   ApiError,
 } from "@/lib/api";
+import { validateBotApiKey } from "@/lib/bot-auth";
 
 const MAX_SEND = 200;
 
 export async function GET(request: Request) {
   try {
-    await requireAuth(request, { admin: true, roles: OPS_WRITE });
+    await validateBotApiKey(request);
     const provider = (process.env.WHATSAPP_PROVIDER || "").toLowerCase();
     const configured = isWhatsAppConfigured();
     return jsonOk({
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     requireMongo();
-    await requireAuth(request, { admin: true, roles: OPS_WRITE });
+    await validateBotApiKey(request);
 
     if (!isWhatsAppConfigured()) {
       throw new ApiError(
@@ -66,8 +65,8 @@ export async function POST(request: Request) {
         : String(body.phones || "");
       phones = raw
         .split(/[\s,;]+/)
-        .map((p) => p.replace(/\D/g, ""))
-        .filter((p) => p.length >= 10);
+        .map((p: string) => p.replace(/\D/g, ""))
+        .filter((p: string) => p.length >= 10);
     } else if (audience === "active") {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const sessions = await ChatSession.find({

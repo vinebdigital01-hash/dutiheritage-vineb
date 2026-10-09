@@ -1,17 +1,79 @@
 import type { Product } from "@/types";
 
-type StockProduct = Pick<Product, "trackInventory" | "inventory">;
+type StockProduct = Pick<Product, "trackInventory" | "inventory" | "sizes" | "lowStockThreshold">;
+
+type InventoryRow = { size?: string | null; stock?: number | null; sku?: string | null };
+
+function normalizeSizeKey(s: string): string {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/** Match inventory row to a size label (case/spacing tolerant; Free Size aliases). */
+export function findInventoryRow(
+  product: { inventory?: InventoryRow[] | null; sizes?: string[] },
+  size: string
+): InventoryRow | undefined {
+  const rows = product.inventory || [];
+  if (!rows.length) return undefined;
+  const want = normalizeSizeKey(size);
+  const aliases = new Set(
+    [want, "free size", "onesize", "one size", "os", "free"].filter(Boolean)
+  );
+
+  const exact = rows.find((r) => normalizeSizeKey(r.size || "") === want);
+  if (exact) return exact;
+
+  if (
+    aliases.has(want) ||
+    want === "free size" ||
+    want === "one size" ||
+    want === "onesize"
+  ) {
+    const free = rows.find((r) => {
+      const k = normalizeSizeKey(r.size || "");
+      return (
+        !k ||
+        k === "free size" ||
+        k === "free" ||
+        k === "one size" ||
+        k === "onesize" ||
+        k === "os" ||
+        k === "default"
+      );
+    });
+    if (free) return free;
+  }
+
+  if (rows.length === 1) return rows[0];
+  return undefined;
+}
+
+export function enforcesStockCap(product: StockProduct): boolean {
+  if (product.trackInventory) return true;
+  return Array.isArray(product.inventory) && product.inventory.length > 0;
+}
 
 /** Remaining units for this size. `null` means inventory is not tracked (no cap). */
 export function maxPurchasableQty(product: StockProduct, size: string): number | null {
+  if (!enforcesStockCap(product)) return null;
   const rows = product.inventory || [];
-  const tracking = Boolean(product.trackInventory) || rows.length > 0;
-  if (!tracking) return null;
   if (!rows.length) return 0;
-  const row =
-    rows.find((r) => r.size === size) ??
-    (rows.length === 1 ? rows[0] : undefined);
-  return row ? Math.max(0, Number(row.stock || 0)) : 0;
+  const row = findInventoryRow(product, size);
+  if (!row) return 0;
+  return Math.max(0, Number(row.stock || 0));
+}
+
+export function isLowStockForSize(
+  product: StockProduct,
+  size: string
+): { low: boolean; stock: number } {
+  const max = maxPurchasableQty(product, size);
+  if (max === null) return { low: false, stock: 0 };
+  const threshold = product.lowStockThreshold ?? 3;
+  return { low: max > 0 && max <= threshold, stock: max };
 }
 
 export function qtyOfProductSizeInCart(
@@ -19,8 +81,11 @@ export function qtyOfProductSizeInCart(
   productId: string,
   size: string
 ): number {
+  const want = normalizeSizeKey(size);
   return cart
-    .filter((i) => i.id === productId && i.selectedSize === size)
+    .filter(
+      (i) => i.id === productId && normalizeSizeKey(i.selectedSize) === want
+    )
     .reduce((s, i) => s + i.quantity, 0);
 }
 

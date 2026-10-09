@@ -14,9 +14,11 @@ import {
 export function CollectionBrowseClient({
   title,
   products,
+  emptyHint,
 }: {
   title: string;
   products: Product[];
+  emptyHint?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -109,8 +111,11 @@ export function CollectionBrowseClient({
         </div>
 
         {filtered.length === 0 ? (
-          <div className="text-center text-[var(--color-text-muted)] py-12">
-            No products match.
+          <div className="text-center text-[var(--color-text-muted)] py-12 max-w-md mx-auto">
+            <p>No products match.</p>
+            {emptyHint ? (
+              <p className="text-[13px] mt-3 text-neutral-500">{emptyHint}</p>
+            ) : null}
           </div>
         ) : (
           <>

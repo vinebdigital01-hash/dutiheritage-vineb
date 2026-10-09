@@ -17,6 +17,7 @@ import { ImageUploader } from "@/components/admin/ImageUploader";
 import type { Collection, Product } from "@/types";
 import Image from "next/image";
 import { FiX } from "react-icons/fi";
+import { useConfirm, usePrompt } from "@/components/ConfirmDialog";
 
 type OfferForm = { title: string; description: string; code: string };
 
@@ -189,6 +190,8 @@ function GooglePreview({ title, description, slug }: { title: string, descriptio
 export function ProductForm({ productId }: { productId?: string }) {
   const router = useRouter();
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
+  const { prompt, PromptDialog } = usePrompt();
   const [form, setForm] = useState<FormState>(emptyForm());
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(Boolean(productId));
@@ -265,7 +268,14 @@ export function ProductForm({ productId }: { productId?: string }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm("Are you sure you want to save this product?")) return;
+    const ok = await confirm({
+      title: isEdit ? "Save product" : "Create product",
+      description: isEdit
+        ? "Save changes to this product?"
+        : "Create this product and show it in the store?",
+      confirmText: "Save",
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const payload = {
@@ -362,6 +372,8 @@ export function ProductForm({ productId }: { productId?: string }) {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
+      {PromptDialog}
       <PageHeader
         title={isEdit ? "Edit product" : "New product"}
         subtitle={isEdit ? "Change photos, price (GST included), and size stock, then Save." : "One item for the shop — photo, price (GST included), sizes, stock."}
@@ -579,7 +591,12 @@ export function ProductForm({ productId }: { productId?: string }) {
             value={form.collectionId}
             onChange={async (e) => {
               if (e.target.value === "CREATE_NEW") {
-                const name = window.prompt("Enter new collection name:");
+                const name = await prompt({
+                  title: "New collection",
+                  description: "Name for the new collection.",
+                  label: "Collection name",
+                  confirmText: "Create",
+                });
                 if (!name?.trim()) {
                   set("collectionId", "");
                   return;

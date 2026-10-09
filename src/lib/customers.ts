@@ -49,7 +49,7 @@ function mapSavedAddress(a: AddrShape, fallbackId: string): SavedAddress {
 export function addressesFromCustomer(customer: CustomerDocument): SavedAddress[] {
   const raw = (customer as CustomerDocument & { addresses?: AddrShape[] }).addresses;
   if (Array.isArray(raw) && raw.length > 0) {
-    return raw.map((a, i) => mapSavedAddress(a, `addr-${i}`));
+    return raw.map((a, i) => mapSavedAddress(a as AddrShape, `addr-${i}`));
   }
   const addr = customer.address as AddrShape | undefined;
   if (addr && (addr.address || addr.pinCode || addr.city)) {

@@ -168,28 +168,69 @@ export function AdminCommandPalette() {
 }
 
 export function AdminNewOrderToast() {
-  const [toast, setToast] = useState<{ orderId: string; name: string } | null>(null);
+  const [toast, setToast] = useState<{
+    orderId: string;
+    name: string;
+    kind: "order" | "cancel";
+  } | null>(null);
 
   useEffect(() => {
-    const key = "duti_admin_last_order_id";
+    const orderKey = "duti_admin_last_order_id";
+    const cancelKey = "duti_admin_last_cancel_request_id";
     let primed = false;
     const poll = async () => {
       try {
-        const data = await adminFetch<{
-          orders: Array<{ orderId: string; customer?: { name?: string } }>;
-        }>("/api/orders?limit=1&page=1");
-        const latest = data.orders?.[0];
-        if (!latest?.orderId) return;
-        const prev = localStorage.getItem(key);
+        const [ordersData, cancelData] = await Promise.all([
+          adminFetch<{
+            orders: Array<{ orderId: string; customer?: { name?: string } }>;
+          }>("/api/orders?limit=1&page=1"),
+          adminFetch<{
+            orders: Array<{ orderId: string; customer?: { name?: string } }>;
+          }>("/api/orders?limit=1&page=1&cancelRequestState=requested"),
+        ]);
+
+        const latest = ordersData.orders?.[0];
+        const latestCancel = cancelData.orders?.[0];
+
         if (!primed) {
           primed = true;
-          if (!prev) localStorage.setItem(key, latest.orderId);
+          if (latest?.orderId && !localStorage.getItem(orderKey)) {
+            localStorage.setItem(orderKey, latest.orderId);
+          }
+          if (latestCancel?.orderId && !localStorage.getItem(cancelKey)) {
+            localStorage.setItem(cancelKey, latestCancel.orderId);
+          }
           return;
         }
-        if (prev && prev !== latest.orderId) {
-          localStorage.setItem(key, latest.orderId);
-          setToast({ orderId: latest.orderId, name: latest.customer?.name || "" });
-          window.setTimeout(() => setToast(null), 8000);
+
+        if (latestCancel?.orderId) {
+          const prevCancel = localStorage.getItem(cancelKey);
+          if (prevCancel && prevCancel !== latestCancel.orderId) {
+            localStorage.setItem(cancelKey, latestCancel.orderId);
+            setToast({
+              orderId: latestCancel.orderId,
+              name: latestCancel.customer?.name || "",
+              kind: "cancel",
+            });
+            window.setTimeout(() => setToast(null), 10000);
+            return;
+          }
+          if (!prevCancel) localStorage.setItem(cancelKey, latestCancel.orderId);
+        }
+
+        if (latest?.orderId) {
+          const prev = localStorage.getItem(orderKey);
+          if (prev && prev !== latest.orderId) {
+            localStorage.setItem(orderKey, latest.orderId);
+            setToast({
+              orderId: latest.orderId,
+              name: latest.customer?.name || "",
+              kind: "order",
+            });
+            window.setTimeout(() => setToast(null), 8000);
+          } else if (!prev) {
+            localStorage.setItem(orderKey, latest.orderId);
+          }
         }
       } catch {
         /* ignore */
@@ -204,7 +245,9 @@ export function AdminNewOrderToast() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[70] bg-white border border-neutral-200 shadow-xl rounded-xl px-4 py-3 max-w-sm">
-      <p className="text-[11px] uppercase tracking-wider text-neutral-400 mb-1">New order</p>
+      <p className="text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
+        {toast.kind === "cancel" ? "Cancel request" : "New order"}
+      </p>
       <p className="text-[14px] font-medium">{toast.orderId}</p>
       {toast.name ? <p className="text-[13px] text-neutral-500">{toast.name}</p> : null}
       <Link

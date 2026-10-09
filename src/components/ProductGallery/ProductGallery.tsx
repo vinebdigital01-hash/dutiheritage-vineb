@@ -62,6 +62,7 @@ export const ProductGallery = ({ images, productName, badge }: ProductGalleryPro
                   fill
                   className="object-cover"
                   sizes="100px"
+                  loading="lazy"
                 />
               ) : (
                 <Image
@@ -70,6 +71,7 @@ export const ProductGallery = ({ images, productName, badge }: ProductGalleryPro
                   fill
                   className="object-cover"
                   sizes="100px"
+                  loading="lazy"
                 />
               )
             ) : (

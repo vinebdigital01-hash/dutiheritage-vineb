@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { OtpSession } from "@/models/OtpSession";
-import { sendEmail, emailLayout } from "@/lib/email";
+import {
+  sendEmail,
+  emailLayout,
+  emailEyebrow,
+  emailLead,
+  emailOtpBlock,
+} from "@/lib/email";
 import { verifyIdToken } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -52,8 +58,14 @@ export async function POST(req: Request) {
     } else {
       await sendEmail({
         to: formattedTarget,
-        subject: "Verify your email address - Duti Heritage",
-        html: emailLayout("Email Verification", `Your verification code is: <strong>${otp}</strong>. Valid for 5 minutes.`),
+        subject: "Verify your email address — Duti Heritage",
+        html: emailLayout(
+          "Verify your email",
+          emailEyebrow("Security code") +
+            emailLead("Enter this code to update the email on your account.") +
+            emailOtpBlock(otp, 5),
+          { hideDefaultCtas: true, preheader: `Your code is ${otp}` }
+        ),
         type: "auth",
       });
     }

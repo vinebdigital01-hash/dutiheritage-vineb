@@ -2,7 +2,16 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/mongodb";
 import { Product, StockNotify } from "@/models";
 import { verifyIdToken } from "@/lib/auth";
-import { sendEmail, isEmailConfigured, emailLayout } from "@/lib/email";
+import {
+  sendEmail,
+  isEmailConfigured,
+  emailLayout,
+  emailEyebrow,
+  emailLead,
+  emailNote,
+  escHtml,
+} from "@/lib/email";
+import { getPublicSiteUrl } from "@/lib/utils";
 import {
   handleApiError,
   jsonOk,
@@ -63,11 +72,23 @@ export async function POST(request: Request) {
     );
 
     if (isEmailConfigured()) {
-      const inner = `<p>We will email you at <strong>${email}</strong> when <strong>${product.name}</strong> (size ${size}) is back in stock.</p><p>This is not a WhatsApp alert — only email.</p>`;
+      const inner =
+        emailEyebrow("Notify me") +
+        emailLead(
+          `We will email you at <strong>${escHtml(email)}</strong> when <strong>${escHtml(product.name)}</strong> (size ${escHtml(size)}) is back in stock.`
+        ) +
+        emailNote("This is email only — not a WhatsApp alert.");
       await sendEmail({
         to: email,
         subject: `We'll tell you when ${product.name} is back`,
-        html: emailLayout("Back in stock request", inner),
+        html: emailLayout("Back in stock request", inner, {
+          kind: "marketing",
+          preheader: `${product.name} · size ${size}`,
+          primaryCta: {
+            label: "Keep browsing",
+            href: getPublicSiteUrl(),
+          },
+        }),
         type: "marketing",
       });
     }

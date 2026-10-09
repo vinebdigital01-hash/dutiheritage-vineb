@@ -1,8 +1,8 @@
 import { connectDB } from "@/lib/mongodb";
 import { WhatsAppCannedReply } from "@/models";
 import { requireAuth } from "@/lib/auth";
-import { OPS_WRITE } from "@/lib/rbac";
 import { handleApiError, jsonOk, jsonCreated, requireMongo, ApiError } from "@/lib/api";
+import { validateBotApiKey } from "@/lib/bot-auth";
 
 const DEFAULTS = [
   { title: "Ask for order ID", body: "Hi! Please share your order ID (starts with DH-) and I’ll check this for you." },
@@ -13,7 +13,7 @@ const DEFAULTS = [
 export async function GET(request: Request) {
   try {
     requireMongo();
-    await requireAuth(request, { admin: true, roles: OPS_WRITE });
+    await validateBotApiKey(request);
     await connectDB();
 
     let docs = await WhatsAppCannedReply.find().sort({ createdAt: 1 }).lean();
@@ -37,7 +37,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireMongo();
-    const authUser = await requireAuth(request, { admin: true, roles: OPS_WRITE });
+    await validateBotApiKey(request);
+    let createdBy = "bot";
+    try {
+      const authUser = await requireAuth(request, { admin: true });
+      createdBy = authUser.email || authUser.name || "admin";
+    } catch {
+      /* bot key only */
+    }
     await connectDB();
     const body = await request.json();
     const title = String(body.title || "").trim();
@@ -47,7 +54,7 @@ export async function POST(request: Request) {
     const doc = await WhatsAppCannedReply.create({
       title,
       body: text,
-      createdBy: authUser.email,
+      createdBy,
     });
     return jsonCreated({
       reply: { id: doc._id.toString(), title: doc.title, body: doc.body },

@@ -10,10 +10,12 @@ import {
   EmptyState,
   useToast,
 } from "@/components/admin/ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 import type { Collection } from "@/types";
 
 export default function AdminCollectionsPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [collections, setCollections] = useState<
     (Collection & { isActive?: boolean })[]
   >([]);
@@ -46,7 +48,7 @@ export default function AdminCollectionsPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm("Are you sure you want to create this collection?")) return;
+    if (!(await confirm({ title: "Create collection", description: "Create this collection?", confirmText: "Create" }))) return;
     setSaving(true);
     try {
       await adminFetch("/api/collections", {
@@ -65,7 +67,7 @@ export default function AdminCollectionsPage() {
   };
 
   const saveEdit = async (id: string) => {
-    if (!window.confirm("Are you sure you want to save these changes?")) return;
+    if (!(await confirm({ title: "Save collection", description: "Save these changes?", confirmText: "Save" }))) return;
     try {
       await adminFetch(`/api/collections/${id}`, {
         method: "PUT",
@@ -80,7 +82,7 @@ export default function AdminCollectionsPage() {
   };
 
   const deactivate = async (id: string) => {
-    if (!confirm("Deactivate this collection?")) return;
+    if (!(await confirm({ title: "Deactivate collection", description: "Hide this collection from the store?", confirmText: "Deactivate", confirmStyle: "danger" }))) return;
     try {
       await adminFetch(`/api/collections/${id}`, { method: "DELETE" });
       show("Collection deactivated");
@@ -93,6 +95,7 @@ export default function AdminCollectionsPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader
         title="Collections"
         subtitle="Folders on the store, like Sale or Wedding"

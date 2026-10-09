@@ -4,30 +4,39 @@ import { db } from "@/services/db";
 import { Metadata } from "next";
 import { getBaseUrl } from "@/lib/utils";
 import { schemaAvailability } from "@/lib/cart-stock";
+import {
+  isSmartCollectionSlug,
+  resolveCollectionBrowse,
+  SMART_COLLECTION_SLUGS,
+} from "@/lib/smart-collections";
 import { CollectionBrowseClient } from "./CollectionBrowseClient";
 
-export const revalidate = 600;
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   const collections = await db.getAllCollections();
-  return collections.map((collection) => ({
-    slug: collection.slug,
-  }));
+  const slugs = new Set([
+    ...collections.map((c) => c.slug),
+    ...SMART_COLLECTION_SLUGS,
+    "all",
+  ]);
+  return [...slugs].map((slug) => ({ slug }));
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const baseUrl = getBaseUrl();
-  let collectionName = "All Products";
-  
-  if (slug !== "all") {
-    const collection = await db.getCollectionBySlug(slug);
-    if (collection) {
-      collectionName = collection.name;
-    } else {
-      return { title: "Collection Not Found | Duti Heritage" };
-    }
+  const resolved = await resolveCollectionBrowse(slug);
+
+  if (!resolved) {
+    return { title: "Collection Not Found | Duti Heritage" };
   }
+
+  const collectionName = resolved.collection.name;
 
   return {
     title: `${collectionName} | Duti Heritage`,
@@ -49,21 +58,12 @@ export default async function CollectionPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-
-  let collection;
-  let displayProducts;
-
-  if (slug === "all") {
-    displayProducts = await db.getAllProducts();
-    collection = { id: "all", name: "All Products", slug: "all", productCount: displayProducts.length };
-  } else {
-    collection = await db.getCollectionBySlug(slug);
-    if (!collection) {
-      notFound();
-    }
-    displayProducts = await db.getProductsByCollectionId(collection.id);
+  const resolved = await resolveCollectionBrowse(slug);
+  if (!resolved) {
+    notFound();
   }
 
+  const { collection, products: displayProducts } = resolved;
   const baseUrl = getBaseUrl();
 
   return (
@@ -76,51 +76,65 @@ export default async function CollectionPage({
             "@graph": [
               {
                 "@type": "BreadcrumbList",
-                "itemListElement": [
-              {
-                "@type": "ListItem",
-                position: 1,
-                name: "Home",
-                item: baseUrl,
-              },
-              {
-                "@type": "ListItem",
-                position: 2,
-                name: collection.name,
-                item: `${baseUrl}/collections/${collection.slug}`,
-              },
-            ]
+                itemListElement: [
+                  {
+                    "@type": "ListItem",
+                    position: 1,
+                    name: "Home",
+                    item: baseUrl,
+                  },
+                  {
+                    "@type": "ListItem",
+                    position: 2,
+                    name: collection.name,
+                    item: `${baseUrl}/collections/${collection.slug}`,
+                  },
+                ],
               },
               {
                 "@type": "ItemList",
-                "url": `${baseUrl}/collections/${collection.slug}`,
-                "name": collection.name,
-                "numberOfItems": displayProducts.length,
-                "itemListElement": displayProducts.slice(0, 50).map((p, index) => ({
+                url: `${baseUrl}/collections/${collection.slug}`,
+                name: collection.name,
+                numberOfItems: displayProducts.length,
+                itemListElement: displayProducts.slice(0, 50).map((p, index) => ({
                   "@type": "ListItem",
-                  "position": index + 1,
-                  "item": {
+                  position: index + 1,
+                  item: {
                     "@type": "Product",
-                    "name": p.name,
-                    "url": `${baseUrl}/products/${p.slug}`,
-                    "image": p.image ? (p.image.startsWith('http') ? p.image : `${baseUrl}${p.image}`) : undefined,
-                    "offers": {
+                    name: p.name,
+                    url: `${baseUrl}/products/${p.slug}`,
+                    image: p.image
+                      ? p.image.startsWith("http")
+                        ? p.image
+                        : `${baseUrl}${p.image}`
+                      : undefined,
+                    offers: {
                       "@type": "Offer",
-                      "priceCurrency": "INR",
-                      "price": p.salePrice || p.price,
-                      "itemCondition": "https://schema.org/NewCondition",
-                      "availability": schemaAvailability(p),
-                      "url": `${baseUrl}/products/${p.slug}`
-                    }
-                  }
-                }))
-              }
-            ]
+                      priceCurrency: "INR",
+                      price: p.salePrice || p.price,
+                      itemCondition: "https://schema.org/NewCondition",
+                      availability: schemaAvailability(p),
+                      url: `${baseUrl}/products/${p.slug}`,
+                    },
+                  },
+                })),
+              },
+            ],
           }),
         }}
       />
       <Suspense fallback={<main className="min-h-screen bg-[var(--color-bg)]" />}>
-        <CollectionBrowseClient title={collection.name} products={displayProducts} />
+        <CollectionBrowseClient
+          title={collection.name}
+          products={displayProducts}
+          emptyHint={
+            isSmartCollectionSlug(slug)
+              ? slug === "on-sale"
+                ? "No sale prices yet. Mark a sale price on products, or add a Sale tag."
+                : "No ranked products yet. Sales, views tags, or bought counts will fill this list."
+              : undefined
+          }
+        />
       </Suspense>
     </>
   );

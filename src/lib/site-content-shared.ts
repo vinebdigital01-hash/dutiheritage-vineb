@@ -30,6 +30,8 @@ export type SiteContentData = {
     gstin?: string;
     instagramUrl?: string;
     facebookUrl?: string;
+    pinterestUrl?: string;
+    whatsappUrl?: string;
   };
 };
 
@@ -61,12 +63,13 @@ export const DEFAULT_HEADER_NAV: NavLink[] = [
 ];
 
 export const POLICY_LINKS = [
-  { href: "/about", label: "About" },
+  { href: "/about", label: "About Us" },
+  { href: "/contact-us", label: "Contact Us" },
   { href: "/track", label: "Track order" },
   { href: "/privacy-policy", label: "Privacy Policy" },
-  { href: "/return-exchange", label: "Return/Exchange Policy" },
+  { href: "/return-exchange", label: "Cancellation, Return & Refund" },
   { href: "/terms-conditions", label: "Terms & Conditions" },
-  { href: "/shipping", label: "Shipping Policy" },
+  { href: "/shipping", label: "Delivery & Shipping" },
 ];
 
 export function navHref(slug: string): string {

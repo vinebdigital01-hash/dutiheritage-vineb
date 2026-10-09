@@ -39,3 +39,15 @@ export {
   WhatsAppCannedReply,
   type WhatsAppCannedReplyDocument,
 } from "./WhatsAppCannedReply";
+export {
+  OfflineClaim,
+  type OfflineClaimDocument,
+} from "./OfflineClaim";
+export {
+  BotWaitlist,
+  type BotWaitlistDocument,
+} from "./BotWaitlist";
+export {
+  WhatsAppAbandonedCheckout,
+  type WhatsAppAbandonedCheckoutDocument,
+} from "./WhatsAppAbandonedCheckout";

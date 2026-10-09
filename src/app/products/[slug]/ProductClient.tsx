@@ -14,9 +14,14 @@ import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
 import { authHeaders } from "@/lib/checkout-client";
 import { trackEvent, trackPageDuration } from "@/lib/track-client";
-import { maxPurchasableQty, qtyOfProductSizeInCart } from "@/lib/cart-stock";
+import {
+  maxPurchasableQty,
+  qtyOfProductSizeInCart,
+  findInventoryRow,
+} from "@/lib/cart-stock";
 import { DEFAULT_SIZE_CHART } from "@/lib/size-chart";
 import type { ReviewDTO } from "@/lib/reviews";
+import { compressImageForUpload } from "@/lib/image-compress";
 
 const getVideoInfo = (url: string) => {
   if (url.includes('instagram.com')) {
@@ -47,6 +52,8 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const [averageRating, setAverageRating] = useState(0);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
+  const [reviewImages, setReviewImages] = useState<string[]>([]);
+  const [uploadingReviewImage, setUploadingReviewImage] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
 
@@ -309,11 +316,54 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
       }
       setReviewRating(5);
       setReviewComment("");
+      setReviewImages([]);
       setIsReviewModalOpen(true);
     } catch {
       showToast("Could not verify review eligibility. Try again.");
     } finally {
       setCheckingEligibility(false);
+    }
+  };
+
+  const handleReviewPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const remaining = 5 - reviewImages.length;
+    if (remaining <= 0) {
+      showToast("Maximum 5 photos per review");
+      e.target.value = "";
+      return;
+    }
+    setUploadingReviewImage(true);
+    try {
+      const headers = await authHeaders();
+      const authHeader =
+        typeof headers === "object" &&
+        headers !== null &&
+        "Authorization" in headers
+          ? String((headers as Record<string, string>).Authorization || "")
+          : "";
+      const toUpload = Array.from(files).slice(0, remaining);
+      const urls: string[] = [];
+      for (const raw of toUpload) {
+        const compressed = await compressImageForUpload(raw);
+        const body = new FormData();
+        body.append("file", compressed.file);
+        const res = await fetch("/api/reviews/upload", {
+          method: "POST",
+          headers: authHeader ? { Authorization: authHeader } : {},
+          body,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        if (data.url) urls.push(String(data.url));
+      }
+      setReviewImages((prev) => [...prev, ...urls].slice(0, 5));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Photo upload failed");
+    } finally {
+      setUploadingReviewImage(false);
+      e.target.value = "";
     }
   };
 
@@ -328,12 +378,14 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           productId: product.id,
           rating: reviewRating,
           comment: reviewComment,
+          images: reviewImages,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Submit failed");
       showToast(data.message || "Review submitted!");
       setIsReviewModalOpen(false);
+      setReviewImages([]);
       // Refresh approved list (pending won't show until moderated)
       const listRes = await fetch(
         `/api/reviews?productId=${encodeURIComponent(product.id)}`
@@ -609,21 +661,23 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                     let outOfStock = false;
                     let lowStock = false;
                     let stockLeft = 0;
-                    
-                    if (isInventoryTracked && stockProduct.inventory) {
-                      const inv = stockProduct.inventory.find(i => i.size === size);
+
+                    if (isInventoryTracked) {
+                      const inv = findInventoryRow(stockProduct, size);
                       if (inv) {
-                        stockLeft = inv.stock;
-                        outOfStock = inv.stock === 0;
-                        lowStock = inv.stock > 0 && inv.stock <= (product.lowStockThreshold || 3);
+                        stockLeft = Number(inv.stock || 0);
+                        outOfStock = stockLeft <= 0;
+                        const threshold = product.lowStockThreshold ?? 3;
+                        lowStock = stockLeft > 0 && stockLeft <= threshold;
                       } else {
-                        outOfStock = true; // explicitly tracked but size missing = out of stock
+                        outOfStock = true;
                       }
                     }
 
                     return (
                       <button
                         key={size}
+                        type="button"
                         onClick={() => setSelectedSize(size)}
                         className={`
                           py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all relative overflow-hidden group
@@ -634,7 +688,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                         `}
                       >
                         {size}
-                        {lowStock && selectedSize === size && (
+                        {lowStock && !outOfStock && (
                            <span className="text-[10px] text-amber-600 mt-0.5 leading-none font-bold">
                              Only {stockLeft} left
                            </span>
@@ -731,6 +785,12 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                   </div>
                 ) : (
                   <>
+                    {remaining !== null && remaining > 0 && remaining <= (product.lowStockThreshold ?? 3) ? (
+                      <p className="text-[13px] text-amber-800 font-medium">
+                        Only {remaining} left in size {selectedSize}
+                        {inCartForSize > 0 ? ` · ${inCartForSize} already in your cart` : ""}
+                      </p>
+                    ) : null}
                     {!canAddMore ? (
                       <p className="text-[12px] text-amber-800">You already have all remaining stock of this size in your cart.</p>
                     ) : null}
@@ -892,6 +952,27 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                       {r.comment}
                     </p>
                   )}
+                  {r.images && r.images.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {r.images.map((src) => (
+                        <a
+                          key={src}
+                          href={src}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="relative w-16 h-20 border border-[var(--color-border)] overflow-hidden bg-neutral-50"
+                        >
+                          <Image
+                            src={src}
+                            alt="Review photo"
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -973,9 +1054,47 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 />
               </div>
 
+              <div>
+                <label className="text-[11px] uppercase tracking-[1px] text-[var(--color-text-muted)] mb-2 block">
+                  Photos (optional, up to 5)
+                </label>
+                {reviewImages.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {reviewImages.map((src) => (
+                      <div key={src} className="relative w-16 h-20 border border-[var(--color-border)]">
+                        <Image src={src} alt="" fill className="object-cover" sizes="64px" />
+                        <button
+                          type="button"
+                          aria-label="Remove photo"
+                          className="absolute -top-1 -right-1 bg-black text-white w-5 h-5 text-[10px] leading-5 rounded-full"
+                          onClick={() =>
+                            setReviewImages((prev) => prev.filter((u) => u !== src))
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {reviewImages.length < 5 ? (
+                  <label className="inline-flex items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-[12px] cursor-pointer hover:border-[var(--color-text)]">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      disabled={uploadingReviewImage}
+                      onChange={handleReviewPhotoChange}
+                    />
+                    {uploadingReviewImage ? "Uploading…" : "Add photos"}
+                  </label>
+                ) : null}
+              </div>
+
               <button 
                 onClick={handleSubmitReview}
-                disabled={submittingReview}
+                disabled={submittingReview || uploadingReviewImage}
                 className="w-full mt-2 bg-[var(--color-text)] text-white py-4 text-[12px] uppercase tracking-[2px] hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {submittingReview ? "Submitting…" : "Submit Review"}

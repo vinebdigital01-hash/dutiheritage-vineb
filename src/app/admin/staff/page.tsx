@@ -6,6 +6,8 @@ import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
 
 import { auth } from "@/lib/firebase";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { useToast } from "@/components/admin/ui";
 
 type StaffMember = {
   _id: string;
@@ -21,6 +23,8 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const { user, adminRole } = useAppContext();
   const router = useRouter();
+  const { confirm, ConfirmDialog } = useConfirm();
+  const { show, Toast } = useToast();
 
   // New staff form
   const [isAdding, setIsAdding] = useState(false);
@@ -54,7 +58,12 @@ export default function StaffPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (!window.confirm("Are you sure you want to add this staff member?")) return;
+    const ok = await confirm({
+      title: "Add staff member",
+      description: `Invite ${name || email} as ${role}?`,
+      confirmText: "Add staff",
+    });
+    if (!ok) return;
     try {
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
       const res = await fetch("/api/staff", {
@@ -69,17 +78,26 @@ export default function StaffPage() {
         setIsAdding(false);
         setEmail("");
         setName("");
+        show("Staff invited");
         fetchStaff();
       } else {
-        alert(await res.text());
+        const text = await res.text();
+        show(text || "Could not add staff", "error");
       }
     } catch (err) {
       console.error(err);
+      show("Could not add staff", "error");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to permanently remove this staff member?")) return;
+    const ok = await confirm({
+      title: "Remove staff",
+      description: "Permanently remove this staff member?",
+      confirmText: "Remove",
+      confirmStyle: "danger",
+    });
+    if (!ok) return;
     if (!user) return;
     try {
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
@@ -87,6 +105,7 @@ export default function StaffPage() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+      show("Staff removed");
       fetchStaff();
     } catch (err) {
       console.error(err);
@@ -94,7 +113,15 @@ export default function StaffPage() {
   };
 
   const handleToggleFreeze = async (id: string, currentActive: boolean) => {
-    if (!confirm(`Are you sure you want to ${currentActive ? 'freeze' : 'unfreeze'} this staff member?`)) return;
+    const ok = await confirm({
+      title: currentActive ? "Freeze staff" : "Unfreeze staff",
+      description: currentActive
+        ? "Freeze this staff member so they cannot use admin?"
+        : "Unfreeze this staff member?",
+      confirmText: currentActive ? "Freeze" : "Unfreeze",
+      confirmStyle: currentActive ? "danger" : "primary",
+    });
+    if (!ok) return;
     if (!user) return;
     try {
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
@@ -116,6 +143,8 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-6">
+      {Toast}
+      {ConfirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-serif tracking-[2px] uppercase">Staff</h1>

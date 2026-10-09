@@ -1,7 +1,7 @@
 "use client";
 import { SkeletonPage } from '@/components/ui/Skeleton';
 import { Metadata } from "next";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
@@ -28,6 +28,8 @@ import {
 import { checkEmailExists } from "@/lib/auth-client";
 import { AccountOrders } from "@/components/AccountOrders";
 import { ProductCard } from "@/components/ProductCard/ProductCard";
+import { PromptModal } from "@/components/ConfirmDialog";
+import { useStoreToast } from "@/components/ToastProvider";
 
 declare global {
   interface Window {
@@ -55,31 +57,13 @@ const getCleanErrorMessage = (err: any) => {
 
 export default function AccountPage() {
   const { user, authLoading, logout, recentlyViewed } = useAppContext();
+  const toast = useStoreToast();
   
   // View States
   const [authMode, setAuthMode] = useState<"email" | "phone">("email");
   const [showOTP, setShowOTP] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
-
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
-      if (!emailForSignIn) {
-        emailForSignIn = window.prompt('Please provide your email for confirmation');
-      }
-      if (emailForSignIn) {
-        setLoading(true);
-        signInWithEmailLink(auth, emailForSignIn, window.location.href)
-          .then(() => {
-            window.localStorage.removeItem('emailForSignIn');
-          })
-          .catch((err: any) => {
-            setError(getCleanErrorMessage(err));
-          })
-          .finally(() => setLoading(false));
-      }
-    }
-  }, []);
+  const [emailLinkPromptOpen, setEmailLinkPromptOpen] = useState(false);
 
   // Form States
   const [email, setEmail] = useState("");
@@ -92,6 +76,29 @@ export default function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const completeEmailLinkSignIn = useCallback(async (emailForSignIn: string) => {
+    setLoading(true);
+    try {
+      await signInWithEmailLink(auth, emailForSignIn, window.location.href);
+      window.localStorage.removeItem("emailForSignIn");
+      toast.show("Signed in successfully");
+    } catch (err: unknown) {
+      setError(getCleanErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+    const emailForSignIn = window.localStorage.getItem("emailForSignIn");
+    if (emailForSignIn) {
+      void completeEmailLinkSignIn(emailForSignIn);
+    } else {
+      setEmailLinkPromptOpen(true);
+    }
+  }, [completeEmailLinkSignIn]);
 
 
   // ----------------------------------------------------
@@ -294,9 +301,27 @@ export default function AccountPage() {
   // ----------------------------------------------------
   // RENDER LOGGED IN VIEW
   // ----------------------------------------------------
+  const emailLinkModal = (
+    <PromptModal
+      isOpen={emailLinkPromptOpen}
+      title="Confirm your email"
+      description="Enter the email address you used for the sign-in link."
+      label="Email"
+      placeholder="you@email.com"
+      confirmText="Continue"
+      onClose={() => setEmailLinkPromptOpen(false)}
+      onConfirm={async (value) => {
+        setEmailLinkPromptOpen(false);
+        await completeEmailLinkSignIn(value);
+      }}
+    />
+  );
+
   if (authLoading) {
-    return (
-      <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
+  return (
+    <main className="w-full min-h-[100vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
+      {emailLinkModal}
+        {emailLinkModal}
         <SkeletonPage />
       </main>
     );
@@ -306,6 +331,7 @@ export default function AccountPage() {
   if (user) {
     return (
       <div className="w-full h-full p-4 md:p-8 lg:p-12">
+        {emailLinkModal}
         <div className="md:hidden flex items-center justify-between mb-8 pb-6 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-gray-100 text-gray-700 rounded-full flex items-center justify-center text-xl font-serif border border-gray-200">

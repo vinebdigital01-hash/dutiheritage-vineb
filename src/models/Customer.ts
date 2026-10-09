@@ -56,6 +56,8 @@ const CustomerSchema = new Schema(
     totalOrders: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
     avgOrderValue: { type: Number, default: 0 },
+    /** Digital wallet (offline claim loyalty, etc.) — rupees */
+    walletBalance: { type: Number, default: 0, min: 0 },
     ltvScore: {
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH"],
@@ -69,6 +71,11 @@ const CustomerSchema = new Schema(
     codBlocked: { type: Boolean, default: false },
     blockReason: { type: String, default: "" },
     codOrderCount: { type: Number, default: 0 },
+    /** OTP to prove ownership of another email/phone before merging guest profiles */
+    mergeOtp: { type: String },
+    mergeOtpExpiry: { type: Date },
+    mergeOtpTarget: { type: String },
+    mergeOtpType: { type: String, enum: ["email", "phone"] },
   },
   { timestamps: true }
 );

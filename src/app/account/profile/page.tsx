@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FiChevronLeft } from "react-icons/fi";
 import { authHeaders } from "@/lib/checkout-client";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { useStoreToast } from "@/components/ToastProvider";
 
 export default function ProfileSettingsPage() {
   const { user, userProfile, setUserProfile } = useAppContext();
@@ -189,13 +191,160 @@ export default function ProfileSettingsPage() {
         </form>
       </div>
 
+      <LinkAnotherAccount
+        onLinked={(msg) => {
+          setSuccess(msg);
+          setError("");
+        }}
+      />
+
       <PrivacyRequests />
+    </div>
+  );
+}
+
+function LinkAnotherAccount({ onLinked }: { onLinked: (msg: string) => void }) {
+  const [type, setType] = useState<"email" | "phone">("email");
+  const [target, setTarget] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState<"idle" | "sent">("idle");
+  const [masked, setMasked] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const sendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/account/merge/send", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ target, type }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not send code");
+      setMasked(data.masked || target);
+      setStep("sent");
+      setOtp("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not send code");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/account/merge/verify", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ otp }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Invalid code");
+      setStep("idle");
+      setTarget("");
+      setOtp("");
+      onLinked(data.message || "Accounts linked.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Invalid code");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="max-w-[600px] mt-10 border border-[var(--color-border)] rounded-xl p-6 md:p-8 bg-gray-50/50">
+      <h2 className="text-[14px] font-bold uppercase tracking-wider mb-2">Link another account</h2>
+      <p className="text-[13px] text-gray-600 mb-4">
+        Ordered as a guest with a different email or phone? Prove you own it with a one-time code
+        and we will move those orders, wishlist items, and addresses into this account.
+      </p>
+      {err ? <p className="text-[13px] text-red-600 mb-3">{err}</p> : null}
+
+      {step === "idle" ? (
+        <form onSubmit={sendCode} className="flex flex-col gap-3">
+          <div className="flex gap-2 text-[12px] uppercase tracking-wider font-medium">
+            <button
+              type="button"
+              onClick={() => setType("email")}
+              className={`px-3 py-1.5 rounded border ${type === "email" ? "border-black bg-black text-white" : "border-gray-300 bg-white"}`}
+            >
+              Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("phone")}
+              className={`px-3 py-1.5 rounded border ${type === "phone" ? "border-black bg-black text-white" : "border-gray-300 bg-white"}`}
+            >
+              Phone
+            </button>
+          </div>
+          <input
+            type={type === "email" ? "email" : "tel"}
+            required
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            placeholder={type === "email" ? "guest@email.com" : "+91…"}
+            className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
+          />
+          <button
+            type="submit"
+            disabled={busy || !target.trim()}
+            className="w-full bg-black text-white py-3 text-[12px] font-bold uppercase tracking-widest rounded disabled:opacity-50"
+          >
+            {busy ? "Sending…" : "Send code"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={verifyCode} className="flex flex-col gap-3">
+          <p className="text-[13px] text-gray-600">
+            Enter the 6-digit code sent to <strong>{masked}</strong>
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            required
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            className="w-full border border-gray-300 rounded px-4 py-3 text-center tracking-[4px] outline-none focus:border-black bg-white"
+            placeholder="123456"
+          />
+          <button
+            type="submit"
+            disabled={busy || otp.length !== 6}
+            className="w-full bg-black text-white py-3 text-[12px] font-bold uppercase tracking-widest rounded disabled:opacity-50"
+          >
+            {busy ? "Linking…" : "Verify & link"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStep("idle");
+              setOtp("");
+              setErr("");
+            }}
+            className="text-[12px] text-gray-500 underline"
+          >
+            Use a different email or phone
+          </button>
+        </form>
+      )}
     </div>
   );
 }
 
 function PrivacyRequests() {
   const { userProfile, setUserProfile } = useAppContext();
+  const { confirm, ConfirmDialog } = useConfirm();
+  const toast = useStoreToast();
   const [busy, setBusy] = useState<"export" | "delete" | null>(null);
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState("");
@@ -226,9 +375,14 @@ function PrivacyRequests() {
   };
 
   const requestDelete = async () => {
-    if (!window.confirm("Ask us to delete your account? Staff will finish this by hand. Orders already placed stay in our records.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Request account deletion",
+      description:
+        "Staff will finish this by hand. Orders already placed stay in our records.",
+      confirmText: "Request deletion",
+      confirmStyle: "danger",
+    });
+    if (!ok) return;
     setBusy("delete");
     setErr("");
     setMsg("");
@@ -243,6 +397,7 @@ function PrivacyRequests() {
       if (!res.ok) throw new Error(data.error || "Could not submit request");
       if (data.profile) setUserProfile(data.profile);
       setMsg(data.message || "Request submitted.");
+      toast.show(data.message || "Request submitted.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not submit request");
     } finally {
@@ -252,6 +407,7 @@ function PrivacyRequests() {
 
   return (
     <div className="max-w-[600px] mt-10 border border-[var(--color-border)] rounded-xl p-6 md:p-8">
+      {ConfirmDialog}
       <h2 className="text-[14px] font-bold uppercase tracking-wider mb-2">Your data</h2>
       <p className="text-[13px] text-gray-600 mb-4">
         Download a copy of your profile, orders, and wishlist, or ask us to delete your account.

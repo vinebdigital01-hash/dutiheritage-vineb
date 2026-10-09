@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth";
+import { OPS_WRITE } from "@/lib/rbac";
 import { getRecentMovements } from "@/services/inventory";
 import { handleApiError, jsonOk, requireMongo } from "@/lib/api";
 

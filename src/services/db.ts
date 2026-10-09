@@ -95,11 +95,20 @@ export const db = {
 
   async getCollectionBySlug(slug: string): Promise<Collection | undefined> {
     if (!useMongo()) {
-      return mockCollections.find((c) => c.slug === slug);
+      return mockCollections.find(
+        (c) => c.slug === slug || c.slug.toLowerCase() === slug.toLowerCase()
+      );
     }
 
     await ensureDb();
-    const doc = await CollectionModel.findOne({ slug, isActive: true }).lean();
+    let doc = await CollectionModel.findOne({ slug, isActive: true }).lean();
+    if (!doc) {
+      // Staff homepage slugs are often typed with different casing
+      doc = await CollectionModel.findOne({
+        slug: new RegExp(`^${slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+        isActive: true,
+      }).lean();
+    }
     return doc ? toCollection(doc) : undefined;
   },
 
@@ -133,7 +142,7 @@ export const db = {
       isActive: true,
       collectionId,
       ...(exclude.length ? { _id: { $nin: exclude } } : {}),
-    })
+    } as Record<string, unknown>)
       .limit(cap)
       .lean();
     let products = same.map((doc) => toProduct(doc));
@@ -142,7 +151,7 @@ export const db = {
       const extra = await ProductModel.find({
         isActive: true,
         ...(extraExclude.length ? { _id: { $nin: extraExclude } } : {}),
-      })
+      } as Record<string, unknown>)
         .limit(cap - products.length)
         .lean();
       products = [...products, ...extra.map((doc) => toProduct(doc))];

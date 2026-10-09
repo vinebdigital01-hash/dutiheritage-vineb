@@ -14,6 +14,7 @@ import {
 import type { CouponDTO } from "@/lib/coupons";
 import { istYmd } from "@/lib/india-time";
 import type { Product, Collection } from "@/types";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type PickItem = { id: string; name: string; hint?: string; image?: string };
 
@@ -189,6 +190,7 @@ const emptyForm = () => ({
 
 export default function AdminCouponsPage() {
   const { show, Toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [coupons, setCoupons] = useState<CouponDTO[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -235,7 +237,14 @@ export default function AdminCouponsPage() {
       );
       return;
     }
-    if (!window.confirm(editingId ? "Save changes to this code?" : "Are you sure you want to create this coupon?")) return;
+    const ok = await confirm({
+      title: editingId ? "Save coupon" : "Create coupon",
+      description: editingId
+        ? `Save changes to ${form.code}?`
+        : `Create discount code ${form.code}?`,
+      confirmText: editingId ? "Save" : "Create",
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const payload = {
@@ -295,7 +304,13 @@ export default function AdminCouponsPage() {
   };
 
   const deleteCoupon = async (c: CouponDTO) => {
-    if (!window.confirm(`Are you sure you want to permanently delete ${c.code}?`)) return;
+    const ok = await confirm({
+      title: "Delete coupon",
+      description: `Permanently delete ${c.code}?`,
+      confirmText: "Delete",
+      confirmStyle: "danger",
+    });
+    if (!ok) return;
     try {
       await adminFetch(`/api/coupons/${c.id}`, { method: "DELETE" });
       show("Coupon deleted");
@@ -308,6 +323,7 @@ export default function AdminCouponsPage() {
   return (
     <div>
       {Toast}
+      {ConfirmDialog}
       <PageHeader title="Discount codes" subtitle="Codes customers type at checkout. Expiry is midnight India time. Edit a code instead of deleting it." />
 
       <form onSubmit={create} className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-8 shadow-sm space-y-4">
@@ -451,7 +467,7 @@ export default function AdminCouponsPage() {
       ) : (
         <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[640px]">
               <thead>
                 <tr className="bg-neutral-50/50 text-[11px] font-bold tracking-[1px] uppercase text-neutral-500">
                   <th className="p-4 border-b border-neutral-100 font-medium">Code</th>

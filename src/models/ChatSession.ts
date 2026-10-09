@@ -25,6 +25,9 @@ const ChatSessionSchema = new Schema(
     assignedTo: { type: String, default: "" },
     assignedName: { type: String, default: "" },
     negotiation: NegotiationSchema,
+    needsHumanReview: { type: Boolean, default: false },
+    handoffReason: { type: String, default: "" },
+    handoffAt: { type: Date },
     metadata: { type: Schema.Types.Mixed },
   },
   { timestamps: true }

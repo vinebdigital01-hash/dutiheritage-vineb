@@ -97,6 +97,17 @@ export default async function TermsConditionsPage() {
             If any dispute arises between You and Company during Your use of the Website or Your dealing with the Company in relation to any activity on the Website, in connection with the validity, interpretation, implementation or alleged breach of any provision of the User Agreement and all the rules and policies contained herein, the dispute shall be referred to a sole arbitrator who shall be an independent and neutral third party identified by Company. The Arbitration &amp; Conciliation Act, 1996, shall govern the arbitration proceedings. The place of arbitration shall be Delhi.
           </p>
         </section>
+
+        <section>
+          <h2 className="text-xl font-medium text-[var(--color-text)] mb-4 uppercase tracking-wider">
+            Technical infrastructure
+          </h2>
+          <p>
+            The website&apos;s technical infrastructure is provided by{" "}
+            <strong className="text-[var(--color-text)]">Vine B Digital</strong>. Product ownership,
+            pricing, fulfilment, and customer service remain with Duti Heritage.
+          </p>
+        </section>
       </div>
     </PolicyPageShell>
   );

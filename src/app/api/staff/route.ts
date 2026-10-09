@@ -6,6 +6,14 @@ import { getAuth } from "firebase-admin/auth";
 import { STAFF_WRITE } from "@/lib/rbac";
 import { logAdminAction } from "@/lib/admin-audit";
 import { getPublicSiteUrl } from "@/lib/utils";
+import {
+  sendEmail,
+  emailLayout,
+  emailEyebrow,
+  emailLead,
+  emailNote,
+  escHtml,
+} from "@/lib/email";
 
 export async function GET(request: Request) {
   try {
@@ -87,28 +95,27 @@ export async function POST(request: Request) {
       url: `${baseUrl}/admin/login`
     });
 
-    // 4. Send Email using explicit Resend API key and From address
     try {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.RESEND_AUTH_KEY || process.env.RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: "Duti Heritage <admin@dutiheritage.co.in>",
-          to: [body.email.toLowerCase()],
-          subject: "You have been invited as Staff to Duti Heritage",
-          html: `
-            <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto;">
-              <h2>Welcome to Duti Heritage, ${body.name}!</h2>
-              <p>You have been invited by <strong>${authUser.email}</strong> to join the Duti Heritage team as a <strong>${body.role}</strong>.</p>
-              <p>To get started, please click the link below to set your password and access the Admin Dashboard.</p>
-              <a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 6px; margin: 20px 0;">Set Password & Login</a>
-              <p style="color: #666; font-size: 14px;">If you already have an account, this link will allow you to reset your password and login securely.</p>
-            </div>
-          `,
-        }),
+      await sendEmail({
+        to: body.email.toLowerCase(),
+        subject: "You have been invited to Duti Heritage admin",
+        html: emailLayout(
+          `Welcome, ${body.name}`,
+          emailEyebrow("Staff invite") +
+            emailLead(
+              `You have been invited by <strong>${escHtml(authUser.email || "an admin")}</strong> to join the team as <strong>${escHtml(body.role)}</strong>.`
+            ) +
+            emailNote(
+              "Use the button below to set your password and open the admin dashboard. If you already have an account, the same link resets your password."
+            ),
+          {
+            kind: "staff",
+            hideDefaultCtas: true,
+            primaryCta: { label: "Set password & log in", href: resetLink },
+            preheader: `Invited as ${body.role}`,
+          }
+        ),
+        type: "auth",
       });
     } catch (emailErr) {
       console.error("Failed to send staff invite email:", emailErr);

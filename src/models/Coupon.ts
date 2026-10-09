@@ -29,6 +29,8 @@ const CouponSchema = new Schema(
     usedCount: { type: Number, default: 0 },
     active: { type: Boolean, default: true },
     expiresAt: { type: Date },
+    /** When set, only this phone (normalized) may redeem the coupon */
+    restrictedToPhone: { type: String, default: "", index: true },
   },
   { timestamps: true }
 );

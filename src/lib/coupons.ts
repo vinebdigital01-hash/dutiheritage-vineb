@@ -131,6 +131,17 @@ export async function validateCouponCode(input: {
     throw new ApiError("This coupon has expired", 400);
   }
 
+  const restricted = String(
+    (coupon as { restrictedToPhone?: string }).restrictedToPhone || ""
+  ).replace(/\D/g, "");
+  if (restricted) {
+    const who = String(input.customerPhone || "").replace(/\D/g, "");
+    const last10 = (s: string) => (s.length >= 10 ? s.slice(-10) : s);
+    if (!who || last10(who) !== last10(restricted)) {
+      throw new ApiError("This coupon is not valid for your number", 400);
+    }
+  }
+
   if (
     coupon.usageLimit != null &&
     (coupon.usedCount ?? 0) >= coupon.usageLimit

@@ -3,7 +3,17 @@ import { connectDB } from "@/lib/mongodb";
 import { Customer } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { customerToProfile } from "@/lib/customers";
-import { sendEmail, isEmailConfigured, emailLayout } from "@/lib/email";
+import {
+  sendEmail,
+  isEmailConfigured,
+  emailLayout,
+  emailEyebrow,
+  emailLead,
+  emailNote,
+  emailMetricRow,
+  escHtml,
+} from "@/lib/email";
+import { getPublicSiteUrl } from "@/lib/utils";
 import { getStoreIdentity } from "@/lib/store-identity";
 import { handleApiError, jsonOk, requireMongo, ApiError } from "@/lib/api";
 
@@ -32,14 +42,31 @@ export async function POST(request: Request) {
     const identity = getStoreIdentity();
     const staffTo = identity.supportEmail;
     if (isEmailConfigured() && staffTo) {
-      const inner = `<p>${customer.name || auth.email || auth.uid} asked to delete their account.</p>
-        <p>Email: ${customer.email || "—"}<br/>Phone: ${customer.phone || "—"}<br/>UID: ${auth.uid}</p>
-        ${note ? `<p>Note: ${note}</p>` : ""}
-        <p>Finish this by hand in admin (freeze / delete). Do not auto-wipe orders.</p>`;
+      const inner =
+        emailEyebrow("Privacy") +
+        emailLead(
+          `<strong>${escHtml(customer.name || auth.email || auth.uid)}</strong> asked to delete their account.`
+        ) +
+        emailMetricRow([
+          { label: "Email", value: String(customer.email || "—") },
+          { label: "Phone", value: String(customer.phone || "—") },
+          { label: "UID", value: auth.uid },
+        ]) +
+        (note ? emailNote(`Note: ${escHtml(note)}`) : "") +
+        emailNote(
+          "Finish this by hand in admin (freeze / delete). Do not auto-wipe orders."
+        );
       await sendEmail({
         to: staffTo,
         subject: `Account delete request — ${customer.email || auth.uid}`,
-        html: emailLayout("Account delete request", inner),
+        html: emailLayout("Account delete request", inner, {
+          kind: "staff",
+          hideDefaultCtas: true,
+          primaryCta: {
+            label: "Open customers",
+            href: `${getPublicSiteUrl()}/admin/customers`,
+          },
+        }),
         type: "orders",
       });
     }
