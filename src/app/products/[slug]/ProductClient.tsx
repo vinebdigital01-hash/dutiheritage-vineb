@@ -34,6 +34,9 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const router = useRouter();
 
   // Local State for Review Modal & Toast
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [isNotifying, setIsNotifying] = useState(false);
+  const [showNotifyForm, setShowNotifyForm] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
@@ -143,6 +146,30 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
   const [isNavigating, setIsNavigating] = useState(false);
   const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor);
+  const handleNotifyMe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifyEmail || !notifyEmail.includes("@")) {
+      setToastMessage("Please enter a valid email");
+      return;
+    }
+    setIsNotifying(true);
+    try {
+      const res = await fetch(`/api/products/${product.id}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: notifyEmail, size: selectedSize || "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit");
+      setToastMessage(data.message || "You will be notified!");
+      setShowNotifyForm(false);
+      setNotifyEmail("");
+    } catch (err: any) {
+      setToastMessage(err.message || "Failed to notify");
+    } finally {
+      setIsNotifying(false);
+    }
+  };
   const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize, selectedColor); };
 
   const handleBuyNow = () => {
@@ -528,38 +555,72 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
 
               {/* Actions */}
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">
-                {isTotallySoldOut ? (
-                  <button 
-                    disabled
-                    className="w-full py-4 rounded-xl bg-gray-200 text-gray-500 text-[14px] font-bold tracking-wide uppercase cursor-not-allowed"
-                  >
-                    Out of Stock
-                  </button>
-                ) : (
-                  <>
-                    <button 
-                      onClick={handleAddToCart}
-                      className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
-                    >
-                      Add to cart
-                    </button>
-                    <button 
-                      onClick={handleBuyNow}
-                      disabled={isNavigating}
-                      className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'}`}
-                    >
-                      {isNavigating ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Loading...
-                        </>
-                      ) : "Buy it now"}
-                    </button>
-                  </>
-                )}
+                {(() => {
+                  let selectedSizeIsOutOfStock = false;
+                  if (!isTotallySoldOut && isInventoryTracked && product.inventory && selectedSize) {
+                    const inv = product.inventory.find(i => i.size === selectedSize && (!i.color || i.color === selectedColor));
+                    if (!inv || inv.stock === 0) selectedSizeIsOutOfStock = true;
+                  }
+
+                  if (isTotallySoldOut || selectedSizeIsOutOfStock) {
+                    return showNotifyForm ? (
+                      <form onSubmit={handleNotifyMe} className="flex flex-col gap-2 p-4 bg-gray-50 rounded-xl border border-gray-200 animate-fade-in-up">
+                        <p className="text-[13px] font-medium text-gray-700">
+                          Get notified when {selectedSizeIsOutOfStock && selectedSize ? `size ${selectedSize} is` : 'this is'} back in stock:
+                        </p>
+                        <input
+                          type="email"
+                          placeholder="Your email address"
+                          value={notifyEmail}
+                          onChange={(e) => setNotifyEmail(e.target.value)}
+                          className="w-full py-3 px-4 rounded-lg border border-gray-300 text-[14px] focus:ring-1 focus:ring-black outline-none"
+                          required
+                        />
+                        <button 
+                          type="submit"
+                          disabled={isNotifying}
+                          className="w-full py-3 rounded-lg bg-black text-white text-[13px] font-bold tracking-wide uppercase mt-1 disabled:opacity-50"
+                        >
+                          {isNotifying ? "Submitting..." : "NOTIFY ME WHEN RESTOCKED"}
+                        </button>
+                        <button type="button" onClick={() => setShowNotifyForm(false)} className="text-[11px] text-gray-500 uppercase mt-2 hover:text-black tracking-wide font-medium">Cancel</button>
+                      </form>
+                    ) : (
+                      <button 
+                        onClick={() => setShowNotifyForm(true)}
+                        className="w-full py-4 rounded-xl bg-[#0f172a] text-white text-[14px] font-bold tracking-wide uppercase hover:bg-black transition-colors"
+                      >
+                        NOTIFY ME WHEN RESTOCKED
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <button 
+                        onClick={handleAddToCart}
+                        className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        Add to cart
+                      </button>
+                      <button 
+                        onClick={handleBuyNow}
+                        disabled={isNavigating}
+                        className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'}`}
+                      >
+                        {isNavigating ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Loading...
+                          </>
+                        ) : "Buy it now"}
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
 
             </div>
