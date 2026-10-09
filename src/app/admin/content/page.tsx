@@ -61,10 +61,12 @@ export default function AdminContentPage() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await adminFetch<{ content: SiteContent }>(
-          "/api/site-content"
-        );
+        const [data, collData] = await Promise.all([
+          adminFetch<{ content: SiteContent }>("/api/site-content"),
+          adminFetch<{ collections: {name:string, slug:string}[] }>("/api/collections?all=1").catch(() => ({ collections: [] }))
+        ]);
         const c = data.content || {};
+        setAllCollections(collData.collections || []);
         setContent(c);
         setNavText(
           (c.headerNavLinks || [])
