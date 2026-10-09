@@ -51,3 +51,5 @@ export {
   WhatsAppAbandonedCheckout,
   type WhatsAppAbandonedCheckoutDocument,
 } from "./WhatsAppAbandonedCheckout";
+
+export { RestockRequest, type RestockRequestDocument } from "./RestockRequest";

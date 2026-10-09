@@ -45,6 +45,7 @@ const ICONS: Record<string, IconType> = {
   "/admin/customers": FiUsers,
   "/admin/reviews": FiMessageSquare,
   "/admin/whatsapp": FiMessageCircle,
+  "/admin/restock-requests": FiAlertCircle,
   "/admin/products": FiBox,
   "/admin/collections": FiGrid,
   "/admin/analytics": FiBarChart2,
