@@ -74,4 +74,20 @@ export type UserProfile = {
   pinCode?: string;
   country?: string;
   addresses?: UserAddress[];
+  deleteRequestedAt?: string | Date | null;
+};
+
+
+export type SavedAddress = {
+  id: string;
+  label: string;
+  isDefault: boolean;
+  firstName: string;
+  lastName: string;
+  address: string;
+  apartment: string;
+  city: string;
+  state: string;
+  pinCode: string;
+  phone: string;
 };

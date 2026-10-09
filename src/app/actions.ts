@@ -103,3 +103,12 @@ export async function getCrossSellProducts(input: {
   };
 }
 
+
+export async function getCatalogProducts(): Promise<Product[]> {
+  const { Product } = await import("@/models");
+  const { connectDB } = await import("@/lib/mongodb");
+  const { toProduct } = await import("@/lib/mappers");
+  await connectDB();
+  const docs = await Product.find({ isActive: true }).limit(50).lean();
+  return docs.map(toProduct);
+}

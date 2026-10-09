@@ -5,6 +5,7 @@ const FlagsSchema = new Schema(
     reviews: { type: Boolean, default: true },
     wishlist: { type: Boolean, default: true },
     whatsappWidget: { type: Boolean, default: true },
+    checkoutTimer: { type: Boolean, default: true },
   },
   { _id: false }
 );

@@ -20,6 +20,7 @@ export type CheckoutSettings = {
   codCities: string[];
   codMode: "ALL_INDIA" | "CITY_LIST" | "PINCODE_LIST";
   codEnabled: boolean;
+  shippingRates?: { regions?: string; freeShippingAbove: number; flatShippingFee: number }[];
 };
 
 const DEFAULT_SETTINGS: CheckoutSettings = {
