@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -9,15 +9,12 @@ import Image from "next/image";
 import { CldImage } from "next-cloudinary";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
-import { getCrossSellProducts } from "@/app/actions";
-import { LAST_ORDER_STORAGE_KEY } from "@/lib/guest-order";
-import { maxPurchasableQty, qtyOfProductSizeInCart } from "@/lib/cart-stock";
+import { getCatalogProducts } from "@/app/actions";
 import { authHeaders, openRazorpayCheckout } from "@/lib/checkout-client";
 import { syncCartToServer } from "@/lib/cart-client";
 import { trackEvent } from "@/lib/track-client";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { Product } from "@/types";
-import type { SavedAddress } from "@/types";
 import type { CheckoutSettings } from "@/services/checkout";
 import type { PublicCouponDTO } from "@/lib/coupons";
 import { auth } from "@/lib/firebase";
@@ -41,6 +38,7 @@ const FALLBACK_SETTINGS: CheckoutSettings = {
   codCities: [],
   codMode: "PINCODE_LIST",
   codEnabled: true,
+    shippingRates: [],
 };
 
 
@@ -50,7 +48,7 @@ let hasProcessedCheckoutUrl = false;
 function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: string) => void }) {
 
   const searchParams = useSearchParams();
-  const { addToCart } = useAppContext();
+  const { addToCart, clearCart } = useAppContext();
   const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
@@ -67,7 +65,10 @@ function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: s
           const res = await fetch(`/api/products?slug=${productSlug}`);
           if (res.ok) {
             const data = await res.json();
-            if (data?.product) { addToCart(data.product, size); }
+            if (data?.product) { 
+              clearCart(); 
+              addToCart(data.product, size); 
+            }
           }
         }
         if (couponCode) {
@@ -106,45 +107,24 @@ export default function CheckoutPage() {
   const [codAvailable, setCodAvailable] = useState<boolean | null>(null);
   const [codChecking, setCodChecking] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [cartIssues, setCartIssues] = useState<Array<{ type: string; message: string }>>([]);
   const [razorpayEnabled, setRazorpayEnabled] = useState(false);
   const [prepaidEnabled, setPrepaidEnabled] = useState(true);
-  const [crossSell, setCrossSell] = useState<{ title: string; products: Product[] }>({
-    title: "",
-    products: [],
-  });
+  const [checkoutTimerEnabled, setCheckoutTimerEnabled] = useState(true);
+  const [catalog, setCatalog] = useState<Product[]>([]);
   const [addedCrossSell, setAddedCrossSell] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<CheckoutSettings>(FALLBACK_SETTINGS);
   const [availableCoupons, setAvailableCoupons] = useState<PublicCouponDTO[]>([]);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [autoApplyTrigger, setAutoApplyTrigger] = useState<string | null>(null);
 
+  // FOMO / Urgency States
+  const [timeLeft, setTimeLeft] = useState(600); // 10 mins
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
+  const [liveViewers, setLiveViewers] = useState(14);
 
   const [formData, setFormData] = useState({
     email: "", country: "India", firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: ""
   });
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-
-  const applySavedAddress = (addr: SavedAddress) => {
-    const matchedState =
-      indianStates.find((s) => s.name === addr.state || s.isoCode === addr.state)?.name ||
-      addr.state ||
-      "";
-    setSelectedAddressId(addr.id);
-    setFormData((prev) => ({
-      ...prev,
-      firstName: addr.firstName || prev.firstName,
-      lastName: addr.lastName || prev.lastName,
-      address: addr.address || "",
-      apartment: addr.apartment || "",
-      city: addr.city || "",
-      state: matchedState,
-      pinCode: addr.pinCode || "",
-      phone: addr.phone || prev.phone,
-      country: addr.country === "IN" ? "India" : addr.country || prev.country,
-    }));
-  };
 
   const [indianStates, setIndianStates] = useState<{name: string; isoCode: string}[]>([]);
   const [indianCities, setIndianCities] = useState<{name: string}[]>([]);
@@ -170,16 +150,20 @@ export default function CheckoutPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [mergeOtpEmail, setMergeOtpEmail] = useState("");
+  const [mergeOtpInput, setMergeOtpInput] = useState("");
+  const [isVerifyingMerge, setIsVerifyingMerge] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [confResult, setConfResult] = useState<ConfirmationResult | null>(null);
 
   // Auto-verify if logged in user's saved phone matches
   useEffect(() => {
-    const currentPhone = formData.phone.trim().replace(/^\+91/, "").replace(/\s/g, "");
-    const savedPhone1 = user?.phone?.replace(/^\+91/, "").replace(/\s/g, "");
-    const savedPhone2 = userProfile?.phone?.replace(/^\+91/, "").replace(/\s/g, "");
+    const cleanPhone = (p?: string) => p ? p.replace(/\D/g, "").slice(-10) : "";
+    const currentPhone = cleanPhone(formData.phone);
+    const savedPhone1 = cleanPhone(user?.phone);
+    const savedPhone2 = cleanPhone(userProfile?.phone);
     
-    if (currentPhone && currentPhone.length >= 10 && (currentPhone === savedPhone1 || currentPhone === savedPhone2)) {
+    if (currentPhone && currentPhone.length === 10 && (currentPhone === savedPhone1 || currentPhone === savedPhone2)) {
       setPhoneVerified(true);
       setOtpSent(false);
       setOtpError("");
@@ -240,24 +224,44 @@ export default function CheckoutPage() {
   };
 
   useEffect(() => {
-    fetch("/api/checkout/config")
+    getCatalogProducts().then(setCatalog).catch(() => setCatalog([]));
+
+    if (cart.length > 0) {
+      fetch("/api/checkout/verify-cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart.map(item => ({ productId: item.id, size: item.selectedSize, quantity: item.quantity })) }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data && !data.valid) {
+            setCheckoutError(data.error || "Some items in your cart are no longer available. Please clear your cart and try again.");
+          }
+        })
+        .catch(() => {});
+    }
+
+    fetch("/api/checkout/config?t=" + Date.now())
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
         setRazorpayEnabled(Boolean(data.razorpayEnabled));
         setPrepaidEnabled(data.prepaidEnabled !== false);
-        setSettings({
-          freeShippingAbove: data.freeShippingAbove ?? FALLBACK_SETTINGS.freeShippingAbove,
-          flatShippingFee: data.flatShippingFee ?? FALLBACK_SETTINGS.flatShippingFee,
-          codExtraCharge: data.codExtraCharge ?? FALLBACK_SETTINGS.codExtraCharge,
-          prepaidDiscount: data.prepaidDiscount ?? FALLBACK_SETTINGS.prepaidDiscount,
-          partialCodAdvance: data.partialCodAdvance ?? FALLBACK_SETTINGS.partialCodAdvance,
-          codPrefixes: data.codPrefixes ?? FALLBACK_SETTINGS.codPrefixes,
-          codPincodes: data.codPincodes ?? [],
-          codCities: data.codCities ?? [],
-          codMode: data.codMode ?? "PINCODE_LIST",
-          codEnabled: data.codEnabled !== false,
-        });
+        setCheckoutTimerEnabled(data.checkoutTimer !== false);
+
+          setSettings({
+            freeShippingAbove: data.freeShippingAbove ?? FALLBACK_SETTINGS.freeShippingAbove,
+            flatShippingFee: data.flatShippingFee ?? FALLBACK_SETTINGS.flatShippingFee,
+            codExtraCharge: data.codExtraCharge ?? FALLBACK_SETTINGS.codExtraCharge,
+            prepaidDiscount: data.prepaidDiscount ?? FALLBACK_SETTINGS.prepaidDiscount,
+            partialCodAdvance: data.partialCodAdvance ?? FALLBACK_SETTINGS.partialCodAdvance,
+            codPrefixes: data.codPrefixes ?? FALLBACK_SETTINGS.codPrefixes,
+            codPincodes: data.codPincodes ?? [],
+            codCities: data.codCities ?? [],
+            codMode: data.codMode ?? "PINCODE_LIST",
+            codEnabled: data.codEnabled !== false,
+            shippingRates: data.shippingRates ?? [],
+          });
       })
       .catch(() => {});
 
@@ -269,75 +273,23 @@ export default function CheckoutPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!isInitialized) return;
-    if (cart.length === 0) {
-      setCartIssues([]);
-      return;
-    }
-    const t = setTimeout(() => {
-      fetch("/api/checkout/verify-cart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: cart.map((item) => ({
-            productId: item.id,
-            size: item.selectedSize,
-            quantity: item.quantity,
-            color: item.selectedColor,
-            unitPrice: item.salePrice || item.price,
-          })),
-        }),
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          setCartIssues(Array.isArray(data.issues) ? data.issues : []);
-        })
-        .catch(() => {});
-    }, 400);
-    return () => clearTimeout(t);
-  }, [cart, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized || cart.length === 0) {
-      setCrossSell({ title: "", products: [] });
-      return;
-    }
-    getCrossSellProducts({
-      excludeIds: cart.map((i) => i.id),
-      collectionIds: [...new Set(cart.map((i) => i.collectionId))],
-      wishlistIds: wishlist || [],
-      limit: 4,
-    })
-      .then((r) =>
-        setCrossSell({
-          title: r.title === "People Also Bought" ? "Complete Your Look" : r.title,
-          products: r.products,
-        })
-      )
-      .catch(() => setCrossSell({ title: "", products: [] }));
-  }, [cart, wishlist, isInitialized]);
-
   // Pre-fill from user profile
   useEffect(() => {
     if (user) {
-      const saved = userProfile?.addresses || [];
-      const primary =
-        saved.find((a) => a.label.toLowerCase() === "home") || saved[0];
-      setFormData((prev) => ({
+      const defaultAddr = userProfile?.addresses?.find(a => a.isDefault) || userProfile?.addresses?.[0];
+      setFormData(prev => ({
         ...prev,
         email: user.email || prev.email,
-        firstName: primary?.firstName || user.name?.split(" ")[0] || prev.firstName,
-        lastName: primary?.lastName || user.name?.split(" ").slice(1).join(" ") || prev.lastName,
-        phone: primary?.phone || user.phone || userProfile?.phone || prev.phone,
-        address: primary?.address || userProfile?.address || prev.address,
-        apartment: primary?.apartment || userProfile?.apartment || prev.apartment,
-        city: primary?.city || userProfile?.city || prev.city,
-        state: primary?.state || userProfile?.state || prev.state,
-        pinCode: primary?.pinCode || userProfile?.pinCode || prev.pinCode,
-        country: userProfile?.country || prev.country,
+        firstName: defaultAddr?.firstName || userProfile?.name?.split(" ")[0] || user.name?.split(" ")[0] || prev.firstName,
+        lastName: defaultAddr?.lastName || userProfile?.name?.split(" ").slice(1).join(" ") || user.name?.split(" ").slice(1).join(" ") || prev.lastName,
+        phone: defaultAddr?.phone || user.phone || userProfile?.phone || prev.phone,
+        address: defaultAddr?.address || userProfile?.address || prev.address,
+        apartment: defaultAddr?.apartment || userProfile?.apartment || prev.apartment,
+        city: defaultAddr?.city || userProfile?.city || prev.city,
+        state: defaultAddr?.state || userProfile?.state || prev.state,
+        pinCode: defaultAddr?.pinCode || userProfile?.pinCode || prev.pinCode,
+        country: defaultAddr?.country || userProfile?.country || prev.country
       }));
-      if (primary) setSelectedAddressId(primary.id);
     }
   }, [user, userProfile]);
 
@@ -386,12 +338,47 @@ export default function CheckoutPage() {
     formData.phone,
   ]);
 
+  // Countdown timer for FOMO banner
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft]);
+
+  // Live viewers simulation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveViewers(prev => prev + (Math.random() > 0.5 ? 1 : -1));
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
   // Check COD availability when pincode/city changes
   useEffect(() => {
     const pin = formData.pinCode.trim();
     if (pin.length === 6) {
       setCodChecking(true);
       const timer = setTimeout(async () => {
+        try {
+          const locRes = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+          if (locRes.ok) {
+            const data = await locRes.json();
+            if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice.length > 0) {
+              const postOffice = data[0].PostOffice[0];
+              setFormData(prev => ({
+                ...prev,
+                city: prev.city || postOffice.District || postOffice.Block,
+                state: prev.state || postOffice.State
+              }));
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch location for pincode");
+        }
         try {
           const res = await fetch("/api/settings/cod/check-pincode", {
             method: "POST",
@@ -420,9 +407,48 @@ export default function CheckoutPage() {
   // Location states are fetched via API
   // ---- PRICING CALCULATIONS (from live settings) ----
   const subtotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
-  const isFreeShipping = subtotal >= settings.freeShippingAbove;
-  const shipping = subtotal > 0 ? (isFreeShipping ? 0 : settings.flatShippingFee) : 0;
-  const amountForFreeShipping = settings.freeShippingAbove - subtotal;
+  
+  let freeShippingAbove = settings.freeShippingAbove;
+  let flatShippingFee = settings.flatShippingFee;
+
+  if (settings.shippingRates && settings.shippingRates.length > 0) {
+    const customerState = (formData.state || "").toLowerCase().trim();
+    const customerCity = (formData.city || "").toLowerCase().trim();
+    
+    let matchedRate = null;
+    let fallbackRate = null;
+
+    for (const r of settings.shippingRates) {
+      const regions = (r.regions || "").toLowerCase();
+      if (!regions) {
+        if (!fallbackRate) fallbackRate = r;
+        continue;
+      }
+      
+      const regionList = regions.split(",").map((s: string) => s.trim()).filter(Boolean);
+      for (const reg of regionList) {
+        let matched = false;
+        if (customerState && (customerState.includes(reg) || (customerState.length > 3 && reg.includes(customerState)))) matched = true;
+        if (customerCity && (customerCity.includes(reg) || (customerCity.length > 3 && reg.includes(customerCity)))) matched = true;
+        
+        if (matched) {
+          matchedRate = r;
+          break;
+        }
+      }
+      if (matchedRate) break;
+    }
+
+    const finalRate = matchedRate || fallbackRate;
+    if (finalRate) {
+      freeShippingAbove = finalRate.freeAbove;
+      flatShippingFee = finalRate.amount;
+    }
+  }
+
+  const isFreeShipping = subtotal >= freeShippingAbove;
+  const shipping = subtotal > 0 ? (isFreeShipping ? 0 : flatShippingFee) : 0;
+  const amountForFreeShipping = freeShippingAbove - subtotal;
 
   const discountAmount = discountApplied
     ? discountApplied.type === "PERCENT"
@@ -438,17 +464,14 @@ export default function CheckoutPage() {
   const isPartialCodRequired = productAdvanceAmount > 0;
   
   React.useEffect(() => {
-    const onlineOk = prepaidEnabled && razorpayEnabled;
     if (isFinalCodAvailable === false && (paymentMethod === "cod" || paymentMethod === "partial")) {
-      if (onlineOk) setPaymentMethod("prepaid");
-    } else if (isPartialCodRequired && paymentMethod === "cod" && razorpayEnabled) {
+      if (prepaidEnabled) setPaymentMethod("prepaid");
+    } else if (isPartialCodRequired && paymentMethod === "cod") {
       setPaymentMethod("partial");
-    } else if (!onlineOk && paymentMethod === "prepaid") {
-      if (isFinalCodAvailable !== false) setPaymentMethod("cod");
-    } else if (!razorpayEnabled && paymentMethod === "partial") {
+    } else if (!prepaidEnabled && paymentMethod === "prepaid") {
       if (isFinalCodAvailable !== false) setPaymentMethod("cod");
     }
-  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod, prepaidEnabled, razorpayEnabled]);
+  }, [isFinalCodAvailable, isPartialCodRequired, paymentMethod, prepaidEnabled]);
 
   const codCharge = paymentMethod === "cod" ? settings.codExtraCharge : 0;
   const prepaidDiscount =
@@ -462,7 +485,7 @@ export default function CheckoutPage() {
       ? `${settings.prepaidDiscount.value}%`
       : settings.prepaidDiscount.value.toLocaleString("en-IN");
   const total = Math.max(0, subtotal + shipping - discountAmount + codCharge - prepaidDiscount);
-  const totalSavings = discountAmount + prepaidDiscount + (isFreeShipping ? settings.flatShippingFee : 0);
+  const totalSavings = discountAmount + prepaidDiscount + (isFreeShipping ? flatShippingFee : 0);
 
   // Partial COD logic
   const dynamicAdvance = isPartialCodRequired ? productAdvanceAmount : settings.partialCodAdvance;
@@ -470,8 +493,25 @@ export default function CheckoutPage() {
   const payOnDeliveryAmount = paymentMethod === "partial" ? total - advanceAmount : 0;
   const amountToPayNow = paymentMethod === "partial" ? advanceAmount : (paymentMethod === "cod" ? 0 : total);
 
-  const { title: crossSellTitle, products: crossSellProducts } = crossSell;
-  const cartBlocked = cartIssues.some((i) => i.type !== "price_changed");
+  // ---- CROSS-SELL PRODUCTS ----
+  const { title: crossSellTitle, products: crossSellProducts } = useMemo(() => {
+    if (catalog.length === 0) return { title: "Complete Your Look", products: [] };
+    const cartIds = new Set(cart.map(item => item.id));
+    
+    // 1. Wishlist Priority
+    const wishlistItems = catalog.filter(p => wishlist?.includes(p.id) && !cartIds.has(p.id));
+    if (wishlistItems.length > 0) {
+      return { title: "From Your Wishlist", products: wishlistItems.slice(0, 4) };
+    }
+
+    const cartCollectionIds = new Set(cart.map(item => item.collectionId));
+    const related = catalog.filter(p => cartCollectionIds.has(p.collectionId) && !cartIds.has(p.id)).slice(0, 6);
+    if (related.length < 4) {
+      const extra = catalog.filter(p => !cartIds.has(p.id) && !related.find(r => r.id === p.id) && p.tags?.includes("Bestseller")).slice(0, 4 - related.length);
+      related.push(...extra);
+    }
+    return { title: "Complete Your Look", products: related.slice(0, 4) };
+  }, [cart, catalog, wishlist]);
 
   // ---- HANDLERS ----
   
@@ -543,19 +583,55 @@ export default function CheckoutPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const fillSavedAddress = (addr: any) => {
+    setFormData(prev => ({
+      ...prev,
+      firstName: addr.firstName || prev.firstName,
+      lastName: addr.lastName || prev.lastName,
+      phone: addr.phone || prev.phone,
+      address: addr.address || prev.address,
+      apartment: addr.apartment || prev.apartment,
+      city: addr.city || prev.city,
+      state: addr.state || prev.state,
+      pinCode: addr.pinCode || prev.pinCode,
+      country: addr.country || prev.country
+    }));
+  };
+
   const handleAddCrossSell = (product: Product) => {
     addToCart(product, product.sizes?.[0] || "Free Size");
     setAddedCrossSell(prev => new Set([...prev, product.id]));
   };
 
+  const handleVerifyMerge = async () => {
+    setIsVerifyingMerge(true);
+    setCheckoutError(null);
+    try {
+      const hdrs = await authHeaders();
+      const res = await fetch("/api/auth/verify-merge-otp", {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({ email: mergeOtpEmail, otp: mergeOtpInput })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invalid OTP");
+      
+      setMergeOtpEmail("");
+      setMergeOtpInput("");
+      setCheckoutError(null);
+      
+      // Re-submit the form
+      const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+      setTimeout(() => handlePaymentSubmit(fakeEvent), 300);
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : "Invalid OTP");
+    } finally {
+      setIsVerifyingMerge(false);
+    }
+  };
+
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (cartBlocked) {
-      setCheckoutError("Fix the items in your cart before placing the order.");
-      setIsProcessing(false);
-      return;
-    }
 
     if ((paymentMethod === "cod" || paymentMethod === "partial") && !phoneVerified) {
       setCheckoutError("Please verify your phone number with OTP before placing COD order.");
@@ -583,7 +659,7 @@ export default function CheckoutPage() {
         productId: item.id,
         quantity: item.quantity,
         size: item.selectedSize,
-        color: item.selectedColor,
+        color: item.colors?.[0],
       }));
 
       let razorpay:
@@ -602,7 +678,7 @@ export default function CheckoutPage() {
           amount: amountToPayNow, // fallback
           paymentMethod,
           customer: {
-            email: formData.email,
+            email: formData.email.includes("@") ? formData.email : "",
             firstName: formData.firstName,
             lastName: formData.lastName,
             name: customerName,
@@ -620,6 +696,17 @@ export default function CheckoutPage() {
         });
         const createData = await createRes.json();
         if (!createRes.ok) {
+          if (createData.requiresMergeOtp) {
+            const sendOtpHeaders = await authHeaders();
+            fetch("/api/auth/send-merge-otp", {
+              method: "POST",
+              headers: sendOtpHeaders,
+              body: JSON.stringify({ email: createData.email })
+            }).catch(console.error);
+            setMergeOtpEmail(createData.email);
+            setIsProcessing(false);
+            return;
+          }
           throw new Error(createData.error || "Could not start payment");
         }
 
@@ -639,9 +726,8 @@ export default function CheckoutPage() {
 
         razorpay = payment;
       } else if (needsOnlinePay && !razorpayEnabled) {
-        throw new Error(
-          "Online payment is not available right now. Please choose Cash on Delivery, or try again later."
-        );
+        // Dev fallback when Razorpay keys are missing
+        console.warn("[checkout] Razorpay not configured — placing unpaid prepaid/partial order (dev)");
       }
 
       const placeRes = await fetch("/api/checkout/place-order", {
@@ -650,7 +736,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           paymentMethod,
           customer: {
-            email: formData.email,
+            email: formData.email.includes("@") ? formData.email : "",
             firstName: formData.firstName,
             lastName: formData.lastName,
             name: customerName,
@@ -666,11 +752,23 @@ export default function CheckoutPage() {
           couponCode: discountApplied?.code || null,
           saveToProfile: Boolean(user && saveToProfile),
           razorpay,
+          allowUnpaidDev: needsOnlinePay && !razorpayEnabled,
         }),
       });
 
       const placeData = await placeRes.json();
       if (!placeRes.ok) {
+        if (placeData.requiresMergeOtp) {
+          const sendOtpHeaders = await authHeaders();
+          fetch("/api/auth/send-merge-otp", {
+            method: "POST",
+            headers: sendOtpHeaders,
+            body: JSON.stringify({ email: placeData.email })
+          }).catch(console.error);
+          setMergeOtpEmail(placeData.email);
+          setIsProcessing(false);
+          return;
+        }
         throw new Error(placeData.error || "Could not place order");
       }
 
@@ -692,23 +790,15 @@ export default function CheckoutPage() {
       });
 
       clearCart();
-      try {
-        sessionStorage.setItem(
-          LAST_ORDER_STORAGE_KEY,
-          JSON.stringify({
-            order: placeData.order,
-            phone: formData.phone,
-            amountPaidNow: placeData.amountPaidNow,
-            payOnDelivery: placeData.payOnDelivery,
-          })
-        );
-      } catch {}
       router.push(`/checkout/success?orderId=${encodeURIComponent(orderId)}`);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong. Please try again.";
       setCheckoutError(message);
       setIsProcessing(false);
+      setTimeout(() => {
+        document.getElementById("checkout-error-msg")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
     }
   };
 
@@ -736,6 +826,15 @@ export default function CheckoutPage() {
   const OrderSummaryContent = (
     <div className="flex flex-col w-full h-full">
 
+      {/* FOMO Live Viewers */}
+      <div className="mb-4 flex items-center gap-2 text-[12px] text-red-600 font-medium bg-red-50 py-2 px-3 rounded">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+        </span>
+        {liveViewers} people are viewing items in your cart
+      </div>
+
       {/* Cart Items */}
       <div className="flex flex-col gap-4 mb-6">
         {cart.map((item) => (
@@ -754,11 +853,7 @@ export default function CheckoutPage() {
                 <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5">
                   <button onClick={() => updateQuantity(item.cartItemId, -1)} disabled={item.quantity <= 1} className="text-[10px] text-gray-500 hover:text-black disabled:opacity-30 px-1">-</button>
                   <span className="text-[11px] text-gray-700 font-medium min-w-[12px] text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={(() => {
-                    const max = maxPurchasableQty(item, item.selectedSize);
-                    const used = qtyOfProductSizeInCart(cart, item.id, item.selectedSize);
-                    return max !== null && used >= max;
-                  })()} className="text-[10px] text-gray-500 hover:text-black disabled:opacity-30 px-1">+</button>
+                  <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-[10px] text-gray-500 hover:text-black px-1">+</button>
                 </div>
                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-[10px] text-gray-400 hover:text-red-600 underline">Remove</button>
               </div>
@@ -830,7 +925,7 @@ export default function CheckoutPage() {
                 🚀 Add ₹{amountForFreeShipping.toLocaleString("en-IN")} more for <span className="font-bold">FREE Shipping!</span>
               </p>
               <div className="w-full bg-amber-200 rounded-full h-1.5">
-                <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.min((subtotal / settings.freeShippingAbove) * 100, 100)}%` }}></div>
+                <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.min((subtotal / freeShippingAbove) * 100, 100)}%` }}></div>
               </div>
             </div>
           )}
@@ -912,7 +1007,7 @@ export default function CheckoutPage() {
           {!isFreeShipping && amountForFreeShipping > 0 && amountForFreeShipping <= 500 && (
             <div className="mt-4 p-3 border border-dashed border-green-400 rounded-lg bg-green-50 text-center shadow-sm">
               <p className="text-[12px] text-green-800">
-                💡 <span className="font-bold">Pro tip:</span> Add one more item worth ₹{amountForFreeShipping.toLocaleString("en-IN")}+ to get <span className="font-bold">FREE shipping</span> &amp; save ₹{settings.flatShippingFee}!
+                💡 <span className="font-bold">Pro tip:</span> Add one more item worth ₹{amountForFreeShipping.toLocaleString("en-IN")}+ to get <span className="font-bold">FREE shipping</span> &amp; save ₹{flatShippingFee}!
               </p>
             </div>
           )}
@@ -940,6 +1035,20 @@ export default function CheckoutPage() {
   return (
     <main className="w-full min-h-screen bg-[var(--color-bg)] pb-24 lg:pb-0">
       
+      {/* 🚨 FOMO BANNER - TOP */}
+      {checkoutTimerEnabled && timeLeft > 0 ? (
+        <div className="bg-red-600 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
+          <span className="animate-bounce">🔥</span> 
+          High demand! Your cart is reserved for 
+          <span className="bg-white text-red-600 px-2 py-0.5 rounded ml-1">{timeString}</span>
+        </div>
+      ) : (
+        <div className="bg-amber-500 text-white text-[12px] md:text-[13px] text-center py-2 px-4 font-bold tracking-wide relative z-40 shadow-sm flex items-center justify-center gap-2">
+          <span>⏳</span> 
+          Your reservation has expired! Complete checkout now before items sell out.
+        </div>
+      )}
+
       <div className="max-w-[1200px] mx-auto flex flex-col lg:flex-row min-h-screen">
 
         {/* ============================================ */}
@@ -979,7 +1088,7 @@ export default function CheckoutPage() {
           {/* Social Proof Banner */}
           <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3 items-center shadow-sm">
             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-              <span className="text-xl">⭐️</span>
+              <span className="text-xl">📦</span>
             </div>
             <div>
               <p className="text-[13px] font-bold text-green-800">Trusted by 10,000+ women across India</p>
@@ -995,7 +1104,8 @@ export default function CheckoutPage() {
                 <h2 className="text-xl font-serif tracking-wide font-bold">Contact</h2>
                 {!user && <Link href="/account" className="text-[13px] font-bold text-blue-600 hover:underline">Log in</Link>}
               </div>
-              <input type="text" name="email" value={formData.email} onChange={handleInputChange} placeholder="Email or mobile phone number" aria-label="Email or mobile phone number" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all shadow-sm bg-white" required />
+              <input type="text" name="email" value={formData.email} onChange={handleInputChange} placeholder="Email (optional)" aria-label="Email address (optional)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all shadow-sm bg-white" />
+              <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Mobile number (For delivery updates)" aria-label="Mobile number (For delivery updates)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all shadow-sm bg-white mt-3" required />
               <div className="flex items-center gap-2 mt-3">
                 <input type="checkbox" id="news" className="w-4 h-4 accent-black rounded" defaultChecked />
                 <label htmlFor="news" className="text-[14px] text-gray-600">
@@ -1007,25 +1117,26 @@ export default function CheckoutPage() {
             {/* Delivery */}
             <section>
               <h2 className="text-xl font-serif tracking-wide font-bold mb-4">Delivery Address</h2>
-              {(userProfile?.addresses || []).length > 0 ? (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {(userProfile?.addresses || []).map((addr) => (
-                    <button
-                      key={addr.id}
-                      type="button"
-                      onClick={() => applySavedAddress(addr)}
-                      className={`px-4 py-2 text-[12px] font-bold uppercase tracking-widest rounded-lg border ${
-                        selectedAddressId === addr.id
-                          ? "bg-black text-white border-black"
-                          : "bg-white text-black border-gray-300 hover:border-black"
-                      }`}
-                    >
-                      {addr.label}
-                      {addr.pinCode ? ` · ${addr.pinCode}` : ""}
-                    </button>
-                  ))}
+              
+              {userProfile?.addresses && userProfile.addresses.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-[11px] text-gray-500 uppercase tracking-widest font-bold mb-2 block">Use a Saved Address</label>
+                  <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+                    {userProfile.addresses.map((addr, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => fillSavedAddress(addr)} 
+                        className="border border-gray-200 rounded-lg p-3 min-w-[200px] max-w-[240px] cursor-pointer hover:border-black hover:bg-gray-50 transition-all shrink-0"
+                      >
+                        <p className="font-bold text-[13px] uppercase tracking-wider mb-1">{addr.label || "Saved Address"}</p>
+                        <p className="text-[12px] text-gray-600 truncate">{addr.firstName} {addr.lastName}</p>
+                        <p className="text-[12px] text-gray-600 truncate">{addr.address}</p>
+                        <p className="text-[12px] text-gray-600 truncate">{addr.city}, {addr.pinCode}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ) : null}
+              )}
               <div className="flex flex-col gap-3.5">
                 <select aria-label="Country" name="country" value={formData.country} onChange={handleInputChange} className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm">
                   <option>India</option>
@@ -1054,9 +1165,6 @@ export default function CheckoutPage() {
                   </select>
                   <input type="text" inputMode="numeric" pattern="\d{6}" name="pinCode" value={formData.pinCode} onChange={(e) => { const val = e.target.value.replace(/\D/g, ''); setFormData({...formData, pinCode: val}); }} placeholder="PIN code" maxLength={6} className="w-1/3 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide" required />
                 </div>
-
-                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Mobile number (For delivery updates)" aria-label="Mobile number (For delivery updates)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
-
               {/* OTP Verification for COD */}
               <div id="recaptcha-container"></div>
               {(paymentMethod === "cod" || paymentMethod === "partial") && !phoneVerified && (
@@ -1079,18 +1187,18 @@ export default function CheckoutPage() {
                 </div>
               )}
               {phoneVerified && (paymentMethod === "cod" || paymentMethod === "partial") && (
-                <p className="text-green-600 text-xs mt-1">✓ Phone verified</p>
+                <p className="text-green-600 text-xs mt-1">☎ Phone verified</p>
               )}
 
                 {/* COD Availability Indicator */}
                 {formData.pinCode.length === 6 && (
                   <div className={`flex items-center gap-2 text-[13px] px-4 py-3 rounded-lg font-medium shadow-sm border ${codChecking ? "bg-gray-50 border-gray-200 text-gray-600" : codAvailable ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
                     {codChecking ? (
-                      <><span className="animate-pulse">●</span> Checking delivery options...</>
+                      <><span className="animate-pulse">⏳</span> Checking delivery options...</>
                     ) : codAvailable ? (
                       <><span>✅</span> COD &amp; Prepaid both available for {formData.pinCode}</>
                     ) : (
-                      <><span>⚠️</span> Only Prepaid available for {formData.pinCode}. COD not serviceable.</>
+                      <><span>🔒</span> Only Prepaid available for {formData.pinCode}. COD not serviceable.</>
                     )}
                   </div>
                 )}
@@ -1137,7 +1245,7 @@ ${paymentMethod === "partial" ? "border-black bg-blue-50/30" : "border-gray-200 
                       <span className="text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-1 rounded shadow-sm">No COD Charge</span>
                     </div>
                     <p className="text-[13px] text-gray-600 mt-1">
-                      {isFinalCodAvailable === false ? (!productsAllowCod ? "COD is not available for one or more items in your cart" : "COD is not available for your pincode") : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${settings.partialCodAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
+                      {isFinalCodAvailable === false ? (!productsAllowCod ? "COD is not available for one or more items in your cart" : "COD is not available for your pincode") : codAvailable === null ? "Enter your pincode to check availability" : `Pay just ₹${dynamicAdvance} today to confirm your order. The remaining amount will be collected on delivery.`}
                     </p>
                   </div>
                 </label>
@@ -1169,36 +1277,21 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
               </div>
             )}
 
-            {cartIssues.some((i) => i.type !== "price_changed") && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-[13px] rounded-lg space-y-1">
-                {cartIssues.filter((i) => i.type !== "price_changed").map((issue, i) => (
-                  <p key={`block-${i}`}>{issue.message}</p>
-                ))}
-              </div>
-            )}
-            {cartIssues.some((i) => i.type === "price_changed") && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-[13px] rounded-lg space-y-1">
-                {cartIssues.filter((i) => i.type === "price_changed").map((issue, i) => (
-                  <p key={`price-${i}`}>{issue.message}</p>
-                ))}
-              </div>
-            )}
-
             {checkoutError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-[13px] rounded-lg">
+              <div id="checkout-error-msg" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-[13px] rounded-lg">
                 {checkoutError}
               </div>
             )}
 
             {!razorpayEnabled && paymentMethod !== "cod" && (
               <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-2 rounded">
-                Online payment is not available right now. Please use Cash on Delivery.
+                Razorpay keys are not configured — prepaid/partial will place a pending order (dev mode). COD works fully.
               </p>
             )}
 
             {/* Desktop Submit Button (Hidden on Mobile due to Sticky Footer) */}
             <div className="hidden lg:block">
-              <button type="submit" disabled={isProcessing || cartBlocked} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : cartBlocked ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
+              <button type="submit" disabled={isProcessing} className={`w-full py-4.5 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}>
                 {isProcessing && (
                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1248,14 +1341,68 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
       </div>
 
       {/* ============================================ */}
+      {/* Merge OTP Modal */}
+      {mergeOtpEmail && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative">
+            <button 
+              onClick={() => {
+                setMergeOtpEmail("");
+                setMergeOtpInput("");
+                setCheckoutError(null);
+                setIsProcessing(false);
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-900"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Account Verification</h3>
+              <p className="text-gray-600 text-sm">
+                The email <strong>{mergeOtpEmail}</strong> is already linked to another account. We have sent a 6-digit OTP to verify ownership.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Enter 6-digit OTP"
+                maxLength={6}
+                value={mergeOtpInput}
+                onChange={(e) => setMergeOtpInput(e.target.value.replace(/\D/g, ""))}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-center text-2xl tracking-widest focus:ring-2 focus:ring-black outline-none transition-all font-mono"
+              />
+              
+              {checkoutError && (
+                <p className="text-red-500 text-sm text-center font-medium bg-red-50 py-2 rounded-lg">{checkoutError}</p>
+              )}
+
+              <button
+                onClick={handleVerifyMerge}
+                disabled={isVerifyingMerge || mergeOtpInput.length !== 6}
+                className="w-full bg-black text-white py-3 rounded-xl font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isVerifyingMerge ? (
+                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : "Verify & Continue Checkout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE STICKY FOOTER (Pay Button)            */}
       {/* ============================================ */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-40">
         <button 
           type="submit" 
           form="checkout-form"
-          disabled={isProcessing || cartBlocked} 
-          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : cartBlocked ? "bg-gray-400 text-white cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
+          disabled={isProcessing} 
+          className={`w-full py-4 text-[15px] font-bold tracking-[1px] uppercase rounded-lg transition-colors shadow-lg relative overflow-hidden flex items-center justify-center gap-3 ${isProcessing ? "bg-gray-800 text-gray-300 cursor-not-allowed" : paymentMethod === "prepaid" ? "bg-black text-white hover:bg-black/90" : paymentMethod === "partial" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-700 text-white hover:bg-green-800"}`}
         >
           {isProcessing && (
             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1270,3 +1417,6 @@ ${paymentMethod === "cod" ? "border-black bg-gray-50" : "border-gray-200 hover:b
     </main>
   );
 }
+
+
+

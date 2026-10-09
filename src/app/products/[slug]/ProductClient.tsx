@@ -14,14 +14,7 @@ import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
 import { authHeaders } from "@/lib/checkout-client";
 import { trackEvent, trackPageDuration } from "@/lib/track-client";
-import {
-  maxPurchasableQty,
-  qtyOfProductSizeInCart,
-  findInventoryRow,
-} from "@/lib/cart-stock";
-import { DEFAULT_SIZE_CHART } from "@/lib/size-chart";
 import type { ReviewDTO } from "@/lib/reviews";
-import { compressImageForUpload } from "@/lib/image-compress";
 
 const getVideoInfo = (url: string) => {
   if (url.includes('instagram.com')) {
@@ -52,8 +45,6 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const [averageRating, setAverageRating] = useState(0);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
-  const [reviewImages, setReviewImages] = useState<string[]>([]);
-  const [uploadingReviewImage, setUploadingReviewImage] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
 
@@ -136,161 +127,29 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const images = [product.image, ...(product.images || [])].filter(Boolean); 
   const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
-  const [liveInventory, setLiveInventory] = useState(product.inventory);
-  const [liveTrackInventory, setLiveTrackInventory] = useState(product.trackInventory);
-  const [liveStockStatus, setLiveStockStatus] = useState(product.stockStatus);
-
-  useEffect(() => {
-    setLiveInventory(product.inventory);
-    setLiveTrackInventory(product.trackInventory);
-    setLiveStockStatus(product.stockStatus);
-  }, [product.id, product.inventory, product.trackInventory, product.stockStatus]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/products/${encodeURIComponent(product.id)}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled || !data.product) return;
-        setLiveInventory(data.product.inventory);
-        setLiveTrackInventory(data.product.trackInventory);
-        setLiveStockStatus(data.product.stockStatus);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [product.id]);
-
-  const stockProduct = {
-    ...product,
-    inventory: liveInventory,
-    trackInventory: liveTrackInventory,
-    stockStatus: liveStockStatus,
-  };
-
-  const isInventoryTracked = Boolean(stockProduct.trackInventory) || Boolean(stockProduct.inventory?.length);
-  const isTotallySoldOut =
-    isInventoryTracked &&
-    (!stockProduct.inventory || stockProduct.inventory.every((i) => i.stock === 0));
+  const isInventoryTracked = product.trackInventory;
+  const isTotallySoldOut = isInventoryTracked && (!product.inventory || product.inventory.every(i => i.stock === 0));
   
-  const firstAvailableSize = sizes.find(s => {
-    if (!isInventoryTracked) return true;
-    const inv = stockProduct.inventory?.find(i => i.size === s);
-    return inv ? inv.stock > 0 : false;
-  }) || sizes[0];
+  const c = product.colors && product.colors.length > 0 ? product.colors[0] : undefined;
+    const firstAvailableSize = sizes.find(s => {
+      if (!isInventoryTracked) return true;
+      const inv = product.inventory?.find(i => i.size === s && (!i.color || i.color === c));
+      return inv ? inv.stock > 0 : false;
+    }) || sizes[0];
 
   const [selectedSize, setSelectedSize] = useState(firstAvailableSize);
   const colors = product.colors || [];
   const [selectedColor, setSelectedColor] = useState(colors.length > 0 ? colors[0] : undefined);
 
   const [isNavigating, setIsNavigating] = useState(false);
-  const [showSizeChart, setShowSizeChart] = useState(false);
-  const [pinCode, setPinCode] = useState("");
-  const [pinResult, setPinResult] = useState<{
-    available: boolean;
-    message: string;
-    freeShippingAbove?: number;
-    flatShippingFee?: number;
-  } | null>(null);
-  const [pinChecking, setPinChecking] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState("");
-  const [notifyBusy, setNotifyBusy] = useState(false);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("duti-heritage_pincode");
-      if (saved && /^\d{6}$/.test(saved)) setPinCode(saved);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (user?.email && !notifyEmail) setNotifyEmail(user.email);
-  }, [user?.email, notifyEmail]);
-
-  const remaining = maxPurchasableQty(stockProduct, selectedSize);
-  const inCartForSize = qtyOfProductSizeInCart(cart, product.id, selectedSize);
-  const canAddMore = remaining === null || remaining > inCartForSize;
-  const sizeSoldOut = remaining === 0;
   const isAdded = cart.some(item => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor);
-  const handleAddToCart = () => {
-    if (sizeSoldOut || !canAddMore) {
-      if (isAdded) setIsCartOpen(true);
-      return;
-    }
-    if (isAdded) setIsCartOpen(true);
-    else addToCart(product, selectedSize, selectedColor);
-  };
+  const handleAddToCart = () => { if(isAdded) setIsCartOpen(true); else addToCart(product, selectedSize, selectedColor); };
 
   const handleBuyNow = () => {
-    if (sizeSoldOut || !canAddMore) return;
     setIsNavigating(true);
     addToCart(product, selectedSize, selectedColor);
     router.push("/checkout");
     setTimeout(() => setIsNavigating(false), 1000);
-  };
-
-  const checkPin = async () => {
-    const pin = pinCode.trim();
-    if (pin.length !== 6) {
-      setPinResult({ available: false, message: "Enter a valid 6-digit pincode" });
-      return;
-    }
-    setPinChecking(true);
-    try {
-      const res = await fetch("/api/settings/cod/check-pincode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinCode: pin }),
-      });
-      const data = await res.json();
-      const available = Boolean(data.available);
-      const freeNote = data.freeShippingAbove
-        ? ` Prepaid shipping is free above ₹${Number(data.freeShippingAbove).toLocaleString("en-IN")}.`
-        : "";
-      setPinResult({
-        available,
-        message: available
-          ? `We deliver to this pincode. Cash on delivery is available.${freeNote}`
-          : `We deliver to this pincode. Cash on delivery is not available — pay online at checkout.${freeNote}`,
-        freeShippingAbove: data.freeShippingAbove,
-        flatShippingFee: data.flatShippingFee,
-      });
-      try {
-        localStorage.setItem("duti-heritage_pincode", pin);
-      } catch {}
-    } catch {
-      setPinResult({ available: false, message: "Could not check this pincode. Try again." });
-    } finally {
-      setPinChecking(false);
-    }
-  };
-
-  const handleNotifyMe = async () => {
-    if (!notifyEmail.includes("@")) {
-      showToast("Enter your email so we can write when this size is back.");
-      return;
-    }
-    setNotifyBusy(true);
-    try {
-      const headers = await authHeaders();
-      const res = await fetch("/api/products/notify-me", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          productId: product.id,
-          size: selectedSize,
-          email: notifyEmail,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save request");
-      showToast(data.message || "We'll email you when this size is back.");
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Could not save request");
-    } finally {
-      setNotifyBusy(false);
-    }
   };
 
   const handleWriteReviewClick = async () => {
@@ -316,54 +175,11 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
       }
       setReviewRating(5);
       setReviewComment("");
-      setReviewImages([]);
       setIsReviewModalOpen(true);
     } catch {
       showToast("Could not verify review eligibility. Try again.");
     } finally {
       setCheckingEligibility(false);
-    }
-  };
-
-  const handleReviewPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files?.length) return;
-    const remaining = 5 - reviewImages.length;
-    if (remaining <= 0) {
-      showToast("Maximum 5 photos per review");
-      e.target.value = "";
-      return;
-    }
-    setUploadingReviewImage(true);
-    try {
-      const headers = await authHeaders();
-      const authHeader =
-        typeof headers === "object" &&
-        headers !== null &&
-        "Authorization" in headers
-          ? String((headers as Record<string, string>).Authorization || "")
-          : "";
-      const toUpload = Array.from(files).slice(0, remaining);
-      const urls: string[] = [];
-      for (const raw of toUpload) {
-        const compressed = await compressImageForUpload(raw);
-        const body = new FormData();
-        body.append("file", compressed.file);
-        const res = await fetch("/api/reviews/upload", {
-          method: "POST",
-          headers: authHeader ? { Authorization: authHeader } : {},
-          body,
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Upload failed");
-        if (data.url) urls.push(String(data.url));
-      }
-      setReviewImages((prev) => [...prev, ...urls].slice(0, 5));
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Photo upload failed");
-    } finally {
-      setUploadingReviewImage(false);
-      e.target.value = "";
     }
   };
 
@@ -378,14 +194,12 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           productId: product.id,
           rating: reviewRating,
           comment: reviewComment,
-          images: reviewImages,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Submit failed");
       showToast(data.message || "Review submitted!");
       setIsReviewModalOpen(false);
-      setReviewImages([]);
       // Refresh approved list (pending won't show until moderated)
       const listRes = await fetch(
         `/api/reviews?productId=${encodeURIComponent(product.id)}`
@@ -633,62 +447,47 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                   ) : null}
                 </div>
               <span className="text-[12px] text-gray-500 -mt-3">
-                Prices include GST.{" "}
-                <Link href="/shipping" className="underline underline-offset-2">Shipping</Link>{" "}
-                calculated at checkout.
+                Tax included. <Link href="/shipping" className="underline underline-offset-2">Shipping</Link> calculated at checkout.
               </span>
-              <p className="text-[12px] text-gray-500">
-                We usually dispatch in 48–72 hours. Delivery is typically 3–7 working days after dispatch.
-              </p>
 
 
 
               
               {/* Size Selector */}
               <div className="flex flex-col gap-2 mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Size</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowSizeChart(true)}
-                    className="text-[12px] underline underline-offset-2 text-gray-600"
-                  >
-                    Size chart
-                  </button>
-                </div>
+                <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Size</span>
                 <div className="grid grid-cols-3 gap-3">
                   {sizes.map((size) => {
                     let outOfStock = false;
                     let lowStock = false;
                     let stockLeft = 0;
-
-                    if (isInventoryTracked) {
-                      const inv = findInventoryRow(stockProduct, size);
+                    
+                    if (isInventoryTracked && product.inventory) {
+                      const inv = product.inventory.find(i => i.size === size && (!i.color || i.color === selectedColor));
                       if (inv) {
-                        stockLeft = Number(inv.stock || 0);
-                        outOfStock = stockLeft <= 0;
-                        const threshold = product.lowStockThreshold ?? 3;
-                        lowStock = stockLeft > 0 && stockLeft <= threshold;
+                        stockLeft = inv.stock;
+                        outOfStock = inv.stock === 0;
+                        lowStock = inv.stock > 0 && inv.stock <= (product.lowStockThreshold || 3);
                       } else {
-                        outOfStock = true;
+                        outOfStock = true; // explicitly tracked but size missing = out of stock
                       }
                     }
 
                     return (
                       <button
                         key={size}
-                        type="button"
+                        disabled={outOfStock}
                         onClick={() => setSelectedSize(size)}
                         className={`
                           py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all relative overflow-hidden group
-                          ${outOfStock ? 'opacity-60 bg-gray-50 text-gray-400 border-2 border-transparent' :
+                          ${outOfStock ? 'opacity-40 cursor-not-allowed bg-gray-50 text-gray-400 border-2 border-transparent line-through' :
                             selectedSize === size 
                             ? 'bg-[#EAF5EC] border-2 border-[#2E7D32] text-[#2E7D32]' 
                             : 'bg-gray-50 border-2 border-transparent text-gray-700 hover:bg-gray-100'}
                         `}
                       >
                         {size}
-                        {lowStock && !outOfStock && (
+                        {lowStock && selectedSize === size && (
                            <span className="text-[10px] text-amber-600 mt-0.5 leading-none font-bold">
                              Only {stockLeft} left
                            </span>
@@ -727,84 +526,27 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                   </div>
                 )}
 
-              <div className="flex flex-col gap-2 mt-4">
-                <span className="text-[12px] font-bold text-gray-500 tracking-[2px] uppercase">Check pincode</span>
-                <div className="flex gap-2">
-                  <input
-                    value={pinCode}
-                    onChange={(e) => setPinCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="6-digit PIN"
-                    aria-label="Pincode"
-                    className="flex-1 border border-[var(--color-border)] px-3 py-3 text-[14px] rounded-xl outline-none focus:border-black"
-                  />
-                  <button
-                    type="button"
-                    onClick={checkPin}
-                    disabled={pinChecking}
-                    className="px-4 py-3 text-[12px] tracking-[1px] uppercase border border-black rounded-xl hover:bg-black hover:text-white disabled:opacity-50"
-                  >
-                    {pinChecking ? "…" : "Check"}
-                  </button>
-                </div>
-                {pinResult ? (
-                  <p className={`text-[12px] ${pinResult.available ? "text-green-700" : "text-amber-800"}`}>
-                    {pinResult.message}
-                  </p>
-                ) : (
-                  <p className="text-[12px] text-gray-500">We deliver pan-India. Check whether COD is available for your pin.</p>
-                )}
-              </div>
-
               {/* Actions */}
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">
-                {sizeSoldOut || isTotallySoldOut ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[13px] text-gray-600">
-                      {isTotallySoldOut ? "This product is sold out." : `${selectedSize} is sold out.`} Email us — we’ll write when it’s back. Not WhatsApp.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="email"
-                        value={notifyEmail}
-                        onChange={(e) => setNotifyEmail(e.target.value)}
-                        placeholder="Your email"
-                        aria-label="Email for stock alert"
-                        className="flex-1 border border-[var(--color-border)] px-3 py-3 text-[14px] rounded-xl outline-none focus:border-black"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleNotifyMe}
-                        disabled={notifyBusy}
-                        className="px-4 py-3 text-[12px] tracking-[1px] uppercase bg-gray-900 text-white rounded-xl disabled:opacity-50"
-                      >
-                        {notifyBusy ? "…" : "Notify me"}
-                      </button>
-                    </div>
-                  </div>
+                {isTotallySoldOut ? (
+                  <button 
+                    disabled
+                    className="w-full py-4 rounded-xl bg-gray-200 text-gray-500 text-[14px] font-bold tracking-wide uppercase cursor-not-allowed"
+                  >
+                    Out of Stock
+                  </button>
                 ) : (
                   <>
-                    {remaining !== null && remaining > 0 && remaining <= (product.lowStockThreshold ?? 3) ? (
-                      <p className="text-[13px] text-amber-800 font-medium">
-                        Only {remaining} left in size {selectedSize}
-                        {inCartForSize > 0 ? ` · ${inCartForSize} already in your cart` : ""}
-                      </p>
-                    ) : null}
-                    {!canAddMore ? (
-                      <p className="text-[12px] text-amber-800">You already have all remaining stock of this size in your cart.</p>
-                    ) : null}
                     <button 
                       onClick={handleAddToCart}
-                      disabled={!canAddMore}
-                      className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full py-4 rounded-xl border-2 border-gray-900 text-gray-900 text-[14px] font-bold tracking-wide uppercase hover:bg-gray-50 transition-colors cursor-pointer"
                     >
                       Add to cart
                     </button>
                     <button 
                       onClick={handleBuyNow}
-                      disabled={isNavigating || !canAddMore}
-                      className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'} disabled:opacity-40`}
+                      disabled={isNavigating}
+                      className={`w-full py-4 rounded-xl text-[14px] font-bold tracking-wide uppercase transition-colors cursor-pointer flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800 text-gray-300' : 'bg-gray-900 text-white hover:bg-black'}`}
                     >
                       {isNavigating ? (
                         <>
@@ -952,27 +694,6 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                       {r.comment}
                     </p>
                   )}
-                  {r.images && r.images.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {r.images.map((src) => (
-                        <a
-                          key={src}
-                          href={src}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="relative w-16 h-20 border border-[var(--color-border)] overflow-hidden bg-neutral-50"
-                        >
-                          <Image
-                            src={src}
-                            alt="Review photo"
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
                 </li>
               ))}
             </ul>
@@ -1054,90 +775,14 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 />
               </div>
 
-              <div>
-                <label className="text-[11px] uppercase tracking-[1px] text-[var(--color-text-muted)] mb-2 block">
-                  Photos (optional, up to 5)
-                </label>
-                {reviewImages.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {reviewImages.map((src) => (
-                      <div key={src} className="relative w-16 h-20 border border-[var(--color-border)]">
-                        <Image src={src} alt="" fill className="object-cover" sizes="64px" />
-                        <button
-                          type="button"
-                          aria-label="Remove photo"
-                          className="absolute -top-1 -right-1 bg-black text-white w-5 h-5 text-[10px] leading-5 rounded-full"
-                          onClick={() =>
-                            setReviewImages((prev) => prev.filter((u) => u !== src))
-                          }
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {reviewImages.length < 5 ? (
-                  <label className="inline-flex items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-[12px] cursor-pointer hover:border-[var(--color-text)]">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      disabled={uploadingReviewImage}
-                      onChange={handleReviewPhotoChange}
-                    />
-                    {uploadingReviewImage ? "Uploading…" : "Add photos"}
-                  </label>
-                ) : null}
-              </div>
-
               <button 
                 onClick={handleSubmitReview}
-                disabled={submittingReview || uploadingReviewImage}
+                disabled={submittingReview}
                 className="w-full mt-2 bg-[var(--color-text)] text-white py-4 text-[12px] uppercase tracking-[2px] hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {submittingReview ? "Submitting…" : "Submit Review"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showSizeChart && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={() => setShowSizeChart(false)}>
-          <div
-            className="bg-white max-w-[520px] w-full p-6 relative shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowSizeChart(false)}
-              className="absolute top-4 right-4 text-gray-500"
-              aria-label="Close size chart"
-            >
-              <FiX size={20} />
-            </button>
-            <h2 className="text-[16px] font-serif uppercase tracking-[2px] mb-2">{DEFAULT_SIZE_CHART.title}</h2>
-            <p className="text-[12px] text-gray-500 mb-4">{DEFAULT_SIZE_CHART.note}</p>
-            <table className="w-full text-[13px] text-left">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  {DEFAULT_SIZE_CHART.columns.map((c) => (
-                    <th key={c} className="py-2 font-medium uppercase tracking-wider text-[11px]">{c}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {DEFAULT_SIZE_CHART.rows.map((row) => (
-                  <tr key={row[0]} className="border-b border-[var(--color-border)]">
-                    {row.map((cell, i) => (
-                      <td key={i} className="py-2">{cell}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
@@ -1156,15 +801,14 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
         }`}
       >
         <button 
-          onClick={sizeSoldOut || isTotallySoldOut ? handleNotifyMe : handleAddToCart}
-          disabled={sizeSoldOut || isTotallySoldOut ? notifyBusy : !canAddMore}
-          className="flex-1 py-3.5 border border-[var(--color-text)] text-[12px] font-medium tracking-[1.5px] uppercase active:bg-[var(--color-surface)] transition-colors disabled:opacity-40"
+          onClick={handleAddToCart}
+          className="flex-1 py-3.5 border border-[var(--color-text)] text-[12px] font-medium tracking-[1.5px] uppercase active:bg-[var(--color-surface)] transition-colors"
         >
-          {sizeSoldOut || isTotallySoldOut ? (notifyBusy ? "…" : "Notify me") : "Add to cart"}
+          Add to cart
         </button>
         <button 
           onClick={handleBuyNow}
-          disabled={isNavigating || sizeSoldOut || isTotallySoldOut || !canAddMore}
+          disabled={isNavigating}
           className={`flex-1 py-3.5 text-white text-[12px] font-medium tracking-[1.5px] uppercase transition-opacity flex justify-center items-center gap-2 ${isNavigating ? 'bg-gray-800' : 'bg-[var(--color-accent)] active:bg-opacity-90'}`}
         >
           {isNavigating ? (
@@ -1246,6 +890,31 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           </div>
         </div>
       )}
+
+      {/* Mobile Sticky Add to Cart */}
+      <div 
+        className={`fixed bottom-0 left-0 w-full bg-white border-t border-[var(--color-border)] p-3 px-4 z-[90] flex gap-3 lg:hidden shadow-[0_-5px_15px_rgba(0,0,0,0.05)] transition-all duration-300 ease-in-out ${
+          isMainActionsVisible ? 'opacity-0 translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+        }`}
+      >
+        <button 
+          onClick={handleAddToCart}
+          className={`flex-1 py-3.5 border text-[12px] font-medium tracking-[1.5px] uppercase transition-colors ${
+            isAdded
+              ? "border-[#2E7D32] bg-[#EAF5EC] text-[#2E7D32]"
+              : "border-[var(--color-text)] text-[var(--color-text)] active:bg-[var(--color-surface)]"
+          }`}
+        >
+          {isAdded ? "Added to cart" : "Add to cart"}
+        </button>
+        <button 
+          onClick={handleBuyNow}
+          disabled={isNavigating}
+          className="flex-1 py-3.5 bg-[var(--color-text)] text-[var(--color-surface)] text-[12px] font-medium tracking-[1.5px] uppercase transition-transform active:scale-[0.98] disabled:opacity-50"
+        >
+          {isNavigating ? "Wait..." : "Buy Now"}
+        </button>
+      </div>
     </main>
   );
 };

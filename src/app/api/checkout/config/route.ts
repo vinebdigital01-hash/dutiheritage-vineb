@@ -19,12 +19,13 @@ export async function GET() {
         ...settings,
         razorpayEnabled: isRazorpayConfigured() && store.prepaidEnabled,
         prepaidEnabled: store.prepaidEnabled,
+        checkoutTimer: store.flags?.checkoutTimer !== false,
       }),
       {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Cache-Control": "public, s-maxage=60",
+          "Cache-Control": "no-store, max-age=0",
         },
       }
     );
@@ -32,3 +33,4 @@ export async function GET() {
     return handleApiError(error);
   }
 }
+

@@ -33,8 +33,10 @@ export type Product = {
   codAvailable?: boolean;
   isPartialCOD?: boolean;
   partialCODAdvance?: number;
+  costPrice?: number;
   inventory?: {
     size: string;
+    color?: string;
     stock: number;
     sku?: string;
   }[];
@@ -45,9 +47,10 @@ export type Product = {
   gstRate?: number;
 };
 
-export type SavedAddress = {
-  id: string;
-  label: string;
+export type UserAddress = {
+  _id?: string;
+  label?: string;
+  isDefault?: boolean;
   firstName?: string;
   lastName?: string;
   address?: string;
@@ -57,9 +60,12 @@ export type SavedAddress = {
   pinCode?: string;
   phone?: string;
   country?: string;
+  addresses?: UserAddress[];
 };
 
 export type UserProfile = {
+  name?: string;
+  email?: string;
   phone?: string;
   address?: string;
   apartment?: string;
@@ -67,6 +73,5 @@ export type UserProfile = {
   state?: string;
   pinCode?: string;
   country?: string;
-  addresses?: SavedAddress[];
-  deleteRequestedAt?: string | null;
+  addresses?: UserAddress[];
 };

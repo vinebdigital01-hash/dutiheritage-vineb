@@ -1,71 +1,32 @@
-import { Metadata } from "next";
-import { PolicyPageShell } from "@/components/PolicyPageShell";
-import { getPageContent } from "@/lib/site-content-server";
-import { getStoreIdentity } from "@/lib/store-identity";
+import React from "react";
 
-export const metadata: Metadata = {
-  title: "About Us | Duti Heritage",
-  description:
-    "Our story — Duti Heritage is a premium ethnic wear boutique in Manesar, Gurugram, serving Delhi NCR with cotton suits, unstitched sets, and luxury nightwear.",
-};
-
-export default async function AboutPage() {
-  const live = await getPageContent("about");
-  const store = getStoreIdentity();
-
+export default function AboutPage() {
   return (
-    <PolicyPageShell title={live?.title || "Our Story"} content={live?.content}>
-      <div className="space-y-8 text-[var(--color-text-muted)] leading-relaxed">
+    <div className="max-w-4xl mx-auto px-4 py-16 text-gray-800">
+      <h1 className="text-3xl font-bold mb-8 uppercase tracking-widest text-center">About Us</h1>
+      <div className="space-y-8 text-sm leading-relaxed">
         <section>
-          <p>
-            <strong className="text-[var(--color-text)]">Duti Heritage</strong> began as a
-            boutique for women who want ethnic wear that feels special — soft cotton suits,
-            carefully chosen unstitched sets, and luxury nightwear you can wear every day.
-          </p>
-          <p className="mt-4">
-            From our base in Manesar, Gurugram, we ship across India and welcome shoppers from
-            Delhi NCR who prefer to see and feel the fabric in person. Online, you shop the same
-            pieces at{" "}
-            <a href="https://dutiheritage.co.in" className="underline text-[var(--color-text)]">
-              dutiheritage.co.in
-            </a>
-            .
-          </p>
+          <h2 className="text-xl font-semibold mb-3 uppercase tracking-wider">Our Story</h2>
+          <p>Welcome to Duti Heritage, where timeless elegance meets modern sophistication. Rooted in the rich cultural tapestry of India, we bring you meticulously crafted collections that celebrate the beauty of traditional craftsmanship through a contemporary lens.</p>
+          <p className="mt-4">Duti Heritage was born out of a profound passion for high-quality fabrics, intricate designs, and the desire to provide our customers with garments that not only look stunning but feel luxurious. From our Premium Night Wear to our Exquisite Velvet Collections, every piece is a testament to our dedication to excellence.</p>
         </section>
-
+        
         <section>
-          <h2 className="text-xl font-medium text-[var(--color-text)] mb-4 uppercase tracking-wider">
-            What we believe
-          </h2>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>Quality over hype — each piece is checked before it leaves us.</li>
-            <li>Clear pricing — prices you see include GST.</li>
-            <li>Honest service — tracking, exchanges, and support without jargon.</li>
-          </ul>
+          <h2 className="text-xl font-semibold mb-3 uppercase tracking-wider">Our Vision</h2>
+          <p>Our vision is to empower individuals to express their unique style and grace. We believe that fashion is more than just clothing; it is an extension of one\'s personality and heritage. We strive to be the ultimate destination for those who seek elegance, comfort, and authenticity in their wardrobe.</p>
         </section>
-
+        
         <section>
-          <h2 className="text-xl font-medium text-[var(--color-text)] mb-4 uppercase tracking-wider">
-            Visit or write to us
-          </h2>
-          <p>{store.address}</p>
-          {store.supportEmail ? (
-            <p className="mt-2">
-              Email:{" "}
-              <a href={`mailto:${store.supportEmail}`} className="underline">
-                {store.supportEmail}
-              </a>
-            </p>
-          ) : null}
-          {store.supportPhone ? <p>Phone / WhatsApp: {store.supportPhone}</p> : null}
-          <p className="mt-4">
-            Full contact details:{" "}
-            <a href="/contact-us" className="underline text-[var(--color-text)]">
-              Contact Us
-            </a>
-          </p>
+          <h2 className="text-xl font-semibold mb-3 uppercase tracking-wider">Quality & Craftsmanship</h2>
+          <p>At Duti Heritage, quality is our cornerstone. We source the finest materials and collaborate with skilled artisans to ensure that every stitch and pattern meets our rigorous standards. Whether it is our unstitched suits, ready-to-wear dresses, or popular ethnic picks, we guarantee a product that stands the test of time.</p>
+        </section>
+        
+        <section>
+          <h2 className="text-xl font-semibold mb-3 uppercase tracking-wider">Join Our Journey</h2>
+          <p>We are more than just a brand; we are a community of fashion enthusiasts who appreciate the finer things in life. We invite you to explore our collections and become a part of the Duti Heritage family.</p>
+          <p className="mt-4 font-medium italic">Thank you for choosing us to be a part of your style journey.</p>
         </section>
       </div>
-    </PolicyPageShell>
+    </div>
   );
 }

@@ -2,7 +2,7 @@ import type { Product } from "@/types";
 
 type StockProduct = Pick<Product, "trackInventory" | "inventory" | "sizes" | "lowStockThreshold">;
 
-type InventoryRow = { size?: string | null; stock?: number | null; sku?: string | null };
+type InventoryRow = { size?: string | null; color?: string | null; stock?: number | null; sku?: string | null };
 
 function normalizeSizeKey(s: string): string {
   return String(s || "")
@@ -14,7 +14,8 @@ function normalizeSizeKey(s: string): string {
 /** Match inventory row to a size label (case/spacing tolerant; Free Size aliases). */
 export function findInventoryRow(
   product: { inventory?: InventoryRow[] | null; sizes?: string[] },
-  size: string
+  size: string,
+  color?: string
 ): InventoryRow | undefined {
   const rows = product.inventory || [];
   if (!rows.length) return undefined;
@@ -23,7 +24,11 @@ export function findInventoryRow(
     [want, "free size", "onesize", "one size", "os", "free"].filter(Boolean)
   );
 
-  const exact = rows.find((r) => normalizeSizeKey(r.size || "") === want);
+  const exact = rows.find((r) => {
+    const sizeMatch = normalizeSizeKey(r.size || "") === want;
+    if (!color) return sizeMatch;
+    return sizeMatch && (!r.color || r.color === color);
+  });
   if (exact) return exact;
 
   if (
@@ -34,7 +39,7 @@ export function findInventoryRow(
   ) {
     const free = rows.find((r) => {
       const k = normalizeSizeKey(r.size || "");
-      return (
+      const sizeMatch = (
         !k ||
         k === "free size" ||
         k === "free" ||
@@ -43,6 +48,8 @@ export function findInventoryRow(
         k === "os" ||
         k === "default"
       );
+      if (!color) return sizeMatch;
+      return sizeMatch && (!r.color || r.color === color);
     });
     if (free) return free;
   }
@@ -57,34 +64,36 @@ export function enforcesStockCap(product: StockProduct): boolean {
 }
 
 /** Remaining units for this size. `null` means inventory is not tracked (no cap). */
-export function maxPurchasableQty(product: StockProduct, size: string): number | null {
+export function maxPurchasableQty(product: StockProduct, size: string, color?: string): number | null {
   if (!enforcesStockCap(product)) return null;
   const rows = product.inventory || [];
   if (!rows.length) return 0;
-  const row = findInventoryRow(product, size);
+  const row = findInventoryRow(product, size, color);
   if (!row) return 0;
   return Math.max(0, Number(row.stock || 0));
 }
 
 export function isLowStockForSize(
   product: StockProduct,
-  size: string
+  size: string,
+  color?: string
 ): { low: boolean; stock: number } {
-  const max = maxPurchasableQty(product, size);
+  const max = maxPurchasableQty(product, size, color);
   if (max === null) return { low: false, stock: 0 };
   const threshold = product.lowStockThreshold ?? 3;
   return { low: max > 0 && max <= threshold, stock: max };
 }
 
 export function qtyOfProductSizeInCart(
-  cart: { id: string; selectedSize: string; quantity: number }[],
+  cart: { id: string; selectedSize: string; selectedColor?: string; quantity: number }[],
   productId: string,
-  size: string
+  size: string,
+  color?: string
 ): number {
   const want = normalizeSizeKey(size);
   return cart
     .filter(
-      (i) => i.id === productId && normalizeSizeKey(i.selectedSize) === want
+      (i) => i.id === productId && normalizeSizeKey(i.selectedSize) === want && (!color || i.selectedColor === color)
     )
     .reduce((s, i) => s + i.quantity, 0);
 }

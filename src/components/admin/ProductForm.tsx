@@ -17,7 +17,6 @@ import { ImageUploader } from "@/components/admin/ImageUploader";
 import type { Collection, Product } from "@/types";
 import Image from "next/image";
 import { FiX } from "react-icons/fi";
-import { useConfirm, usePrompt } from "@/components/ConfirmDialog";
 
 type OfferForm = { title: string; description: string; code: string };
 
@@ -26,6 +25,7 @@ type FormState = {
   slug: string;
   price: string;
   salePrice: string;
+  costPrice: string;
   description: string;
   collectionId: string;
   image: string;
@@ -44,7 +44,7 @@ type FormState = {
   offers: OfferForm[];
   trackInventory: boolean;
   lowStockThreshold: string;
-  inventory: { size: string; stock: string; sku: string }[];
+  inventory: { size: string; color: string; stock: string; sku: string }[];
   hsn: string;
   gstRate: string;
 };
@@ -54,6 +54,7 @@ const emptyForm = (): FormState => ({
   slug: "",
   price: "",
   salePrice: "",
+  costPrice: "",
   description: "",
   collectionId: "",
   image: "",
@@ -70,7 +71,7 @@ const emptyForm = (): FormState => ({
     partialCODAdvance: "0",
     isActive: true,
   offers: [],
-  trackInventory: true,
+  trackInventory: false,
   lowStockThreshold: "3",
   inventory: [],
   hsn: "6104",
@@ -110,7 +111,7 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
     trackInventory: p.trackInventory || false,
     lowStockThreshold: String(p.lowStockThreshold || 3),
-    inventory: (p.inventory || []).map(i => ({ size: i.size || "", stock: String(i.stock), sku: i.sku || "" })),
+    inventory: (p.inventory || []).map(i => ({ size: i.size || "", color: i.color || "", stock: String(i.stock), sku: i.sku || "" })),
     hsn: p.hsn || "6104",
     gstRate: String(p.gstRate ?? 5),
   };
@@ -190,8 +191,6 @@ function GooglePreview({ title, description, slug }: { title: string, descriptio
 export function ProductForm({ productId }: { productId?: string }) {
   const router = useRouter();
   const { show, Toast } = useToast();
-  const { confirm, ConfirmDialog } = useConfirm();
-  const { prompt, PromptDialog } = usePrompt();
   const [form, setForm] = useState<FormState>(emptyForm());
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(Boolean(productId));
@@ -268,14 +267,7 @@ export function ProductForm({ productId }: { productId?: string }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await confirm({
-      title: isEdit ? "Save product" : "Create product",
-      description: isEdit
-        ? "Save changes to this product?"
-        : "Create this product and show it in the store?",
-      confirmText: "Save",
-    });
-    if (!ok) return;
+    if (!window.confirm("Are you sure you want to save this product?")) return;
     setSaving(true);
     try {
       const payload = {
@@ -283,6 +275,7 @@ export function ProductForm({ productId }: { productId?: string }) {
         slug: form.slug.trim() || slugify(form.name),
         price: Number(form.price),
         salePrice: form.salePrice ? Number(form.salePrice) : null,
+        costPrice: form.costPrice ? Number(form.costPrice) : 0,
         description: form.description,
         collectionId: form.collectionId,
         image: form.image.trim(),
@@ -312,29 +305,13 @@ export function ProductForm({ productId }: { productId?: string }) {
           lowStockThreshold: Number(form.lowStockThreshold) || 3,
           hsn: form.hsn.trim() || "6104",
           gstRate: Number(form.gstRate) || 5,
-          inventory: form.inventory.map(i => ({ size: i.size.trim(), stock: Number(i.stock) || 0, sku: i.sku.trim() })),
+          inventory: form.inventory.map(i => ({ size: i.size.trim(), color: i.color?.trim(), stock: Number(i.stock) || 0, sku: i.sku.trim() })),
         };
 
       if (!payload.name || !payload.image || !payload.collectionId) {
         throw new Error("Name, image, and collection are required");
       }
       if (Number.isNaN(payload.price)) throw new Error("Valid price required");
-      if (!isEdit) {
-        if (!form.sizes.length) {
-          throw new Error("Add at least one size so we can track stock");
-        }
-        payload.trackInventory = true;
-        payload.inventory = form.sizes.map((size) => {
-          const existing = form.inventory.find((i) => i.size === size);
-          return {
-            size,
-            stock: Number(existing?.stock) || 0,
-            sku: (existing?.sku || "").trim(),
-          };
-        });
-      } else if (form.trackInventory && !form.sizes.length) {
-        throw new Error("Add at least one size, or turn off Track stock");
-      }
 
       if (isEdit && productId) {
         await adminFetch(`/api/products/${productId}`, {
@@ -372,8 +349,6 @@ export function ProductForm({ productId }: { productId?: string }) {
   return (
     <div>
       {Toast}
-      {ConfirmDialog}
-      {PromptDialog}
       <PageHeader
         title={isEdit ? "Edit product" : "New product"}
         subtitle={isEdit ? "Change photos, price (GST included), and size stock, then Save." : "One item for the shop — photo, price (GST included), sizes, stock."}
@@ -397,7 +372,7 @@ export function ProductForm({ productId }: { productId?: string }) {
                 Track stock
               </p>
               <p className="text-[12px] text-neutral-500">
-                New products save with tracking on. Type how many of each size. If this is off, the product never shows as sold out.
+                Track how many of each size you have. If this is off, the product never shows as sold out.
               </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -427,10 +402,17 @@ export function ProductForm({ productId }: { productId?: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const newInventory = form.sizes.map(size => {
-                        const existing = form.inventory.find(i => i.size === size);
-                        return { size, stock: "0", sku: existing?.sku || "" };
-                      });
+                      const colorList = form.colors.split(',').map(c => c.trim()).filter(Boolean);
+                        const sizeList = form.sizes.length > 0 ? form.sizes : [""];
+                        const colors = colorList.length > 0 ? colorList : [""];
+                        
+                        const newInventory = [];
+                        for (const c of colors) {
+                          for (const s of sizeList) {
+                            const existing = form.inventory.find(i => i.size === s && (i.color || "") === c);
+                            newInventory.push({ size: s, color: c, stock: "0", sku: existing?.sku || "" });
+                          }
+                        }
                       set("inventory", newInventory as any);
                     }}
                     className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider bg-white border border-neutral-300 rounded hover:bg-neutral-50"
@@ -444,85 +426,99 @@ export function ProductForm({ productId }: { productId?: string }) {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] font-bold tracking-[1px] uppercase text-neutral-500">
-                      <th className="p-3 border-b">Size</th>
-                      <th className="p-3 border-b">Stock Qty</th>
-                      <th className="p-3 border-b">SKU (Optional)</th>
-                      <th className="p-3 border-b">Status</th>
+                      <th className="p-3 border-b">Color</th>
+                        <th className="p-3 border-b">Size</th>
+                        <th className="p-3 border-b">Stock Qty</th>
+                        <th className="p-3 border-b">SKU (Optional)</th>
+                        <th className="p-3 border-b">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
-                    {form.sizes.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="p-4 text-center text-[13px] text-neutral-500">
-                          Please add sizes above first.
-                        </td>
-                      </tr>
-                    ) : (
-                      form.sizes.map((size) => {
-                        const invIndex = form.inventory.findIndex(i => i.size === size);
-                        const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
-                        const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
-                        const stockNum = Number(currentStock) || 0;
-                        const lowThreshold = Number(form.lowStockThreshold) || 3;
+                    {(() => {
+                        const colorList = form.colors.split(',').map(c => c.trim()).filter(Boolean);
+                        const sizeList = form.sizes.length > 0 ? form.sizes : ["Free Size"];
+                        const colors = colorList.length > 0 ? colorList : [""];
                         
-                        let statusColor = "bg-emerald-100 text-emerald-800";
-                        let statusText = "In Stock";
-                        if (stockNum === 0) {
-                          statusColor = "bg-red-100 text-red-800";
-                          statusText = "Out of Stock";
-                        } else if (stockNum <= lowThreshold) {
-                          statusColor = "bg-amber-100 text-amber-800";
-                          statusText = "Low Stock";
+                        const rows = [];
+                        for (const c of colors) {
+                          for (const s of sizeList) {
+                            rows.push({ color: c, size: s });
+                          }
                         }
-
-                        return (
-                          <tr key={size}>
-                            <td className="p-3 font-medium text-[14px]">{size}</td>
-                            <td className="p-3 max-w-[120px]">
-                              <input
-                                type="number"
-                                min="0"
-                                value={currentStock}
-                                onChange={(e) => {
-                                  const newInventory = [...form.inventory];
-                                  const idx = newInventory.findIndex(i => i.size === size);
-                                  if (idx >= 0) {
-                                    newInventory[idx].stock = e.target.value;
-                                  } else {
-                                    newInventory.push({ size, stock: e.target.value, sku: "" });
-                                  }
-                                  set("inventory", newInventory as any);
-                                }}
-                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <input
-                                type="text"
-                                value={currentSku}
-                                onChange={(e) => {
-                                  const newInventory = [...form.inventory];
-                                  const idx = newInventory.findIndex(i => i.size === size);
-                                  if (idx >= 0) {
-                                    newInventory[idx].sku = e.target.value;
-                                  } else {
-                                    newInventory.push({ size, stock: "0", sku: e.target.value });
-                                  }
-                                  set("inventory", newInventory as any);
-                                }}
-                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
-                                placeholder={`DH-${form.slug || 'sku'}-${size}`}
-                              />
-                            </td>
-                            <td className="p-3">
-                              <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded ${statusColor}`}>
-                                {statusText}
-                              </span>
+                        
+                        if (rows.length === 0) return (
+                          <tr>
+                            <td colSpan={5} className="p-4 text-center text-[13px] text-neutral-500">
+                              Please add at least one color or size to track inventory.
                             </td>
                           </tr>
                         );
-                      })
-                    )}
+                        
+                        return rows.map(({ color, size }) => {
+                          const key = `${color}-${size}`;
+                          const invIndex = form.inventory.findIndex(i => i.size === size && (i.color || "") === color);
+                          const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
+                          const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
+                          const stockNum = Number(currentStock) || 0;
+                          const lowThreshold = Number(form.lowStockThreshold) || 3;
+                          
+                          let statusColor = "bg-emerald-100 text-emerald-800";
+                          let statusText = "In Stock";
+                          if (stockNum === 0) {
+                            statusColor = "bg-red-100 text-red-800";
+                            statusText = "Out of Stock";
+                          } else if (stockNum <= lowThreshold) {
+                            statusColor = "bg-amber-100 text-amber-800";
+                            statusText = "Low Stock";
+                          }
+                          
+                          return (
+                            <tr key={key}>
+                              <td className="p-3 font-medium text-[14px] text-gray-700">{color || "-"}</td>
+                              <td className="p-3 font-medium text-[14px]">{size}</td>
+                              <td className="p-3 max-w-[120px]">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={currentStock}
+                                  onChange={(e) => {
+                                    const newInventory = [...form.inventory];
+                                    if (invIndex >= 0) {
+                                      newInventory[invIndex].stock = e.target.value;
+                                    } else {
+                                      newInventory.push({ size, color, stock: e.target.value, sku: "" });
+                                    }
+                                    set("inventory", newInventory as any);
+                                  }}
+                                  className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                                />
+                              </td>
+                              <td className="p-3">
+                                <input
+                                  type="text"
+                                  value={currentSku}
+                                  onChange={(e) => {
+                                    const newInventory = [...form.inventory];
+                                    if (invIndex >= 0) {
+                                      newInventory[invIndex].sku = e.target.value;
+                                    } else {
+                                      newInventory.push({ size, color, stock: "0", sku: e.target.value });
+                                    }
+                                    set("inventory", newInventory as any);
+                                  }}
+                                  className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                                  placeholder={`DH-${form.slug || 'sku'}-${color ? color + '-' : ''}${size}`}
+                                />
+                              </td>
+                              <td className="p-3">
+                                <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded ${statusColor}`}>
+                                  {statusText}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
                   </tbody>
                 </table>
               </div>
@@ -591,12 +587,7 @@ export function ProductForm({ productId }: { productId?: string }) {
             value={form.collectionId}
             onChange={async (e) => {
               if (e.target.value === "CREATE_NEW") {
-                const name = await prompt({
-                  title: "New collection",
-                  description: "Name for the new collection.",
-                  label: "Collection name",
-                  confirmText: "Create",
-                });
+                const name = window.prompt("Enter new collection name:");
                 if (!name?.trim()) {
                   set("collectionId", "");
                   return;
@@ -892,7 +883,7 @@ export function ProductForm({ productId }: { productId?: string }) {
                 Track stock
               </p>
               <p className="text-[12px] text-neutral-500">
-                New products save with tracking on. Type how many of each size. If this is off, the product never shows as sold out.
+                Track how many of each size you have. If this is off, the product never shows as sold out.
               </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -922,10 +913,17 @@ export function ProductForm({ productId }: { productId?: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const newInventory = form.sizes.map(size => {
-                        const existing = form.inventory.find(i => i.size === size);
-                        return { size, stock: "0", sku: existing?.sku || "" };
-                      });
+                      const colorList = form.colors.split(',').map(c => c.trim()).filter(Boolean);
+                        const sizeList = form.sizes.length > 0 ? form.sizes : [""];
+                        const colors = colorList.length > 0 ? colorList : [""];
+                        
+                        const newInventory = [];
+                        for (const c of colors) {
+                          for (const s of sizeList) {
+                            const existing = form.inventory.find(i => i.size === s && (i.color || "") === c);
+                            newInventory.push({ size: s, color: c, stock: "0", sku: existing?.sku || "" });
+                          }
+                        }
                       set("inventory", newInventory as any);
                     }}
                     className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider bg-white border border-neutral-300 rounded hover:bg-neutral-50"
@@ -939,85 +937,99 @@ export function ProductForm({ productId }: { productId?: string }) {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-neutral-50 text-[11px] font-bold tracking-[1px] uppercase text-neutral-500">
-                      <th className="p-3 border-b">Size</th>
-                      <th className="p-3 border-b">Stock Qty</th>
-                      <th className="p-3 border-b">SKU (Optional)</th>
-                      <th className="p-3 border-b">Status</th>
+                      <th className="p-3 border-b">Color</th>
+                        <th className="p-3 border-b">Size</th>
+                        <th className="p-3 border-b">Stock Qty</th>
+                        <th className="p-3 border-b">SKU (Optional)</th>
+                        <th className="p-3 border-b">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
-                    {form.sizes.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="p-4 text-center text-[13px] text-neutral-500">
-                          Please add sizes above first.
-                        </td>
-                      </tr>
-                    ) : (
-                      form.sizes.map((size) => {
-                        const invIndex = form.inventory.findIndex(i => i.size === size);
-                        const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
-                        const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
-                        const stockNum = Number(currentStock) || 0;
-                        const lowThreshold = Number(form.lowStockThreshold) || 3;
+                    {(() => {
+                        const colorList = form.colors.split(',').map(c => c.trim()).filter(Boolean);
+                        const sizeList = form.sizes.length > 0 ? form.sizes : ["Free Size"];
+                        const colors = colorList.length > 0 ? colorList : [""];
                         
-                        let statusColor = "bg-emerald-100 text-emerald-800";
-                        let statusText = "In Stock";
-                        if (stockNum === 0) {
-                          statusColor = "bg-red-100 text-red-800";
-                          statusText = "Out of Stock";
-                        } else if (stockNum <= lowThreshold) {
-                          statusColor = "bg-amber-100 text-amber-800";
-                          statusText = "Low Stock";
+                        const rows = [];
+                        for (const c of colors) {
+                          for (const s of sizeList) {
+                            rows.push({ color: c, size: s });
+                          }
                         }
-
-                        return (
-                          <tr key={size}>
-                            <td className="p-3 font-medium text-[14px]">{size}</td>
-                            <td className="p-3 max-w-[120px]">
-                              <input
-                                type="number"
-                                min="0"
-                                value={currentStock}
-                                onChange={(e) => {
-                                  const newInventory = [...form.inventory];
-                                  const idx = newInventory.findIndex(i => i.size === size);
-                                  if (idx >= 0) {
-                                    newInventory[idx].stock = e.target.value;
-                                  } else {
-                                    newInventory.push({ size, stock: e.target.value, sku: "" });
-                                  }
-                                  set("inventory", newInventory as any);
-                                }}
-                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <input
-                                type="text"
-                                value={currentSku}
-                                onChange={(e) => {
-                                  const newInventory = [...form.inventory];
-                                  const idx = newInventory.findIndex(i => i.size === size);
-                                  if (idx >= 0) {
-                                    newInventory[idx].sku = e.target.value;
-                                  } else {
-                                    newInventory.push({ size, stock: "0", sku: e.target.value });
-                                  }
-                                  set("inventory", newInventory as any);
-                                }}
-                                className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
-                                placeholder={`DH-${form.slug || 'sku'}-${size}`}
-                              />
-                            </td>
-                            <td className="p-3">
-                              <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded ${statusColor}`}>
-                                {statusText}
-                              </span>
+                        
+                        if (rows.length === 0) return (
+                          <tr>
+                            <td colSpan={5} className="p-4 text-center text-[13px] text-neutral-500">
+                              Please add at least one color or size to track inventory.
                             </td>
                           </tr>
                         );
-                      })
-                    )}
+                        
+                        return rows.map(({ color, size }) => {
+                          const key = `${color}-${size}`;
+                          const invIndex = form.inventory.findIndex(i => i.size === size && (i.color || "") === color);
+                          const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
+                          const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
+                          const stockNum = Number(currentStock) || 0;
+                          const lowThreshold = Number(form.lowStockThreshold) || 3;
+                          
+                          let statusColor = "bg-emerald-100 text-emerald-800";
+                          let statusText = "In Stock";
+                          if (stockNum === 0) {
+                            statusColor = "bg-red-100 text-red-800";
+                            statusText = "Out of Stock";
+                          } else if (stockNum <= lowThreshold) {
+                            statusColor = "bg-amber-100 text-amber-800";
+                            statusText = "Low Stock";
+                          }
+                          
+                          return (
+                            <tr key={key}>
+                              <td className="p-3 font-medium text-[14px] text-gray-700">{color || "-"}</td>
+                              <td className="p-3 font-medium text-[14px]">{size}</td>
+                              <td className="p-3 max-w-[120px]">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={currentStock}
+                                  onChange={(e) => {
+                                    const newInventory = [...form.inventory];
+                                    if (invIndex >= 0) {
+                                      newInventory[invIndex].stock = e.target.value;
+                                    } else {
+                                      newInventory.push({ size, color, stock: e.target.value, sku: "" });
+                                    }
+                                    set("inventory", newInventory as any);
+                                  }}
+                                  className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                                />
+                              </td>
+                              <td className="p-3">
+                                <input
+                                  type="text"
+                                  value={currentSku}
+                                  onChange={(e) => {
+                                    const newInventory = [...form.inventory];
+                                    if (invIndex >= 0) {
+                                      newInventory[invIndex].sku = e.target.value;
+                                    } else {
+                                      newInventory.push({ size, color, stock: "0", sku: e.target.value });
+                                    }
+                                    set("inventory", newInventory as any);
+                                  }}
+                                  className="w-full border border-[var(--color-border)] rounded px-2 py-1.5 text-[14px]"
+                                  placeholder={`DH-${form.slug || 'sku'}-${color ? color + '-' : ''}${size}`}
+                                />
+                              </td>
+                              <td className="p-3">
+                                <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded ${statusColor}`}>
+                                  {statusText}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
                   </tbody>
                 </table>
               </div>
