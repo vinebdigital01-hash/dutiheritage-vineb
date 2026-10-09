@@ -51,14 +51,14 @@ export async function POST(request: Request) {
         <br/>
         <a href="${url}" style="display:inline-block;padding:12px 24px;background-color:#000000;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;">Shop Now</a>
       `,
-      { footerMessage: "Enjoy shopping with Duti Heritage!" }
+      {}
     );
 
     const emailResult = await sendEmail({
       to: restockReq.email,
       subject: `Back in stock: ${restockReq.productName}`,
       html,
-      type: "marketing",
+      
     });
 
     if (!emailResult.ok && !emailResult.skipped) {

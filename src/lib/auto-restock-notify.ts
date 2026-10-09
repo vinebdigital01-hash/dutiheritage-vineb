@@ -40,7 +40,7 @@ export async function processAutoRestockEmails(input: {
         <br/>
         <a href="${productUrl}" style="display:inline-block;padding:12px 24px;background-color:#000000;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;">Shop Now</a>
       `,
-      { footerMessage: "Enjoy shopping with Duti Heritage!" }
+      {}
     );
 
     for (const req of pendingRequests) {
