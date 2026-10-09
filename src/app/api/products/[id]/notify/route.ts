@@ -5,7 +5,7 @@ import { jsonOk, jsonError, handleApiError, requireMongo } from "@/lib/api";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireMongo();
@@ -16,13 +16,13 @@ export async function POST(
       return jsonError("Valid email is required", 400);
     }
 
-    const product = await Product.findById(params.id);
+    const product = await Product.findById((await params).id);
     if (!product) return jsonError("Product not found", 404);
 
     // Prevent duplicate pending requests for the same email/product/size
     const existing = await RestockRequest.findOne({
       email: email.toLowerCase().trim(),
-      productId: params.id,
+      productId: (await params).id,
       size: size || "",
       status: "pending",
     });
@@ -33,7 +33,7 @@ export async function POST(
 
     await RestockRequest.create({
       email: email.toLowerCase().trim(),
-      productId: params.id,
+      productId: (await params).id,
       productName: product.name,
       size: size || "",
       status: "pending",

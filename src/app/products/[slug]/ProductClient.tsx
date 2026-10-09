@@ -37,6 +37,12 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const [notifyEmail, setNotifyEmail] = useState("");
   const [isNotifying, setIsNotifying] = useState(false);
   const [showNotifyForm, setShowNotifyForm] = useState(false);
+
+  useEffect(() => {
+    if (user?.email && !notifyEmail) {
+      setNotifyEmail(user.email);
+    }
+  }, [user]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
