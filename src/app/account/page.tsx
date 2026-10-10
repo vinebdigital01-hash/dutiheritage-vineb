@@ -49,7 +49,7 @@ const getCleanErrorMessage = (err: any) => {
   if (err.code === "auth/invalid-verification-code") return "Invalid OTP code. Please try again.";
   if (err.code === "auth/invalid-phone-number") return "Please enter a valid phone number.";
   
-  let msg = err.message || "An unexpected error occurred.";
+  let msg = (err.code ? `[${err.code}] ` : "") + (err.message || String(err) || "An unexpected error occurred.");
   msg = msg.replace(/^Firebase:\s*/i, "");
   msg = msg.replace(/\s*\(auth\/[a-zA-Z0-9-]+\)\.?$/, "");
   return msg;
