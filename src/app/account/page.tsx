@@ -77,6 +77,33 @@ export default function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  
+  useEffect(() => {
+    if (!authLoading && !user) {
+      const timer = setTimeout(() => {
+        if (!window.recaptchaVerifier && document.getElementById('recaptcha-container')) {
+          try {
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+              size: 'invisible',
+            });
+            window.recaptchaVerifier.render().catch(() => {});
+          } catch(e) {
+            console.error('Recaptcha init error:', e);
+          }
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch(e) {}
+        window.recaptchaVerifier = null;
+      }
+    };
+  }, [authLoading, user]);
+
   const completeEmailLinkSignIn = useCallback(async (emailForSignIn: string) => {
     setLoading(true);
     try {
@@ -104,20 +131,7 @@ export default function AccountPage() {
   // ----------------------------------------------------
   // PHONE AUTH HANDLERS
   // ----------------------------------------------------
-  const setupRecaptcha = () => {
-    // FIX FOR NEXT.JS SPA ROUTING:
-    if (window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier.clear();
-      } catch (e) {}
-      window.recaptchaVerifier = null;
-    }
-    
-    // Create fresh verifier
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-    });
-  };
+  
 
   const handleSendOTP = async (e: React.FormEvent, requestedMethod: 'sms' | 'whatsapp' = 'whatsapp') => {
     e.preventDefault();
