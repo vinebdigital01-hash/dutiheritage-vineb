@@ -105,11 +105,18 @@ export default function AccountPage() {
   // PHONE AUTH HANDLERS
   // ----------------------------------------------------
   const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-      });
+    // FIX FOR NEXT.JS SPA ROUTING:
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {}
+      window.recaptchaVerifier = null;
     }
+    
+    // Create fresh verifier
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+    });
   };
 
   const handleSendOTP = async (e: React.FormEvent, requestedMethod: 'sms' | 'whatsapp' = 'whatsapp') => {
