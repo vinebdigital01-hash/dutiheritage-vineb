@@ -169,7 +169,6 @@ export default function AccountPage() {
 
       // If requested SMS directly, or if WhatsApp failed and fell back to SMS
       if (finalMethod === 'sms') {
-        setupRecaptcha();
         const appVerifier = window.recaptchaVerifier;
         const confirmationResult = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
         window.confirmationResult = confirmationResult;
