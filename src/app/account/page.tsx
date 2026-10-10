@@ -49,6 +49,7 @@ const getCleanErrorMessage = (err: any) => {
   if (err.code === "auth/invalid-verification-code") return "Invalid OTP code. Please try again.";
   if (err.code === "auth/invalid-phone-number") return "Please enter a valid phone number.";
   
+  if (err.code === "auth/invalid-app-credential") return "reCAPTCHA failed. Please refresh the page, check the 'I am not a robot' box, and try again.";
   let msg = (err.code ? `[${err.code}] ` : "") + (err.message || String(err) || "An unexpected error occurred.");
   msg = msg.replace(/^Firebase:\s*/i, "");
   msg = msg.replace(/\s*\(auth\/[a-zA-Z0-9-]+\)\.?$/, "");
@@ -84,7 +85,7 @@ export default function AccountPage() {
         if (!window.recaptchaVerifier && document.getElementById('recaptcha-container')) {
           try {
             window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-              size: 'invisible',
+              size: 'normal',
             });
             window.recaptchaVerifier.render().catch(() => {});
           } catch(e) {
@@ -444,7 +445,7 @@ export default function AccountPage() {
   return (
     <main className="w-full min-h-[calc(100vh-80px)] flex flex-col items-center justify-start pt-16 md:pt-12 px-4 pb-8 bg-[var(--color-bg)]">
       <div className="max-w-[400px] w-full">
-        <div id="recaptcha-container"></div>
+        <div id="recaptcha-container" className="mb-4 flex justify-center"></div>
         
         <div className="flex justify-center mb-2">
           <img src="/logo.svg" alt="Duti Heritage" className="h-28 md:h-32 w-auto object-contain" />
