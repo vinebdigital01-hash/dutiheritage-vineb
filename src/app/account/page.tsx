@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 import { FcGoogle } from "react-icons/fc";
-import { FaFacebook } from "react-icons/fa";
+import { FaFacebook, FaWhatsapp } from "react-icons/fa";
 import { FiMail, FiPhone, FiArrowLeft, FiBox, FiMapPin, FiHeart, FiTag, FiUser, FiClock } from "react-icons/fi";
 import 'react-phone-number-input/style.css';
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
@@ -60,7 +60,7 @@ export default function AccountPage() {
   const toast = useStoreToast();
   
   // View States
-  const [authMode, setAuthMode] = useState<"email" | "phone">("phone");
+  const [authMode, setAuthMode] = useState<"email" | "phone">("email");
   const [showOTP, setShowOTP] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [emailLinkPromptOpen, setEmailLinkPromptOpen] = useState(false);
@@ -417,7 +417,7 @@ export default function AccountPage() {
           <img src="/logo.svg" alt="Duti Heritage" className="h-28 md:h-32 w-auto object-contain" />
         </div>
         <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-6 text-center">
-          {authMode === "email" ? "Login" : "Login / Register"}
+          {authMode === "email" ? "Login" : "Phone Login"}
         </h1>
         
         {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-[13px] border border-red-100">{error}</div>}
@@ -562,10 +562,11 @@ export default function AccountPage() {
             {!showOTP ? (
               <form className="flex flex-col gap-4">
                 <p className="text-[13px] text-[var(--color-text-muted)] text-center mb-2">
-                  Enter your phone number to receive a verification code.
+                  Enter your phone/WhatsApp number to receive an OTP.
                 </p>
-                <div className="w-full border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus-within:border-black transition-colors bg-transparent">
-                  <PhoneInput
+                <div className="w-full flex items-center border border-[var(--color-border)] px-4 py-3 text-[14px] outline-none focus-within:border-black transition-colors bg-transparent">
+                    <FaWhatsapp className="text-[#25D366] text-xl mr-3 shrink-0" />
+                    <PhoneInput
                     international
                     defaultCountry="IN"
                     value={phoneNumber}
@@ -579,22 +580,22 @@ export default function AccountPage() {
                 </div>
                 
                 {phoneNumber && isValidPhoneNumber(phoneNumber) ? (
-                  <div className="flex flex-col gap-4 mt-2">
-                    <button 
-                      type="button"
-                      onClick={(e) => handleSendOTP(e, 'whatsapp')}
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white text-[13px] font-bold tracking-[1px] uppercase py-4 rounded hover:opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                      {loading ? "Sending..." : "Login / Signup with WhatsApp"}
-                    </button>
+                  <div className="flex gap-3 mt-2">
                     <button 
                       type="button"
                       onClick={(e) => handleSendOTP(e, 'sms')}
                       disabled={loading}
-                      className="w-full text-[12px] text-[var(--color-text-muted)] underline underline-offset-4 hover:text-black transition-colors"
+                      className="flex-1 bg-[var(--color-text)] text-white text-[12px] tracking-[1px] uppercase py-4 hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
-                      Trouble with WhatsApp? Send via SMS
+                      {loading ? "..." : "OTP via SMS"}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => handleSendOTP(e, 'whatsapp')}
+                      disabled={loading}
+                      className="flex-1 bg-[#25D366] text-white text-[12px] tracking-[1px] uppercase py-4 hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {loading ? "..." : "OTP via WhatsApp"}
                     </button>
                   </div>
                 ) : (

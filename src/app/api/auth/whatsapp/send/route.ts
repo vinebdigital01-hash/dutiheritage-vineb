@@ -34,12 +34,11 @@ export async function POST(req: Request) {
     });
 
     // Call dutiheritage-bot API
-    const botUrl = process.env.WHATSAPP_BOT_API_URL || "http://localhost:4000/internal/send-message";
-    const botKey = process.env.WHATSAPP_BOT_API_KEY || "duti_bot_secret_key_2026";
+    const botUrl = process.env.WHATSAPP_BOT_API_URL || "https://dutiheritage-bot.onrender.com/api/notify";
+    const botKey = process.env.BOT_API_KEY || process.env.WHATSAPP_BOT_API_KEY || "duti_bot_secret_key_2026";
 
-    const message = `*Duti Heritage*\n\nYour login OTP is: *${otp}*\n\n_Valid for 5 minutes. Do not share this code with anyone._`;
+    const message = `🔐 *Duti Heritage Login*\n\nYour one-time password is: *${otp}*\n\nThis code is valid for 5 minutes. Do not share it with anyone.`;
 
-    // Only send if bot URL is defined (or try localhost)
     try {
       const botRes = await fetch(botUrl, {
         method: "POST",
@@ -55,11 +54,11 @@ export async function POST(req: Request) {
       
       if (!botRes.ok) {
         console.error("Bot API error:", await botRes.text());
-        // We still return success to the client for security, or fail.
-        // If testing, we might want to fail. Let's not fail so UI progresses.
+        return NextResponse.json({ error: "Could not send WhatsApp OTP at this time. Please try again later." }, { status: 500 });
       }
     } catch (botErr) {
       console.error("Could not reach bot:", botErr);
+      return NextResponse.json({ error: "Could not send WhatsApp OTP at this time. Please try again later." }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: "OTP sent via WhatsApp" });
