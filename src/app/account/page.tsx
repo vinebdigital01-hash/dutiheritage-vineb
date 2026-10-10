@@ -112,40 +112,53 @@ export default function AccountPage() {
     }
   };
 
-  const handleSendOTP = async (e: React.FormEvent, method: 'sms' | 'whatsapp' = 'sms') => {
+  const handleSendOTP = async (e: React.FormEvent, requestedMethod: 'sms' | 'whatsapp' = 'whatsapp') => {
     e.preventDefault();
     if (!phoneNumber) return;
     
     setLoading(true);
     setError(null);
     setMessage(null);
-    setOtpMethod(method);
+
+    const formattedNumber = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
+    let finalMethod: 'sms' | 'whatsapp' = requestedMethod;
 
     try {
-      const formattedNumber = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
+      if (requestedMethod === 'whatsapp') {
+        try {
+          const res = await fetch("/api/auth/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: formattedNumber })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed to send WhatsApp OTP");
+          
+          setOtpMethod('whatsapp');
+          setShowOTP(true);
+          setMessage(`We've sent a code to your WhatsApp (or SMS).`);
+          setLoading(false);
+          return; // Success! Exit early.
+        } catch (whatsappErr: any) {
+          console.warn("WhatsApp OTP failed, falling back to SMS", whatsappErr);
+          // Auto fallback to SMS
+          finalMethod = 'sms';
+        }
+      }
 
-      if (method === 'whatsapp') {
-        const res = await fetch("/api/auth/whatsapp/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: formattedNumber })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to send WhatsApp OTP");
-        
-        setShowOTP(true);
-        setMessage(`WhatsApp OTP sent to ${formattedNumber}`);
-      } else {
+      // If requested SMS directly, or if WhatsApp failed and fell back to SMS
+      if (finalMethod === 'sms') {
         setupRecaptcha();
         const appVerifier = window.recaptchaVerifier;
         const confirmationResult = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
         window.confirmationResult = confirmationResult;
+        setOtpMethod('sms');
         setShowOTP(true);
-        setMessage(`SMS OTP sent to ${formattedNumber}`);
+        setMessage(`We've sent a code to your WhatsApp (or SMS).`);
       }
     } catch (err: any) {
       setError(getCleanErrorMessage(err));
-      if (method === 'sms' && window.recaptchaVerifier) {
+      if (finalMethod === 'sms' && window.recaptchaVerifier) {
         window.recaptchaVerifier.clear();
         window.recaptchaVerifier = null;
       }
