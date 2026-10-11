@@ -1,4 +1,4 @@
-﻿name: Hourly Abandoned Carts Cron
+name: Hourly Abandoned Carts Cron
 
 on:
   schedule:
@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Ping Abandoned Carts API
         run: |
-          curl -X GET "${{ secrets.SITE_URL }}/api/cron/abandoned-carts" \
+          curl -X GET "${{ secrets.SITE_URL }}/api/cron/hourly" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             --fail
