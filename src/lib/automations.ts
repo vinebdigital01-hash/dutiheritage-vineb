@@ -237,7 +237,7 @@ export async function sendWelcome(input: {
         )
       : "");
   const text = `Hi ${name}, Welcome to Duti Heritage. Use code WELCOME10 for 10% off your first order.`;
-  const wa = `Welcome to Duti Heritage! Use code WELCOME10 for 10% off your first order. Shop: ${SITE()}`;
+  const wa = `✨ *Welcome to Duti Heritage, ${name}!* ✨\n\nThank you for joining our family. Handcrafted elegance made with care in India.\n\n🎁 Enjoy *10% OFF* on your first order with coupon code *WELCOME10*.\n\n🛍️ *Shop the collection:* ${SITE()}\n\nWe're thrilled to have you with us!`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -296,7 +296,7 @@ export async function sendOrderPlaced(input: {
   const bodyHtml = await buildOrderEmailHtml(input.orderId, "Confirmed", intro, nextStep);
 
   const text = `Order ${input.orderId} placed. Total ₹${input.total}. Track at ${SITE()}/account`;
-  const wa = `We received your order ${input.orderId}! Total ₹${input.total}. Track anytime from your account.`;
+  const wa = `🎉 *Order Placed Successfully!*\n\nHi ${name}, thank you for your order with Duti Heritage! ❤️\n\n📦 *Order ID:* ${input.orderId}\n💰 *Total:* ₹${rupees(input.total)}\n\nOur artisans are preparing your outfit with care. You'll receive live tracking updates here once it ships!\n\n🔗 *View order:* ${SITE()}/account/orders`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -528,7 +528,9 @@ export async function sendOrderShipped(input: {
   const nextStep = `Track your package: <a href="${escHtml(trackHref)}" style="color:#1a1a1a;font-weight:600;">${escHtml(String(track))}</a>`;
   const bodyHtml = await buildOrderEmailHtml(input.orderId, "Shipped", intro, nextStep);
 
-  const wa = `Your order ${input.orderId} has shipped${courier}! Track: ${track}`;
+  const courierText = input.courier ? ` via *${input.courier}*` : "";
+  const awbLine = input.awb ? `\n📌 *AWB Number:* ${input.awb}` : "";
+  const wa = `🚚 *Your Order Has Shipped!*\n\nHi ${input.name || "there"}, great news! Your Duti Heritage order *${input.orderId}* has been dispatched${courierText}!${awbLine}\n\n🔗 *Track Package:* ${trackHref}\n\nWe hope you love your new outfit! ✨`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -574,7 +576,7 @@ export async function sendOrderDelivered(input: {
   const nextStep = `When you are ready, <a href="${SITE()}/account" style="color:#1a1a1a;font-weight:600;">leave a review</a> — it helps other shoppers and earns love for your next order.`;
   const bodyHtml = await buildOrderEmailHtml(input.orderId, "Delivered", intro, nextStep);
 
-  const wa = `Your order ${input.orderId} has been delivered! Enjoy — leave a review from your account when ready.`;
+  const wa = `📦 *Order Delivered!* 🎉\n\nHi ${input.name || "there"}, your Duti Heritage order *${input.orderId}* has been delivered.\n\nWe hope you love your handcrafted outfit! ❤️\n\n🌟 *Review & Earn ₹100:*\nLeave a quick review from your account to get *₹100 OFF* your next order:\n👉 ${SITE()}/account\n\nThank you for choosing Duti Heritage!`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -809,7 +811,7 @@ export async function sendCartAbandoned(input: {
           `Hi ${name},<br/><br/>Your bag is still waiting with ${items}.`
         ) +
         emailNote("Complete checkout before sizes sell out."),
-      wa: `You left something behind! Your cart is waiting — ${cartUrl}`,
+      wa: `👜 *You left something behind!*\n\nHi ${input.name || "there"}, your bag is waiting with ${input.itemSummary || "your selected pieces"}.\n\nComplete your order before sizes sell out:\n👉 ${cartUrl}`,
     },
     "24h": {
       subject: "Still thinking?",
@@ -818,7 +820,7 @@ export async function sendCartAbandoned(input: {
         emailLead(
           `Hi ${name},<br/><br/>Your items are still available: ${items}.`
         ),
-      wa: `Still thinking? Your items are selling fast — ${cartUrl}`,
+      wa: `⏳ *Still thinking about your cart?*\n\nHi ${input.name || "there"}, handcrafted designs sell out fast! Your cart with ${input.itemSummary || "your items"} is reserved for a short time.\n\n👉 Complete checkout here: ${cartUrl}`,
     },
     "72h": {
       subject: "Last chance — 5% off",
@@ -828,7 +830,7 @@ export async function sendCartAbandoned(input: {
           `Hi ${name},<br/><br/>Complete your order with 5% off.`
         ) +
         emailPromoCode("COMEBACK5", "Use this code at checkout"),
-      wa: `Last chance! Use COMEBACK5 for 5% off — ${cartUrl}`,
+      wa: `🎁 *Last Chance: 5% OFF on your cart!*\n\nHi ${input.name || "there"}, we don't want you to miss out on ${input.itemSummary || "your items"}. Take *5% OFF* right now with code *COMEBACK5*!\n\n👉 Complete your order: ${cartUrl}?coupon=COMEBACK5`,
     },
   }[input.stage];
 
@@ -868,7 +870,7 @@ export async function sendReviewReminder(input: {
     flow: "post_purchase_review",
     stage: "3d",
     recipientKey: key,
-    channel: "email",
+    channel: "both",
     customerId: input.customerId,
     orderId: input.orderId,
   });
@@ -881,6 +883,8 @@ export async function sendReviewReminder(input: {
       `Order <strong>${escHtml(input.orderId)}</strong> — we would love a short review.`
     ) +
     emailNote("Leave one from your account and enjoy ₹100 off your next order.");
+  const wa = `✨ *How was your Duti Heritage experience?* ✨\n\nWe would love to hear your feedback on order *${input.orderId}*! 💖\n\nShare a quick review from your account and enjoy *₹100 OFF* on your next purchase:\n👉 ${SITE()}/account\n\nThank you for supporting traditional craftsmanship!`;
+
   const result = await notifyChannels({
     email: input.email,
     phone: input.phone,
@@ -890,8 +894,8 @@ export async function sendReviewReminder(input: {
       preheader: "Share a review · ₹100 off next order",
       primaryCta: { label: "Leave a review", href: `${SITE()}/account` },
     }),
-    text: `How was order ${input.orderId}? Leave a review from your account.`,
-    waMessage: `How was your Duti Heritage order ${input.orderId}? Leave a review from your account.`,
+    text: `How was order ${input.orderId}? Leave a review from your account for ₹100 off.`,
+    waMessage: wa,
     emailType: "marketing",
   });
   return { sent: true, detail: result.detail };
@@ -925,7 +929,7 @@ export async function sendWinback(input: {
             emailLead(
               `Hi ${name}, it has been a while — the latest pieces are waiting.`
             ),
-          wa: `We miss you! Here's what's new at Duti Heritage — ${SITE()}`,
+          wa: `🌸 *We miss you at Duti Heritage!* 🌸\n\nHi ${input.name || "there"}, it has been a while since your last visit. We've just dropped stunning new handcrafted collections that you'll adore! ✨\n\n🛍️ *Explore what's new:* ${SITE()}\n\nWe hope to see you soon!`,
           code: undefined as string | undefined,
         }
       : {
@@ -934,7 +938,7 @@ export async function sendWinback(input: {
             emailEyebrow("A gift for you") +
             emailLead(`Hi ${name}, it has been a while. Enjoy <strong>15% off</strong>.`) +
             emailPromoCode("MISSYOU15", "Your win-back code"),
-          wa: `It's been a while! Come back with 15% off — code MISSYOU15 ${SITE()}`,
+          wa: `🎁 *A special 15% OFF gift just for you!* 🎁\n\nHi ${input.name || "there"}, we miss having you with us! Enjoy an exclusive *15% OFF* on your next order with code *MISSYOU15*.\n\n🛍️ *Shop now:* ${SITE()}?coupon=MISSYOU15`,
           code: "MISSYOU15",
         };
 

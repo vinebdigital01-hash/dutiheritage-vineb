@@ -251,20 +251,6 @@ export async function PUT(request: Request, { params }: Params) {
         courier: order.trackingInfo?.courier,
         awb: order.trackingInfo?.awb,
       }).catch((e) => console.error("[order_shipped]", e));
-
-      const track =
-        order.trackingInfo?.trackingUrl ||
-        (order.trackingInfo?.awb
-          ? `AWB ${order.trackingInfo.awb}${order.trackingInfo.courier ? ` (${order.trackingInfo.courier})` : ""}`
-          : `${process.env.NEXT_PUBLIC_SITE_URL || "https://dutiheritage.co.in"}/track`);
-      void import("@/lib/bot-notify")
-        .then(({ notifyBot }) =>
-          notifyBot({
-            phone: String(order.customer?.phone || ""),
-            message: `Great news! 🚚 Your outfit has shipped. Track it here: ${track}`,
-          })
-        )
-        .catch((e) => console.error("[order_shipped_bot]", e));
     }
 
     if (order.status === "Delivered" && prevStatus !== "Delivered") {

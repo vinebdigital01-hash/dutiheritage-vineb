@@ -4,14 +4,23 @@
 
 export function isWhatsAppConfigured(): boolean {
   const provider = (process.env.WHATSAPP_PROVIDER || "").toLowerCase();
-  if (provider === "bot" || Boolean(process.env.WHATSAPP_BOT_API_URL || process.env.BOT_API_URL)) {
+  if (provider === "none") return false;
+  if (
+    provider === "bot" ||
+    Boolean(
+      process.env.WHATSAPP_BOT_API_URL ||
+      process.env.BOT_API_URL ||
+      process.env.BOT_API_KEY ||
+      process.env.WHATSAPP_BOT_API_KEY
+    )
+  ) {
     return true;
   }
   if (provider === "interakt") return Boolean(process.env.INTERAKT_API_KEY);
   if (provider === "wati") {
     return Boolean(process.env.WATI_API_TOKEN && process.env.WATI_API_URL);
   }
-  return false;
+  return true; // Default fallback: WhatsApp Bot is active
 }
 
 export type SendWhatsAppResult = {
@@ -28,11 +37,12 @@ async function sendBotMessage(phone: string, message: string): Promise<SendWhats
   const botUrl =
     process.env.WHATSAPP_BOT_API_URL ||
     process.env.BOT_API_URL ||
+    process.env.BOT_SERVER_URL ||
     "https://dutiheritage-bot.onrender.com/api/notify";
   const apiKey =
     process.env.WHATSAPP_BOT_API_KEY ||
     process.env.BOT_API_KEY ||
-    "";
+    "duti_bot_secret_key_2026";
   try {
     const res = await fetch(botUrl, {
       method: "POST",
@@ -65,14 +75,19 @@ export async function sendWhatsApp(input: {
   const provider = (process.env.WHATSAPP_PROVIDER || "").toLowerCase();
   const phone = digitsOnly(input.phone);
 
-  const hasBot = Boolean(process.env.WHATSAPP_BOT_API_URL || process.env.BOT_API_URL);
-  if (provider === "bot" || (hasBot && (!provider || provider === "none"))) {
-    return sendBotMessage(phone, input.message);
+  if (provider === "none") {
+    console.info("[whatsapp] skipped — WHATSAPP_PROVIDER is none");
+    return { ok: true, skipped: true };
   }
 
-  if (!provider || provider === "none") {
-    console.info("[whatsapp] skipped — WHATSAPP_PROVIDER not set");
-    return { ok: true, skipped: true };
+  const hasBot = Boolean(
+    process.env.WHATSAPP_BOT_API_URL ||
+    process.env.BOT_API_URL ||
+    process.env.BOT_API_KEY ||
+    process.env.WHATSAPP_BOT_API_KEY
+  );
+  if (provider === "bot" || hasBot || !provider) {
+    return sendBotMessage(phone, input.message);
   }
 
   try {

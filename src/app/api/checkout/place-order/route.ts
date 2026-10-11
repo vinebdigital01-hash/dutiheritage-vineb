@@ -362,22 +362,7 @@ export async function POST(request: Request) {
 
     const orderDto = toOrder(doc.toObject());
 
-    if (process.env.NEXT_PUBLIC_BOT_URL || process.env.BOT_API_URL || process.env.BOT_API_KEY || process.env.BOT_SERVER_URL) {
-      const botUrl = ((process.env.BOT_API_URL || process.env.BOT_SERVER_URL || 'https://dutiheritage-bot.onrender.com').replace(/\/$/, '').replace(/\/api\/notify$/, '')) + '/api/notify';
-      fetch(botUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bot-api-key': process.env.BOT_API_KEY || process.env.WHATSAPP_BOT_API_KEY || '',
-        },
-        body: JSON.stringify({
-          phone: c.phone,
-          message: `🎉 *Order Confirmed!*\n\nThank you for shopping with Duti Heritage.\n*Order ID:* ${doc.orderId}\n*Total:* ₹${doc.total}\n\nWe will update you here when it ships!`,
-        }),
-      }).catch((err: any) => console.warn('Could not send WhatsApp order notification:', err?.message || err));
-    }
-
-        waitUntil(Promise.all([
+    waitUntil(Promise.all([
       sendOrderPlaced({
         email: c.email || orderDto.customer.email,
         phone: c.phone || orderDto.customer.phone,

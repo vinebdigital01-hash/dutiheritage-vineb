@@ -137,7 +137,33 @@ export async function validateCouponCode(input: {
   if (!normalized) throw new ApiError("Coupon code is required", 400);
 
   await connectDB();
-  const coupon = await Coupon.findOne({ code: normalized }).lean();
+  let coupon = await Coupon.findOne({ code: normalized }).lean();
+  if (!coupon && (normalized === "WELCOME10" || normalized === "COMEBACK5" || normalized === "MISSYOU15")) {
+    const systemCoupons: Record<string, { discountType: "PERCENT" | "FLAT"; discountValue: number }> = {
+      WELCOME10: { discountType: "PERCENT", discountValue: 10 },
+      COMEBACK5: { discountType: "PERCENT", discountValue: 5 },
+      MISSYOU15: { discountType: "PERCENT", discountValue: 15 },
+    };
+    const def = systemCoupons[normalized];
+    if (def) {
+      try {
+        await Coupon.create({
+          code: normalized,
+          discountType: def.discountType,
+          discountValue: def.discountValue,
+          scope: "ALL_PRODUCTS",
+          minOrderAmount: 0,
+          perUserLimit: 1,
+          active: true,
+        });
+        coupon = await Coupon.findOne({ code: normalized }).lean();
+      } catch {
+        // ignore duplicate key error if created concurrently
+        coupon = await Coupon.findOne({ code: normalized }).lean();
+      }
+    }
+  }
+
   if (!coupon || coupon.active === false) {
     throw new ApiError("Invalid coupon code", 400);
   }
