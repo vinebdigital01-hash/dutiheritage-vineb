@@ -118,6 +118,8 @@ export async function validateCouponCode(input: {
   discountValue: number;
   amount: number;
   minOrderAmount: number;
+  scope?: string;
+  targetIds?: string[];
 }> {
   const normalized = input.code.trim().toUpperCase();
   if (!normalized) throw new ApiError("Coupon code is required", 400);
@@ -179,22 +181,49 @@ export async function validateCouponCode(input: {
 
   const scope = coupon.scope || "ALL_PRODUCTS";
   const targets = new Set(coupon.targetIds ?? []);
-  
   if (scope === "SPECIFIC_PRODUCTS") {
-    const hit = (input.productIds ?? []).some((id) => targets.has(id));
+    const hit =
+      (input.productIds ?? []).some((id) => targets.has(id)) ||
+      (input.items ?? []).some((item) => targets.has(item.productId));
     if (!hit) throw new ApiError("This coupon does not apply to items in your cart", 400);
   }
   if (scope === "SPECIFIC_CATEGORY") {
-    const hit = (input.collectionIds ?? []).some((id) => targets.has(id));
+    const hit =
+      (input.collectionIds ?? []).some((id) => targets.has(id)) ||
+      (input.items ?? []).some(
+        (item) => item.collectionId && targets.has(item.collectionId)
+      );
     if (!hit) throw new ApiError("This coupon does not apply to collections in your cart", 400);
+  }
+
+  // Calculate applicable subtotal: ONLY items matching the coupon scope
+  let applicableSubtotal = input.subtotal;
+  if (scope === "SPECIFIC_PRODUCTS" && input.items?.length) {
+    const matchingItems = input.items.filter((item) => targets.has(item.productId));
+    if (matchingItems.length > 0) {
+      applicableSubtotal = matchingItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+    }
+  } else if (scope === "SPECIFIC_CATEGORY" && input.items?.length) {
+    const matchingItems = input.items.filter(
+      (item) => item.collectionId && targets.has(item.collectionId)
+    );
+    if (matchingItems.length > 0) {
+      applicableSubtotal = matchingItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+    }
   }
 
   let amount = 0;
 
   if (coupon.discountType === "PERCENT") {
-    amount = Math.round((input.subtotal * coupon.discountValue) / 100);
+    amount = Math.round((applicableSubtotal * coupon.discountValue) / 100);
   } else if (coupon.discountType === "FLAT") {
-    amount = coupon.discountValue;
+    amount = Math.min(coupon.discountValue, applicableSubtotal);
   } else if (coupon.discountType === "BUY_X_PERCENT" || coupon.discountType === "BUY_X_GET_Y_FREE") {
     if (!input.items) {
       throw new ApiError("Item details required to calculate bundle discount", 400);
@@ -246,7 +275,9 @@ export async function validateCouponCode(input: {
     code: coupon.code,
     discountType: coupon.discountType as any,
     discountValue: coupon.discountValue,
-    amount: Math.min(amount, input.subtotal),
+    amount: Math.min(amount, applicableSubtotal),
     minOrderAmount: minOrder,
+    scope,
+    targetIds: coupon.targetIds || [],
   };
 }

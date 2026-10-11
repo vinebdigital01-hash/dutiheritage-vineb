@@ -114,7 +114,13 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { cart, user, userProfile, clearCart, addToCart, updateQuantity, removeFromCart, isInitialized, wishlist } = useAppContext();
   const [discountCode, setDiscountCode] = useState("");
-  const [discountApplied, setDiscountApplied] = useState<{ code: string; type: "PERCENT" | "FLAT"; value: number } | null>(null);
+  const [discountApplied, setDiscountApplied] = useState<{
+    code: string;
+    type: "PERCENT" | "FLAT";
+    value: number;
+    scope?: string;
+    targetIds?: string[];
+  } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [saveToProfile, setSaveToProfile] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -465,11 +471,36 @@ export default function CheckoutPage() {
   const shipping = subtotal > 0 ? (isFreeShipping ? 0 : flatShippingFee) : 0;
   const amountForFreeShipping = freeShippingAbove - subtotal;
 
-  const discountAmount = discountApplied
-    ? discountApplied.type === "PERCENT"
-      ? Math.round(subtotal * discountApplied.value / 100)
-      : discountApplied.value
-    : 0;
+  const discountAmount = useMemo(() => {
+    if (!discountApplied) return 0;
+    // If restricted to specific products, discount ONLY applies to those items
+    if (discountApplied.scope === "SPECIFIC_PRODUCTS" && discountApplied.targetIds?.length) {
+      const targetSet = new Set(discountApplied.targetIds);
+      const eligibleSubtotal = cart
+        .filter((item) => targetSet.has(item.id) || (item.slug && targetSet.has(item.slug)))
+        .reduce((sum, item) => sum + (item.salePrice || item.price) * item.quantity, 0);
+      if (discountApplied.type === "PERCENT") {
+        return Math.round((eligibleSubtotal * discountApplied.value) / 100);
+      }
+      return Math.min(discountApplied.value, eligibleSubtotal);
+    }
+    // If restricted to specific category, discount ONLY applies to items in that collection
+    if (discountApplied.scope === "SPECIFIC_CATEGORY" && discountApplied.targetIds?.length) {
+      const targetSet = new Set(discountApplied.targetIds);
+      const eligibleSubtotal = cart
+        .filter((item) => item.collectionId && targetSet.has(item.collectionId))
+        .reduce((sum, item) => sum + (item.salePrice || item.price) * item.quantity, 0);
+      if (discountApplied.type === "PERCENT") {
+        return Math.round((eligibleSubtotal * discountApplied.value) / 100);
+      }
+      return Math.min(discountApplied.value, eligibleSubtotal);
+    }
+    // Default: ALL_PRODUCTS (applies to whole cart subtotal)
+    if (discountApplied.type === "PERCENT") {
+      return Math.round((subtotal * discountApplied.value) / 100);
+    }
+    return Math.min(discountApplied.value, subtotal);
+  }, [discountApplied, cart, subtotal]);
 
   
   const productsAllowCod = cart.every(item => item.codAvailable !== false);
@@ -586,6 +617,8 @@ export default function CheckoutPage() {
         code: data.code,
         type: data.discountType,
         value: data.discountValue,
+        scope: data.scope,
+        targetIds: data.targetIds,
       });
     } catch {
       setDiscountError("Could not validate coupon. Try again.");
