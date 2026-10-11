@@ -29,13 +29,32 @@ export async function POST(req: Request) {
     }
     const formattedPhone = `+${digits}`;
 
+    // Rate limiting: enforce 45s cooldown between OTP requests for the same phone
+    const existing = await OtpSession.findOne({ phone: formattedPhone });
+    if (existing && existing.createdAt) {
+      const elapsedMs = Date.now() - new Date(existing.createdAt).getTime();
+      if (elapsedMs < 45_000) {
+        const waitSec = Math.ceil((45_000 - elapsedMs) / 1000);
+        return NextResponse.json(
+          { error: `Please wait ${waitSec}s before requesting a new OTP.` },
+          { status: 429 }
+        );
+      }
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Hash OTP before storing so plaintext is never exposed in DB
+    const crypto = await import("crypto");
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
     await OtpSession.deleteMany({ phone: formattedPhone });
     await OtpSession.create({
       phone: formattedPhone,
-      otp,
+      otp: hashedOtp,
+      attempts: 0,
+      createdAt: new Date(),
       expiresAt,
     });
 

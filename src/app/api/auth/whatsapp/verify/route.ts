@@ -19,21 +19,50 @@ export async function POST(req: Request) {
     if (formattedPhone.length === 10) formattedPhone = "91" + formattedPhone;
     if (!formattedPhone.startsWith("+")) formattedPhone = "+" + formattedPhone;
 
-    // Check OTP (and expiry in app code — don't wait for TTL index)
-    const session = await OtpSession.findOne({
-      phone: formattedPhone,
-      otp: String(otp).trim(),
-    });
+    // Find active session for this phone
+    const session = await OtpSession.findOne({ phone: formattedPhone });
 
     if (!session) {
-      return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 400 });
-    }
-    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-      await OtpSession.deleteOne({ _id: session._id });
-      return NextResponse.json({ error: "OTP has expired. Request a new code." }, { status: 400 });
+      return NextResponse.json({ error: "Invalid or expired OTP. Please request a new code." }, { status: 400 });
     }
 
-    // OTP is valid. Delete it so it can't be reused.
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      await OtpSession.deleteOne({ _id: session._id });
+      return NextResponse.json({ error: "OTP has expired. Please request a new code." }, { status: 400 });
+    }
+
+    // Brute-force protection: max 5 failed attempts per OTP
+    if ((session.attempts || 0) >= 5) {
+      await OtpSession.deleteOne({ _id: session._id });
+      return NextResponse.json(
+        { error: "Too many failed attempts. For security, please request a new OTP." },
+        { status: 429 }
+      );
+    }
+
+    // Hash provided OTP and compare
+    const crypto = await import("crypto");
+    const providedHash = crypto.createHash("sha256").update(String(otp).trim()).digest("hex");
+    const isMatch = session.otp === providedHash || session.otp === String(otp).trim();
+
+    if (!isMatch) {
+      const nextAttempts = (session.attempts || 0) + 1;
+      if (nextAttempts >= 5) {
+        await OtpSession.deleteOne({ _id: session._id });
+        return NextResponse.json(
+          { error: "Too many failed attempts. Please request a new OTP." },
+          { status: 429 }
+        );
+      }
+      await OtpSession.updateOne({ _id: session._id }, { $inc: { attempts: 1 } });
+      const remaining = 5 - nextAttempts;
+      return NextResponse.json(
+        { error: `Invalid OTP. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.` },
+        { status: 400 }
+      );
+    }
+
+    // OTP is valid. Delete immediately so it cannot be reused.
     await OtpSession.deleteOne({ _id: session._id });
 
     const auth = getAuth(getAdminApp());
