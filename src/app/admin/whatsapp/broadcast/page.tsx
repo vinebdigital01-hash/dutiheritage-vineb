@@ -15,7 +15,8 @@ export default function BroadcastPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [reason, setReason] = useState("");
 
-  useEffect(() => {
+  const checkStatus = () => {
+    setConfigured(null);
     adminFetch<{ configured: boolean; reason?: string }>("/api/bot/broadcast")
       .then((d) => {
         setConfigured(d.configured);
@@ -23,8 +24,12 @@ export default function BroadcastPage() {
       })
       .catch(() => {
         setConfigured(false);
-        setReason("Could not check WhatsApp. Sign in again if you were logged out.");
+        setReason("Could not check WhatsApp connection. Sign in again if you were logged out.");
       });
+  };
+
+  useEffect(() => {
+    checkStatus();
   }, []);
 
   const send = async () => {
@@ -66,22 +71,40 @@ export default function BroadcastPage() {
   return (
     <div className="max-w-xl space-y-4">
       {Toast}
-      <h1 className="font-serif text-2xl">Send to many</h1>
-      <p className="text-[13px] text-neutral-600">
-        This sends real WhatsApp. If keys are missing, the button stays off — we will not show a fake success.         For a saved group, use{" "}
-        <Link href="/admin/groups" className="underline">
-          Groups
-        </Link>
-        .
-      </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="font-serif text-2xl">Broadcast WhatsApp</h1>
+          <p className="text-[13px] text-neutral-600 mt-1">
+            Send real-time WhatsApp updates or announcements to customers.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={checkStatus}
+          className="text-xs text-neutral-500 hover:text-black underline pt-1"
+        >
+          Check status
+        </button>
+      </div>
+
       {configured === false && (
-        <p className="text-[13px] text-[#8B3A2A] bg-[#8B3A2A]/5 border border-[#8B3A2A]/20 p-3">
-          {reason || "WhatsApp is not connected. No messages will be sent."}
-        </p>
+        <div className="text-[13px] text-[#8B3A2A] bg-[#8B3A2A]/5 border border-[#8B3A2A]/20 p-3 rounded-lg flex justify-between items-center">
+          <span>{reason || "WhatsApp is not connected. No messages will be sent."}</span>
+          <button
+            type="button"
+            onClick={checkStatus}
+            className="text-xs font-semibold underline shrink-0 ml-3"
+          >
+            Retry
+          </button>
+        </div>
       )}
       {configured === true && (
-        <p className="text-[13px] text-neutral-600 bg-neutral-50 border border-neutral-200 p-3">
-          WhatsApp is connected. Up to 200 numbers per send.
+        <p className="text-[13px] text-emerald-800 bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex items-center justify-between">
+          <span>WhatsApp Bot is active and ready to deliver broadcasts. (Up to 200 numbers per send)</span>
+          <Link href="/admin/whatsapp/logs" className="text-xs underline font-medium ml-2 shrink-0">
+            View Logs
+          </Link>
         </p>
       )}
       <AdminSelect

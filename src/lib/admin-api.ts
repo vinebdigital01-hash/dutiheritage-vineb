@@ -14,14 +14,40 @@ export async function adminFetch<T = unknown>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  const headers = await authHeaders();
-  const res = await fetch(path, {
+  let headers = await authHeaders();
+  let res = await fetch(path, {
     ...init,
     headers: {
       ...headers,
       ...(init?.headers || {}),
     },
   });
+
+  // If 401, retry once after refreshing auth token (prevents stale token / hydration race conditions)
+  if (res.status === 401) {
+    try {
+      const { auth } = await import("@/lib/firebase");
+      if (typeof auth.authStateReady === "function") {
+        await auth.authStateReady();
+      }
+      if (auth.currentUser) {
+        const freshToken = await auth.currentUser.getIdToken(true);
+        const retryHeaders = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${freshToken}`,
+        };
+        res = await fetch(path, {
+          ...init,
+          headers: {
+            ...retryHeaders,
+            ...(init?.headers || {}),
+          },
+        });
+      }
+    } catch {
+      /* ignore retry error and handle original response */
+    }
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

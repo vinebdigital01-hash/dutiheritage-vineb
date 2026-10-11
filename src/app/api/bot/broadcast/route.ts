@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/mongodb";
 import { Customer } from "@/models";
 import { ChatSession } from "@/models/ChatSession";
+import { ChatMessage } from "@/models/ChatMessage";
 import { isWhatsAppConfigured, sendWhatsApp } from "@/lib/whatsapp";
 import { applyRateLimit } from "@/lib/rate-limit";
 import {
@@ -20,10 +21,10 @@ export async function GET(request: Request) {
     const configured = isWhatsAppConfigured();
     return jsonOk({
       configured,
-      provider: configured ? provider : "",
+      provider: configured ? (provider || "bot") : "",
       reason: configured
         ? ""
-        : "WhatsApp is not connected. Set WHATSAPP_PROVIDER (interakt or wati) and the API key on the server. Until then we will not pretend a message was sent. Use Customer lists if you send to a saved group after keys are live.",
+        : "WhatsApp is not connected. Configure your WhatsApp bot or provider in environment variables.",
     });
   } catch (error) {
     return handleApiError(error);
@@ -103,6 +104,22 @@ export async function POST(request: Request) {
       });
       if (r.ok && !r.skipped) {
         sent++;
+        try {
+          await ChatMessage.create({
+            phone,
+            direction: "outgoing",
+            body: type === "template" ? `[Template: ${message}]` : message,
+            messageType: type === "template" ? "template" : "text",
+            sentBy: "admin",
+          });
+          await ChatSession.findOneAndUpdate(
+            { phone },
+            { $set: { lastMessageAt: new Date() } },
+            { upsert: true }
+          );
+        } catch {
+          // non-critical DB log failure
+        }
       } else {
         failed++;
         if (r.error && errors.length < 5) errors.push(r.error);

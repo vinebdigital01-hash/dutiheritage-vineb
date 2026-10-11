@@ -98,9 +98,12 @@ export async function openRazorpayCheckout(input: {
 }
 
 export async function authHeaders(): Promise<HeadersInit> {
-  const headers: HeadersInit = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
     const { auth } = await import("@/lib/firebase");
+    if (!auth.currentUser && typeof auth.authStateReady === "function") {
+      await auth.authStateReady();
+    }
     const user = auth.currentUser;
     if (user) {
       const token = await user.getIdToken();

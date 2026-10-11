@@ -4,6 +4,7 @@ import { ChatSession } from "@/models/ChatSession";
 import { Order } from "@/models";
 import { handleApiError, jsonOk, jsonCreated, ApiError } from "@/lib/api";
 import { validateBotApiKey } from "@/lib/bot-auth";
+import { sendWhatsApp } from "@/lib/whatsapp";
 
 export async function GET(
   request: Request,
@@ -17,9 +18,15 @@ export async function GET(
     const digits = phone.replace(/\D/g, "");
     const tail = digits.slice(-10);
 
+    const phoneFilters = [
+      { phone },
+      ...(digits ? [{ phone: digits }] : []),
+      ...(tail ? [{ phone: tail }, { phone: `91${tail}` }, { phone: `+91${tail}` }] : []),
+    ];
+
     const [session, messages, order] = await Promise.all([
-      ChatSession.findOne({ phone }),
-      ChatMessage.find({ phone }).sort({ createdAt: 1 }),
+      ChatSession.findOne({ $or: phoneFilters }),
+      ChatMessage.find({ $or: phoneFilters }).sort({ createdAt: 1 }),
       tail
         ? Order.findOne({ "customer.phone": new RegExp(`${tail}$`) })
             .sort({ createdAt: -1 })
@@ -88,6 +95,28 @@ export async function PATCH(
       { new: true }
     );
 
+    // Sync bot mode if mode changed
+    if (mode) {
+      const botUrl = (
+        process.env.BOT_SERVER_URL ||
+        process.env.WHATSAPP_BOT_API_URL ||
+        process.env.BOT_API_URL ||
+        "https://dutiheritage-bot.onrender.com"
+      ).trim().replace(/\/$/, "");
+      const botApiKey =
+        process.env.BOT_API_KEY ||
+        process.env.WHATSAPP_BOT_API_KEY ||
+        "duti_bot_secret_key_2026";
+      fetch(`${botUrl}/api/bot-mode`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-bot-api-key": botApiKey,
+        },
+        body: JSON.stringify({ phone, mode }),
+      }).catch(() => undefined);
+    }
+
     return jsonOk(session);
   } catch (error) {
     return handleApiError(error);
@@ -120,17 +149,39 @@ export async function POST(
       { upsert: true }
     );
 
-    const botUrl = process.env.BOT_SERVER_URL;
-    if (botUrl) {
+    // Dispatch message via bot server or WhatsApp provider
+    let delivered = false;
+    const botUrl = (
+      process.env.BOT_SERVER_URL ||
+      process.env.WHATSAPP_BOT_API_URL ||
+      process.env.BOT_API_URL ||
+      "https://dutiheritage-bot.onrender.com"
+    ).trim().replace(/\/$/, "");
+
+    const botApiKey =
+      process.env.BOT_API_KEY ||
+      process.env.WHATSAPP_BOT_API_KEY ||
+      "duti_bot_secret_key_2026";
+
+    try {
+      const res = await fetch(`${botUrl}/internal/send-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-bot-api-key": botApiKey,
+        },
+        body: JSON.stringify({ phone, message: text }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) delivered = true;
+    } catch {
+      // internal send endpoint not reachable
+    }
+
+    if (!delivered) {
       try {
-        await fetch(`${botUrl}/internal/send-message`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-bot-api-key": process.env.BOT_API_KEY || "",
-          },
-          body: JSON.stringify({ phone, message: text }),
-        });
+        const res = await sendWhatsApp({ phone, message: text });
+        if (res.ok) delivered = true;
       } catch (err) {
         console.error("[whatsapp-send]", err);
       }
@@ -140,8 +191,10 @@ export async function POST(
       id: message._id.toString(),
       direction: message.direction,
       body: message.body,
+      delivered,
     });
   } catch (error) {
     return handleApiError(error);
   }
 }
+

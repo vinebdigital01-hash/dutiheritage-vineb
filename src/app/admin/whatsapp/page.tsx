@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { FiSend, FiUser, FiCpu, FiMessageCircle, FiClock, FiCheck } from "react-icons/fi";
+import {
+  FiSend,
+  FiUser,
+  FiCpu,
+  FiMessageCircle,
+  FiClock,
+  FiCheck,
+  FiPlus,
+  FiSearch,
+  FiRefreshCw,
+  FiAlertCircle,
+  FiX,
+} from "react-icons/fi";
 import { adminFetch } from "@/lib/admin-api";
 import { useAppContext } from "@/context/AppContext";
 
@@ -23,6 +35,7 @@ type ChatMessage = {
   createdAt: string;
   messageType: string;
   sentBy: "user" | "bot" | "admin" | "customer";
+  delivered?: boolean;
 };
 
 type LinkedOrder = {
@@ -44,18 +57,30 @@ export default function WhatsAppInboxPage() {
   const [order, setOrder] = useState<LinkedOrder | null>(null);
   const [canned, setCanned] = useState<Canned[]>([]);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [replyText, setReplyText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [newChatModalOpen, setNewChatModalOpen] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState("");
+  const [newChatError, setNewChatError] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchSessions = async () => {
+  const fetchSessions = async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
     try {
       const data = await adminFetch<{ sessions?: Session[] }>("/api/bot/chat");
-      if (data) setSessions(data.sessions || []);
-    } catch (error) {
-      console.error("Error fetching sessions:", error);
+      if (data && Array.isArray(data.sessions)) {
+        setSessions(data.sessions);
+        setError("");
+      }
+    } catch (err: any) {
+      console.error("Error fetching sessions:", err);
+      setError("Could not load WhatsApp chats. Please ensure you are logged in as admin.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -76,8 +101,8 @@ export default function WhatsAppInboxPage() {
         }
         scrollToBottom();
       }
-    } catch (error) {
-      console.error("Error fetching messages:", error);
+    } catch (err) {
+      console.error("Error fetching messages:", err);
     }
   };
 
@@ -86,7 +111,7 @@ export default function WhatsAppInboxPage() {
     adminFetch<{ replies: Canned[] }>("/api/bot/canned")
       .then((d) => setCanned(d.replies || []))
       .catch(() => undefined);
-    const interval = setInterval(fetchSessions, 5000);
+    const interval = setInterval(() => fetchSessions(false), 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -120,6 +145,7 @@ export default function WhatsAppInboxPage() {
       createdAt: new Date().toISOString(),
       messageType: "text",
       sentBy: "admin",
+      delivered: true,
     };
     setMessages((prev) => [...prev, tempMsg]);
     scrollToBottom();
@@ -133,8 +159,10 @@ export default function WhatsAppInboxPage() {
           messageType: "text",
         }),
       });
-    } catch (error) {
-      console.error("Error sending message:", error);
+      // Refresh messages after send
+      fetchMessages(selectedSession.phone);
+    } catch (err) {
+      console.error("Error sending message:", err);
     }
   };
 
@@ -150,8 +178,8 @@ export default function WhatsAppInboxPage() {
         method: "PATCH",
         body: JSON.stringify({ mode: newMode }),
       });
-    } catch (error) {
-      console.error("Error toggling mode:", error);
+    } catch (err) {
+      console.error("Error toggling mode:", err);
     }
   };
 
@@ -163,66 +191,220 @@ export default function WhatsAppInboxPage() {
         body: JSON.stringify({ assignedTo: user.email, assignedName: user.email }),
       });
       setSelectedSession({ ...selectedSession, assignedTo: user.email, assignedName: user.email });
-    } catch (error) {
-      console.error("Error assigning:", error);
+    } catch (err) {
+      console.error("Error assigning:", err);
     }
   };
 
-  const visible = unreadOnly ? sessions.filter((s) => (s.unreadCount || 0) > 0) : sessions;
+  const handleStartNewChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = newChatPhone.replace(/\D/g, "");
+    if (clean.length < 10) {
+      setNewChatError("Please enter a valid phone number (at least 10 digits)");
+      return;
+    }
+    const formattedPhone = clean.length === 10 ? `91${clean}` : clean;
+    const existing = sessions.find((s) => s.phone.endsWith(clean.slice(-10)));
+    if (existing) {
+      setSelectedSession(existing);
+    } else {
+      const newSession: Session = {
+        phone: formattedPhone,
+        customerName: "",
+        unreadCount: 0,
+        lastMessageAt: new Date().toISOString(),
+        mode: "human",
+      };
+      setSessions((prev) => [newSession, ...prev]);
+      setSelectedSession(newSession);
+    }
+    setNewChatPhone("");
+    setNewChatError("");
+    setNewChatModalOpen(false);
+  };
+
+  const filteredSessions = sessions.filter((s) => {
+    if (unreadOnly && (s.unreadCount || 0) <= 0) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchPhone = s.phone.toLowerCase().includes(q);
+      const matchName = (s.customerName || "").toLowerCase().includes(q);
+      return matchPhone || matchName;
+    }
+    return true;
+  });
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">
+        <FiRefreshCw className="animate-spin mr-2" /> Loading WhatsApp chats...
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-1/3 border-r border-[var(--color-border)] flex flex-col bg-[#f8f9fa]">
-          <div className="p-4 border-b border-[var(--color-border)] bg-white space-y-3">
-            <h2 className="text-lg font-serif tracking-[1px] uppercase flex items-center gap-2">
-              <FiMessageCircle /> WhatsApp chats
-            </h2>
-            <p className="text-[13px] text-neutral-500">Chats with customers. The order card opens that order.</p>
-            <label className="flex items-center gap-2 text-xs text-neutral-600">
-              <input
-                type="checkbox"
-                checked={unreadOnly}
-                onChange={(e) => setUnreadOnly(e.target.checked)}
-              />
-              Unread only (who is waiting)
-            </label>
+    <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
+      {/* New Chat Modal */}
+      {newChatModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium text-base">Start New Conversation</h3>
+              <button
+                type="button"
+                onClick={() => setNewChatModalOpen(false)}
+                className="text-neutral-400 hover:text-black"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-neutral-500">
+              Enter customer mobile number with or without country code.
+            </p>
+            <form onSubmit={handleStartNewChat} className="space-y-3">
+              <div>
+                <input
+                  type="tel"
+                  placeholder="e.g. 9876543210"
+                  value={newChatPhone}
+                  onChange={(e) => {
+                    setNewChatPhone(e.target.value);
+                    setNewChatError("");
+                  }}
+                  className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-black"
+                  autoFocus
+                />
+                {newChatError && <p className="text-xs text-red-600 mt-1">{newChatError}</p>}
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewChatModalOpen(false)}
+                  className="px-3 py-1.5 text-xs border rounded-lg hover:bg-neutral-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs bg-black text-white rounded-lg hover:bg-neutral-800"
+                >
+                  Start Chat
+                </button>
+              </div>
+            </form>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 text-red-700 px-4 py-2 text-xs flex justify-between items-center border-b border-red-200">
+          <span className="flex items-center gap-1.5">
+            <FiAlertCircle /> {error}
+          </span>
+          <button
+            type="button"
+            onClick={() => fetchSessions(true)}
+            className="underline font-medium hover:text-red-900"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Sidebar: Session List */}
+        <div className="w-full md:w-1/3 border-r border-[var(--color-border)] flex flex-col bg-[#f8f9fa]">
+          <div className="p-3 border-b border-[var(--color-border)] bg-white space-y-2.5">
+            <div className="flex justify-between items-center">
+              <h2 className="text-sm font-semibold tracking-wide uppercase flex items-center gap-2">
+                <FiMessageCircle /> WhatsApp Chats
+              </h2>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => fetchSessions(true)}
+                  disabled={refreshing}
+                  title="Refresh chats"
+                  className="p-1.5 text-neutral-500 hover:text-black rounded-md hover:bg-neutral-100 transition-colors"
+                >
+                  <FiRefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewChatModalOpen(true)}
+                  title="Start new conversation"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs bg-black text-white rounded-md hover:bg-neutral-800 transition-colors"
+                >
+                  <FiPlus size={12} /> New
+                </button>
+              </div>
+            </div>
+
+            <div className="relative">
+              <FiSearch className="absolute left-2.5 top-2.5 text-neutral-400 text-xs" />
+              <input
+                type="text"
+                placeholder="Search phone or name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-7 pr-3 py-1.5 text-xs bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-neutral-600">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={unreadOnly}
+                  onChange={(e) => setUnreadOnly(e.target.checked)}
+                  className="rounded text-black"
+                />
+                Unread only
+              </label>
+              <span className="text-[11px] text-neutral-400">
+                {filteredSessions.length} conversation{filteredSessions.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto">
-            {visible.length === 0 ? (
-              <div className="p-8 text-center text-sm text-neutral-500">
-                No conversations.
+            {filteredSessions.length === 0 ? (
+              <div className="p-8 text-center text-xs text-neutral-500 space-y-3">
+                <p>No conversations found.</p>
+                <button
+                  type="button"
+                  onClick={() => setNewChatModalOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs text-black border border-neutral-300 px-3 py-1.5 rounded-lg hover:bg-neutral-100"
+                >
+                  <FiPlus size={12} /> Start a conversation
+                </button>
               </div>
             ) : (
-              visible.map((session) => (
+              filteredSessions.map((session) => (
                 <div
                   key={session.phone}
                   onClick={() => setSelectedSession(session)}
-                  className={`p-4 border-b border-[var(--color-border)] cursor-pointer hover:bg-neutral-100 transition-colors ${
-                    selectedSession?.phone === session.phone ? "bg-neutral-100" : ""
+                  className={`p-3.5 border-b border-[var(--color-border)] cursor-pointer hover:bg-neutral-100 transition-colors ${
+                    selectedSession?.phone === session.phone ? "bg-neutral-100 border-l-2 border-l-black" : ""
                   }`}
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <span className="font-medium text-sm">
-                      {session.customerName || session.phone}
+                    <span className="font-medium text-sm text-neutral-900 truncate">
+                      {session.customerName ? `${session.customerName} (${session.phone})` : session.phone}
                     </span>
                     {session.unreadCount > 0 && (
-                      <span className="bg-black text-white text-[10px] px-2 py-0.5 rounded-full">
+                      <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                         {session.unreadCount} new
                       </span>
                     )}
                   </div>
                   <div className="flex justify-between items-center text-xs text-neutral-500">
                     <span className="flex items-center gap-1">
-                      {session.mode === "bot" ? <FiCpu size={12} /> : <FiUser size={12} />}
-                      {session.assignedName || (session.mode === "bot" ? "Bot" : "Human")}
+                      {session.mode === "bot" ? <FiCpu size={12} className="text-blue-500" /> : <FiUser size={12} className="text-emerald-600" />}
+                      {session.assignedName || (session.mode === "bot" ? "Bot active" : "Human mode")}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <FiClock size={12} />
+                    <span className="flex items-center gap-1 text-[11px]">
+                      <FiClock size={11} />
                       {session.lastMessageAt
                         ? new Date(session.lastMessageAt).toLocaleTimeString([], {
                             hour: "2-digit",
@@ -237,12 +419,16 @@ export default function WhatsAppInboxPage() {
           </div>
         </div>
 
+        {/* Right Pane: Active Chat Conversation */}
         <div className="flex-1 flex flex-col bg-[#efeae2]">
           {selectedSession ? (
             <>
-              <div className="p-4 bg-white border-b border-[var(--color-border)] flex justify-between items-center gap-3">
+              {/* Top Chat Header */}
+              <div className="p-3.5 bg-white border-b border-[var(--color-border)] flex justify-between items-center gap-3">
                 <div>
-                  <h3 className="font-medium">{selectedSession.customerName || selectedSession.phone}</h3>
+                  <h3 className="font-semibold text-sm text-neutral-900">
+                    {selectedSession.customerName || selectedSession.phone}
+                  </h3>
                   <p className="text-xs text-neutral-500">{selectedSession.phone}</p>
                   {selectedSession.assignedTo ? (
                     <p className="text-[11px] text-neutral-400">Assigned: {selectedSession.assignedName}</p>
@@ -252,16 +438,16 @@ export default function WhatsAppInboxPage() {
                   <button
                     type="button"
                     onClick={assignToMe}
-                    className="px-3 py-1.5 text-xs border rounded-full"
+                    className="px-3 py-1.5 text-xs border rounded-full hover:bg-neutral-50 transition-colors"
                   >
                     Assign to me
                   </button>
                   <button
                     onClick={handleToggleMode}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-2 transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-1.5 transition-colors ${
                       selectedSession.mode === "bot"
                         ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                        : "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                     }`}
                   >
                     {selectedSession.mode === "bot" ? (
@@ -277,23 +463,28 @@ export default function WhatsAppInboxPage() {
                 </div>
               </div>
 
+              {/* Order Card if customer has recent order */}
               {order ? (
                 <Link
                   href={order.href}
-                  className="mx-4 mt-3 bg-white border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm shadow-sm hover:bg-neutral-50"
+                  className="mx-4 mt-3 bg-white border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm shadow-sm hover:bg-neutral-50 transition-colors"
                 >
-                  <p className="text-[11px] uppercase tracking-wider text-neutral-400">Latest order — click to open</p>
-                  <p className="font-medium">{order.orderId}</p>
-                  <p className="text-neutral-500">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">
+                    Recent Customer Order (Click to open)
+                  </p>
+                  <p className="font-medium text-neutral-900">{order.orderId}</p>
+                  <p className="text-neutral-500 text-xs">
                     {order.status} · {order.paymentMethod} · ₹{Number(order.total).toLocaleString("en-IN")}
                   </p>
                 </Link>
               ) : null}
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Chat Message History */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.length === 0 ? (
-                  <div className="text-center text-sm text-neutral-500 mt-10 bg-white/50 py-2 rounded-lg mx-auto max-w-xs">
-                    No messages in this conversation yet.
+                  <div className="text-center text-xs text-neutral-500 mt-10 bg-white/70 backdrop-blur py-3 px-4 rounded-xl mx-auto max-w-sm border border-neutral-200">
+                    <p className="font-medium text-neutral-700 mb-1">No messages recorded yet</p>
+                    <p>Type a message below to start communicating with this customer via WhatsApp.</p>
                   </div>
                 ) : (
                   messages.map((msg, idx) => {
@@ -307,16 +498,16 @@ export default function WhatsAppInboxPage() {
                         className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
                       >
                         <div
-                          className={`max-w-[70%] p-3 rounded-lg shadow-sm ${
+                          className={`max-w-[75%] p-3 rounded-xl shadow-sm ${
                             isOutbound
-                              ? "bg-[#dcf8c6] rounded-tr-none"
-                              : "bg-white rounded-tl-none"
+                              ? "bg-[#dcf8c6] rounded-tr-none text-neutral-900"
+                              : "bg-white rounded-tl-none text-neutral-900"
                           }`}
                         >
-                          <p className="text-sm text-black whitespace-pre-wrap">{msg.body}</p>
-                          <div className="flex justify-end items-center gap-1 mt-1 text-[10px] text-neutral-500">
-                            {msg.sentBy === "bot" && <span>Bot</span>}
-                            {msg.sentBy === "admin" && <span>Admin</span>}
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                          <div className="flex justify-end items-center gap-1.5 mt-1 text-[10px] text-neutral-500">
+                            {msg.sentBy === "bot" && <span className="text-blue-600 font-medium">Bot</span>}
+                            {msg.sentBy === "admin" && <span className="text-emerald-700 font-medium">Admin</span>}
                             <span>
                               {msg.createdAt
                                 ? new Date(msg.createdAt).toLocaleTimeString([], {
@@ -325,7 +516,7 @@ export default function WhatsAppInboxPage() {
                                   })
                                 : ""}
                             </span>
-                            {isOutbound && <FiCheck size={10} />}
+                            {isOutbound && <FiCheck size={11} className="text-emerald-600" />}
                           </div>
                         </div>
                       </div>
@@ -335,16 +526,17 @@ export default function WhatsAppInboxPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-3 bg-[#f0f2f5] space-y-2">
+              {/* Saved Canned Replies & Compose Reply Bar */}
+              <div className="p-3 bg-[#f0f2f5] space-y-2 border-t border-[var(--color-border)]">
                 {canned.length > 0 ? (
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    <span className="shrink-0 self-center text-[11px] text-neutral-500">Saved replies:</span>
+                    <span className="shrink-0 self-center text-[11px] text-neutral-500">Quick replies:</span>
                     {canned.map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => setReplyText(c.body)}
-                        className="shrink-0 px-3 py-1 text-[11px] bg-white border rounded-full"
+                        className="shrink-0 px-3 py-1 text-[11px] bg-white border border-neutral-200 rounded-full hover:bg-neutral-50 transition-colors shadow-2xs"
                       >
                         {c.title}
                       </button>
@@ -356,23 +548,33 @@ export default function WhatsAppInboxPage() {
                     type="text"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 px-4 py-2 text-sm border border-transparent rounded-full focus:outline-none focus:ring-1 focus:ring-green-500 bg-white shadow-sm"
+                    placeholder="Type message to send via WhatsApp..."
+                    className="flex-1 px-4 py-2 text-sm border border-transparent rounded-full focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white shadow-sm"
                   />
                   <button
                     type="submit"
                     disabled={!replyText.trim()}
-                    className="p-3 bg-green-500 text-white rounded-full hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="p-3 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
-                    <FiSend />
+                    <FiSend size={15} />
                   </button>
                 </form>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-neutral-400 bg-[#f8f9fa]">
-              <FiMessageCircle size={48} className="mb-4 opacity-20" />
-              <p>Select a conversation to view chat</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-neutral-400 bg-[#f8f9fa] p-8 space-y-3">
+              <FiMessageCircle size={52} className="opacity-20" />
+              <p className="text-sm font-medium text-neutral-600">Select a conversation or start a new chat</p>
+              <p className="text-xs text-neutral-400 max-w-sm text-center">
+                When customers chat with the bot or when orders update, their conversation updates live here.
+              </p>
+              <button
+                type="button"
+                onClick={() => setNewChatModalOpen(true)}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 text-xs bg-black text-white rounded-lg hover:bg-neutral-800 transition-colors shadow-sm"
+              >
+                <FiPlus size={13} /> Start New Conversation
+              </button>
             </div>
           )}
         </div>

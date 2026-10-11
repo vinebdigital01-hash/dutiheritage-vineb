@@ -14,24 +14,75 @@ export async function GET(request: Request) {
     await connectDB();
 
     if (phone) {
-      const messages = await ChatMessage.find({ phone }).sort({ createdAt: 1 });
+      const digits = phone.replace(/\D/g, "");
+      const tail = digits.slice(-10);
+      const phoneFilters = [
+        { phone },
+        ...(digits ? [{ phone: digits }] : []),
+        ...(tail ? [{ phone: tail }, { phone: `91${tail}` }, { phone: `+91${tail}` }] : []),
+      ];
+      const messages = await ChatMessage.find({ $or: phoneFilters }).sort({ createdAt: 1 });
       return jsonOk(messages);
     } else if (searchParams.get("logs") === "true") {
       const logs = await ChatMessage.find().sort({ createdAt: -1 }).limit(100);
       return jsonOk({ logs });
     } else {
-      const sessions = await ChatSession.find().sort({ lastMessageAt: -1 }).lean();
-      return jsonOk({
-        sessions: sessions.map((s) => ({
-          phone: s.phone,
-          customerName: s.customerName,
-          unreadCount: s.unreadCount || 0,
-          lastMessageAt: s.lastMessageAt,
-          mode: s.mode || "bot",
-          assignedTo: s.assignedTo || "",
-          assignedName: s.assignedName || "",
-        })),
-      });
+      let sessions = await ChatSession.find().sort({ lastMessageAt: -1 }).lean();
+
+      // If no sessions exist yet, backfill from any existing ChatMessage records
+      if (sessions.length === 0) {
+        try {
+          const distinctPhones = await ChatMessage.distinct("phone");
+          for (const p of distinctPhones.slice(0, 50)) {
+            const lastMsg = await ChatMessage.findOne({ phone: p }).sort({ createdAt: -1 });
+            if (lastMsg) {
+              await ChatSession.findOneAndUpdate(
+                { phone: p },
+                {
+                  $setOnInsert: {
+                    phone: p,
+                    lastMessageAt: lastMsg.createdAt || new Date(),
+                    mode: "bot",
+                    unreadCount: lastMsg.direction === "incoming" ? 1 : 0,
+                  },
+                },
+                { upsert: true }
+              );
+            }
+          }
+          sessions = await ChatSession.find().sort({ lastMessageAt: -1 }).lean();
+        } catch {
+          // ignore backfill error
+        }
+      }
+
+      // Populate customer names from Customer collection if missing
+      const { Customer } = await import("@/models");
+      const enrichedSessions = await Promise.all(
+        sessions.map(async (s) => {
+          let name = s.customerName;
+          if (!name) {
+            const tail = String(s.phone || "").replace(/\D/g, "").slice(-10);
+            if (tail) {
+              const cust = await Customer.findOne({
+                phone: new RegExp(`${tail}$`),
+              }).select("name").lean();
+              if (cust?.name) name = cust.name;
+            }
+          }
+          return {
+            phone: s.phone,
+            customerName: name || "",
+            unreadCount: s.unreadCount || 0,
+            lastMessageAt: s.lastMessageAt,
+            mode: s.mode || "bot",
+            assignedTo: s.assignedTo || "",
+            assignedName: s.assignedName || "",
+          };
+        })
+      );
+
+      return jsonOk({ sessions: enrichedSessions });
     }
   } catch (error) {
     return handleApiError(error);
