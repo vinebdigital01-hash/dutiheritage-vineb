@@ -279,6 +279,7 @@ export async function PUT(request: Request, { params }: Params) {
         order.items.map((l) => ({
           productId: l.productId,
           size: l.size || undefined,
+          color: l.color || "",
           quantity: l.quantity,
         })),
         true,
@@ -304,6 +305,7 @@ export async function PUT(request: Request, { params }: Params) {
         order.items.map((l) => ({
           productId: l.productId,
           size: l.size || undefined,
+          color: l.color || "",
           quantity: l.quantity,
         })),
         true,

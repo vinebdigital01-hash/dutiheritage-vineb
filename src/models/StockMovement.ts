@@ -5,6 +5,7 @@ const StockMovementSchema = new Schema(
     productId: { type: String, required: true, index: true },
     productName: { type: String },
     size: { type: String, default: "" },
+    color: { type: String, default: "" },
     delta: { type: Number, required: true },
     stockAfter: { type: Number },
     reason: {

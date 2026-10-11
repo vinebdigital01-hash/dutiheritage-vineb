@@ -321,6 +321,7 @@ export async function POST(request: Request) {
     const inventoryItems = lines.map((line) => ({
       productId: line.productId,
       size: line.size,
+      color: line.color || "",
       quantity: line.quantity,
     }));
     try {

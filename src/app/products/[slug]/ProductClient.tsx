@@ -162,7 +162,11 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
       const res = await fetch(`/api/products/${product.id}/notify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailToUse, size: selectedSize || "" }),
+        body: JSON.stringify({
+          email: emailToUse,
+          size: selectedSize || "",
+          color: selectedColor || "",
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to submit");

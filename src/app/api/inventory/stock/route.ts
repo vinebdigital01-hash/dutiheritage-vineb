@@ -113,6 +113,7 @@ export async function POST(request: Request) {
           {
             productId: body.productId,
             size: body.size,
+            color: body.color || "",
             stock: body.stock,
           },
         ];

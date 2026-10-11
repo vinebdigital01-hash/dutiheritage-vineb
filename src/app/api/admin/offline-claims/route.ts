@@ -65,10 +65,19 @@ export async function POST(request: Request) {
       isClaimed: false,
     });
 
-    const botPhone = (process.env.BOT_PHONE || "").replace(/\D/g, "");
-    const waUrl = botPhone
-      ? `https://wa.me/${botPhone}?text=${encodeURIComponent(`Claim-Order-${doc.claimId}`)}`
-      : "";
+    // Default to Duti Heritage WhatsApp bot number if env not set
+    const botPhone = (
+      process.env.BOT_PHONE ||
+      process.env.NEXT_PUBLIC_BOT_PHONE ||
+      "919958917055"
+    ).replace(/\D/g, "");
+    if (!botPhone) {
+      throw new ApiError(
+        "BOT_PHONE is not configured. Set BOT_PHONE=919958917055 in env.",
+        500
+      );
+    }
+    const waUrl = `https://wa.me/${botPhone}?text=${encodeURIComponent(`Claim-Order-${doc.claimId}`)}`;
 
     return jsonCreated({
       claimId: doc.claimId,

@@ -146,41 +146,65 @@ export default function AccountPage() {
     let finalMethod: 'sms' | 'whatsapp' = requestedMethod;
 
     try {
-      if (requestedMethod === 'whatsapp') {
+      if (requestedMethod === "whatsapp") {
         try {
           const res = await fetch("/api/auth/whatsapp/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: formattedNumber })
+            body: JSON.stringify({ phone: formattedNumber }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Failed to send WhatsApp OTP");
-          
-          setOtpMethod('whatsapp');
+
+          setOtpMethod("whatsapp");
           setShowOTP(true);
-          setMessage(`We've sent a code to your WhatsApp (or SMS).`);
+          setMessage("We've sent a 6-digit code to your WhatsApp.");
           setLoading(false);
-          return; // Success! Exit early.
-        } catch (whatsappErr: any) {
-          console.warn("WhatsApp OTP failed, falling back to SMS", whatsappErr);
-          // Auto fallback to SMS
-          finalMethod = 'sms';
+          return;
+        } catch (whatsappErr: unknown) {
+          const msg =
+            whatsappErr instanceof Error
+              ? whatsappErr.message
+              : "WhatsApp OTP failed";
+          console.warn("WhatsApp OTP failed:", msg);
+          // Fall back to SMS only if user can complete reCAPTCHA
+          finalMethod = "sms";
+          setMessage(`${msg} Trying SMS instead…`);
         }
       }
 
-      // If requested SMS directly, or if WhatsApp failed and fell back to SMS
-      if (finalMethod === 'sms') {
-        const appVerifier = window.recaptchaVerifier;
-        const confirmationResult = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
+      if (finalMethod === "sms") {
+        let appVerifier = window.recaptchaVerifier;
+        if (!appVerifier && document.getElementById("recaptcha-container")) {
+          appVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+            size: "normal",
+          });
+          window.recaptchaVerifier = appVerifier;
+          await appVerifier.render();
+        }
+        if (!appVerifier) {
+          throw new Error(
+            "SMS verification is not ready. Complete the reCAPTCHA below, then try again."
+          );
+        }
+        const confirmationResult = await signInWithPhoneNumber(
+          auth,
+          formattedNumber,
+          appVerifier
+        );
         window.confirmationResult = confirmationResult;
-        setOtpMethod('sms');
+        setOtpMethod("sms");
         setShowOTP(true);
-        setMessage(`We've sent a code to your WhatsApp (or SMS).`);
+        setMessage("We've sent a 6-digit code via SMS.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(getCleanErrorMessage(err));
-      if (finalMethod === 'sms' && window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
+      if (finalMethod === "sms" && window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch {
+          /* ignore */
+        }
         window.recaptchaVerifier = null;
       }
     } finally {

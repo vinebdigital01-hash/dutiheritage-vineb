@@ -148,8 +148,8 @@ export async function priceCartLines(
       throw new ApiError(`Product not found or inactive: ${line.productId}`, 400);
     }
     const qty = Math.max(1, Number(line.quantity) || 1);
-    const size = resolveInventorySize(product, line.size);
-    assertLineInStock(product, size, qty);
+    const size = resolveInventorySize(product, line.size, line.color);
+    assertLineInStock(product, size, qty, line.color);
 
     return {
       productId: line.productId,
@@ -215,12 +215,12 @@ export async function inspectCartLines(
       continue;
     }
 
-    const size = resolveInventorySize(product, line.size);
+    const size = resolveInventorySize(product, line.size, line.color);
     const livePrice = Number(product.salePrice ?? product.price);
     const name = product.name;
 
     if (enforcesInventory(product)) {
-      const stock = availableStock(product, size);
+      const stock = availableStock(product, size, line.color);
       if (stock < qty) {
         issues.push({
           productId: line.productId,

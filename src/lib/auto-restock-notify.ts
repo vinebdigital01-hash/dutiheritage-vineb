@@ -7,20 +7,23 @@ export async function processAutoRestockEmails(input: {
   productId: string;
   productName: string;
   size: string;
+  color?: string;
   prevStock: number;
   nextStock: number;
 }) {
-  const { productId, productName, size, prevStock, nextStock } = input;
-  
+  const { productId, productName, size, color, prevStock, nextStock } = input;
+
   if (prevStock > 0 || nextStock <= 0) return;
 
   try {
     await connectDB();
-    const pendingRequests = await RestockRequest.find({
+    const filter: Record<string, unknown> = {
       productId,
-      size,
+      size: size || "",
       status: "pending",
-    });
+    };
+    if (color) filter.color = color;
+    const pendingRequests = await RestockRequest.find(filter);
 
     if (!pendingRequests || pendingRequests.length === 0) return;
 

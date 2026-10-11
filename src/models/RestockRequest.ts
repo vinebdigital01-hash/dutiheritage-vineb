@@ -5,6 +5,7 @@ export interface RestockRequestDocument extends Document {
   productId: string;
   productName: string;
   size?: string;
+  color?: string;
   status: "pending" | "notified";
   createdAt: Date;
   updatedAt: Date;
@@ -15,7 +16,8 @@ const RestockRequestSchema = new Schema<RestockRequestDocument>(
     email: { type: String, required: true },
     productId: { type: String, required: true },
     productName: { type: String, required: true },
-    size: { type: String },
+    size: { type: String, default: "" },
+    color: { type: String, default: "" },
     status: { type: String, enum: ["pending", "notified"], default: "pending" },
   },
   { timestamps: true }

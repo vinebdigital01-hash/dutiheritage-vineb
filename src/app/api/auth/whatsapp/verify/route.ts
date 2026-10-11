@@ -19,14 +19,18 @@ export async function POST(req: Request) {
     if (formattedPhone.length === 10) formattedPhone = "91" + formattedPhone;
     if (!formattedPhone.startsWith("+")) formattedPhone = "+" + formattedPhone;
 
-    // Check OTP
+    // Check OTP (and expiry in app code — don't wait for TTL index)
     const session = await OtpSession.findOne({
       phone: formattedPhone,
-      otp: otp,
+      otp: String(otp).trim(),
     });
 
     if (!session) {
       return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 400 });
+    }
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      await OtpSession.deleteOne({ _id: session._id });
+      return NextResponse.json({ error: "OTP has expired. Request a new code." }, { status: 400 });
     }
 
     // OTP is valid. Delete it so it can't be reused.
@@ -72,6 +76,21 @@ export async function POST(req: Request) {
       // No existing customer with this phone — find or create Firebase user by phone
       uid = await findOrCreateFirebaseUser(auth, formattedPhone);
     }
+
+    // Keep a Customer row the bot can find by last-10 digits (login + signup).
+    const digits = formattedPhone.replace(/\D/g, "");
+    await Customer.findOneAndUpdate(
+      { $or: [{ firebaseUid: uid }, { phone: formattedPhone }, { phone: phone10Digit }, { phone: digits }] },
+      {
+        $set: {
+          phone: digits,
+          firebaseUid: uid,
+          source: "manual",
+        },
+        $setOnInsert: { name: "WhatsApp Customer", walletBalance: 0 },
+      },
+      { upsert: true, new: true }
+    );
 
     // Generate Custom Token
     const customToken = await auth.createCustomToken(uid);

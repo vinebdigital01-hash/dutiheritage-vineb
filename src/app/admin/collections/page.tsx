@@ -25,7 +25,7 @@ export default function AdminCollectionsPage() {
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editDiscountBanner, setEditDiscountBanner] = useState("");
+  const [editSlug, setEditSlug] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -69,9 +69,14 @@ export default function AdminCollectionsPage() {
   const saveEdit = async (id: string) => {
     if (!(await confirm({ title: "Save collection", description: "Save these changes?", confirmText: "Save" }))) return;
     try {
+      const slug = editSlug
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
       await adminFetch(`/api/collections/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: editName, discountBanner: editDiscountBanner }),
+        body: JSON.stringify({ name: editName.trim(), slug: slug || undefined }),
       });
       setEditId(null);
       show("Collection updated");
@@ -157,7 +162,16 @@ export default function AdminCollectionsPage() {
                     )}
                   </td>
                   <td className="px-5 py-3 font-mono text-[12px] text-neutral-500">
-                    {c.slug}
+                    {editId === c.id ? (
+                      <input
+                        className="border px-2 py-1 rounded w-full max-w-[220px] font-mono text-[12px]"
+                        value={editSlug}
+                        onChange={(e) => setEditSlug(e.target.value)}
+                        placeholder="collection-slug"
+                      />
+                    ) : (
+                      c.slug
+                    )}
                   </td>
                   <td className="px-5 py-3">{c.productCount ?? 0}</td>
                   <td className="px-5 py-3">
@@ -191,7 +205,7 @@ export default function AdminCollectionsPage() {
                           onClick={() => {
                             setEditId(c.id);
                             setEditName(c.name);
-                          setEditDiscountBanner(c.discountBanner || "");
+                            setEditSlug(c.slug || "");
                           }}
                         >
                           Edit

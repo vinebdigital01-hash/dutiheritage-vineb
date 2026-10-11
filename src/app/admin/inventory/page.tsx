@@ -27,6 +27,7 @@ type Movement = {
   productId: string;
   productName: string;
   size: string;
+  color?: string;
   delta: number;
   stockAfter?: number;
   reason: string;
@@ -123,11 +124,16 @@ export default function AdminInventoryPage() {
     }
   };
 
-    const saveAllDrafts = async () => {
-    const items = Object.entries(draft).map(([key, stock]) => {
-      const [productId, size] = key.split(":");
-      return { productId, size, stock: Number(stock) };
-    }).filter(i => !isNaN(i.stock) && i.stock >= 0);
+  const saveAllDrafts = async () => {
+    const items = Object.entries(draft)
+      .map(([key, stock]) => {
+        const parts = key.split(":");
+        const productId = parts[0] || "";
+        const color = parts.length >= 3 ? parts.slice(1, -1).join(":") : "";
+        const size = parts.length >= 2 ? parts[parts.length - 1] || "" : "";
+        return { productId, color, size, stock: Number(stock) };
+      })
+      .filter((i) => i.productId && i.size && !isNaN(i.stock) && i.stock >= 0);
     
     if (items.length === 0) {
       show("No valid changes to save", "error");
@@ -272,6 +278,7 @@ export default function AdminInventoryPage() {
                               </span>
                             ) : null}
                           </td>
+                          <td className="px-5 py-3">{r.color || "—"}</td>
                           <td className="px-5 py-3">{r.size}</td>
                           <td className="px-5 py-3">{r.stock}</td>
                           <td className="px-5 py-3 w-28">
@@ -421,6 +428,7 @@ export default function AdminInventoryPage() {
                             </span>
                           ) : null}
                         </td>
+                        <td className="px-5 py-3">{m.color || "—"}</td>
                         <td className="px-5 py-3">{m.size || "—"}</td>
                         <td
                           className={`px-5 py-3 font-medium ${

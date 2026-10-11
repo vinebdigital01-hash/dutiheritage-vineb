@@ -7,11 +7,43 @@ import { getPublicSiteUrl } from "@/lib/utils";
 export type StockLine = {
   productId: string;
   size?: string;
+  color?: string;
   quantity: number;
   name?: string;
 };
 
-type InventoryRow = { size?: string | null; stock?: number | null; sku?: string | null };
+type InventoryRow = {
+  size?: string | null;
+  color?: string | null;
+  stock?: number | null;
+  sku?: string | null;
+};
+
+function normColor(c?: string | null) {
+  return String(c || "").trim();
+}
+
+/** Find inventory row by size + color (color-aware; falls back safely for legacy rows). */
+export function findInventoryRowServer(
+  product: { inventory?: InventoryRow[] | null },
+  size?: string,
+  color?: string
+): InventoryRow | undefined {
+  const rows = product.inventory || [];
+  if (!rows.length) return undefined;
+  const wantColor = normColor(color);
+  if (size) {
+    const exact = rows.find(
+      (r) => r.size === size && normColor(r.color) === wantColor
+    );
+    if (exact) return exact;
+    const bySize = rows.filter((r) => r.size === size);
+    if (bySize.length === 1) return bySize[0];
+    if (!wantColor && bySize.length > 0) return bySize[0];
+  }
+  if (!size && rows.length === 1) return rows[0];
+  return undefined;
+}
 
 export function enforcesInventory(product: {
   trackInventory?: boolean;
@@ -23,28 +55,24 @@ export function enforcesInventory(product: {
 
 export function resolveInventorySize(
   product: { inventory?: InventoryRow[] | null; sizes?: string[] },
-  requested?: string
+  requested?: string,
+  color?: string
 ): string | undefined {
-  const rows = product.inventory || [];
-  if (requested) {
-    const exact = rows.find((r) => r.size === requested);
-    if (exact) return requested;
+  const row = findInventoryRowServer(product, requested, color);
+  if (row?.size) return row.size || undefined;
+  if (requested) return requested;
+  if (!requested && (product.inventory || []).length === 1) {
+    return product.inventory?.[0]?.size || undefined;
   }
-  if (!requested && rows.length === 1) return rows[0]?.size || undefined;
   return requested;
 }
 
 export function availableStock(
   product: { inventory?: InventoryRow[] | null },
-  size?: string
+  size?: string,
+  color?: string
 ): number {
-  const rows = product.inventory || [];
-  if (!rows.length) return 0;
-  const row = size
-    ? rows.find((r) => r.size === size)
-    : rows.length === 1
-      ? rows[0]
-      : undefined;
+  const row = findInventoryRowServer(product, size, color);
   return row ? Number(row.stock || 0) : 0;
 }
 
@@ -69,14 +97,21 @@ export function assertLineInStock(
     inventory?: InventoryRow[] | null;
   },
   size: string | undefined,
-  qty: number
+  qty: number,
+  color?: string
 ) {
   if (!enforcesInventory(product)) return;
-  const resolved = resolveInventorySize(product, size);
-  const stock = availableStock(product, resolved);
+  const resolved = resolveInventorySize(product, size, color);
+  const stock = availableStock(product, resolved, color);
   if (stock < qty) {
+    const label = [
+      resolved ? `Size: ${resolved}` : "",
+      normColor(color) ? `Color: ${normColor(color)}` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
     throw new ApiError(
-      `Only ${stock} left for ${product.name || "this product"}${resolved ? ` (Size: ${resolved})` : ""}`,
+      `Only ${stock} left for ${product.name || "this product"}${label ? ` (${label})` : ""}`,
       400
     );
   }
@@ -86,6 +121,7 @@ export async function logStockMovement(input: {
   productId: string;
   productName?: string;
   size?: string;
+  color?: string;
   delta: number;
   stockAfter?: number;
   reason: "order" | "cancel" | "return" | "admin" | "csv";
@@ -96,6 +132,7 @@ export async function logStockMovement(input: {
     productId: input.productId,
     productName: input.productName,
     size: input.size || "",
+    color: normColor(input.color),
     delta: input.delta,
     stockAfter: input.stockAfter,
     reason: input.reason,
@@ -111,19 +148,29 @@ export async function logInventoryDiff(
   next: InventoryRow[],
   meta: { reason: "admin" | "csv"; actor?: string }
 ) {
-  const sizes = new Set([
-    ...prev.map((r) => r.size || ""),
-    ...next.map((r) => r.size || ""),
+  const keys = new Set([
+    ...prev.map((r) => `${normColor(r.color)}::${r.size || ""}`),
+    ...next.map((r) => `${normColor(r.color)}::${r.size || ""}`),
   ]);
-  for (const size of sizes) {
-    const before = Number(prev.find((r) => (r.size || "") === size)?.stock || 0);
-    const after = Number(next.find((r) => (r.size || "") === size)?.stock || 0);
+  for (const key of keys) {
+    const [color, size] = key.split("::");
+    const before = Number(
+      prev.find(
+        (r) => (r.size || "") === size && normColor(r.color) === color
+      )?.stock || 0
+    );
+    const after = Number(
+      next.find(
+        (r) => (r.size || "") === size && normColor(r.color) === color
+      )?.stock || 0
+    );
     const delta = after - before;
     if (delta === 0) continue;
     await logStockMovement({
       productId,
       productName,
       size,
+      color,
       delta,
       stockAfter: after,
       reason: meta.reason,
@@ -140,6 +187,19 @@ export async function logInventoryDiff(
       });
     } catch (e) {
       console.error("[bot-waitlist-restock]", e);
+    }
+    try {
+      const { processAutoRestockEmails } = await import("@/lib/auto-restock-notify");
+      await processAutoRestockEmails({
+        productId,
+        productName,
+        size,
+        color,
+        prevStock: before,
+        nextStock: after,
+      });
+    } catch (e) {
+      console.error("[auto-restock-email]", e);
     }
   }
 }
@@ -188,6 +248,7 @@ export async function setAbsoluteStock(
     await product.save();
     const nextRows = (product.inventory || []).map((r) => ({
       size: r.size,
+      color: r.color,
       stock: r.stock,
       sku: r.sku,
     }));
@@ -198,21 +259,6 @@ export async function setAbsoluteStock(
       nextRows,
       meta
     );
-
-    try {
-      const { notifyBotWaitlistOnRestock } = await import("@/lib/bot-waitlist-notify");
-      const before = Number(prev.find((r) => (r.size || "") === size)?.stock || 0);
-      const after = Number(nextRows.find((r) => (r.size || "") === size)?.stock || 0);
-      await notifyBotWaitlistOnRestock({
-        productId: product._id.toString(),
-        productName: product.name,
-        size,
-        prevStock: before,
-        nextStock: after,
-      });
-    } catch (e) {
-      console.error("[bot-waitlist-restock]", e);
-    }
 
     updatedCount += 1;
   }
@@ -233,6 +279,7 @@ export async function getRecentMovements(opts?: { productId?: string; limit?: nu
     productId: d.productId,
     productName: d.productName || "",
     size: d.size || "",
+    color: (d as { color?: string }).color || "",
     delta: d.delta,
     stockAfter: d.stockAfter,
     reason: d.reason,
@@ -269,7 +316,8 @@ export async function adjustInventory(
     const product = await Product.findById(item.productId);
     if (!product || !enforcesInventory(product)) continue;
 
-    const size = resolveInventorySize(product, item.size);
+    const color = normColor(item.color);
+    const size = resolveInventorySize(product, item.size, color);
     if (!size) {
       if (!increment) {
         throw new ApiError(
@@ -280,28 +328,41 @@ export async function adjustInventory(
       continue;
     }
 
-    const filter = {
-      _id: product._id,
-      inventory: { $elemMatch: { size, stock: increment ? { $gte: 0 } : { $gte: qty } } },
-    };
-    const update = { $inc: { "inventory.$.stock": increment ? qty : -qty } };
-    const res = await Product.updateOne(filter, update);
+    // Normalize missing color fields so color-aware matching is reliable
+    for (const r of product.inventory || []) {
+      if (r.color == null) r.color = "";
+    }
 
-    if (!increment && res.modifiedCount !== 1) {
+    const row = findInventoryRowServer(product, size, color);
+    if (!row) {
+      if (!increment) {
+        throw new ApiError(
+          `Size ${size}${color ? ` / ${color}` : ""} is not tracked for ${product.name}.`,
+          400
+        );
+      }
+      continue;
+    }
+
+    const current = Number(row.stock || 0);
+    if (!increment && current < qty) {
       throw new ApiError(
-        `Not enough stock for ${product.name} (Size: ${size}). Refresh and try again.`,
+        `Not enough stock for ${product.name} (Size: ${size}${color ? `, Color: ${color}` : ""}). Refresh and try again.`,
         409
       );
     }
 
-    const after = await Product.findById(product._id).lean();
-    const row = after?.inventory?.find((i) => i.size === size);
-    const stockAfter = row ? Number(row.stock || 0) : undefined;
+    row.stock = increment ? current + qty : current - qty;
+    product.stockStatus = computeStockStatus(product);
+    await product.save();
+
+    const stockAfter = Number(row.stock || 0);
 
     await logStockMovement({
       productId: product._id.toString(),
       productName: product.name,
       size,
+      color,
       delta: increment ? qty : -qty,
       stockAfter,
       reason,
@@ -310,20 +371,20 @@ export async function adjustInventory(
     });
     await refreshStatus(product._id.toString());
 
-    if (after?.slug) {
+    if (product.slug) {
       try {
         const { revalidatePath } = await import("next/cache");
-        revalidatePath(`/products/${after.slug}`);
+        revalidatePath(`/products/${product.slug}`);
       } catch {
         /* non-Next callers */
       }
     }
 
-    if (!increment && after?.trackInventory) {
-      const threshold = after.lowStockThreshold || 3;
-      if (row && row.stock <= threshold) {
+    if (!increment && product.trackInventory) {
+      const threshold = product.lowStockThreshold || 3;
+      if (stockAfter <= threshold) {
         alerts.push(
-          `- ${after.name} (Size: ${row.size || "Default"}) — Only ${row.stock} left`
+          `- ${product.name} (Size: ${size}${color ? `, ${color}` : ""}) — Only ${stockAfter} left`
         );
       }
     }

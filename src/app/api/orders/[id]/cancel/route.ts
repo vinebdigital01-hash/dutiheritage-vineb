@@ -89,6 +89,7 @@ export async function POST(request: Request, { params }: Params) {
       order.items.map((l) => ({
         productId: l.productId,
         size: l.size || undefined,
+        color: l.color || "",
         quantity: l.quantity,
       })),
       true,

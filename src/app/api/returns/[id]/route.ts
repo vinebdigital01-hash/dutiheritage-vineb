@@ -52,6 +52,7 @@ export async function PATCH(request: Request, { params }: Params) {
           doc.items.map((i) => ({
             productId: i.productId,
             size: i.size || undefined,
+            color: (i as { color?: string }).color || "",
             quantity: i.quantity,
           })),
           true,

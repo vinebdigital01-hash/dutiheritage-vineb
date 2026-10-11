@@ -11,19 +11,24 @@ export async function POST(
     requireMongo();
     await connectDB();
 
-    const { email, size } = await request.json();
+    const { email, size, color } = await request.json();
     if (!email || !email.includes("@")) {
       return jsonError("Valid email is required", 400);
     }
 
-    const product = await Product.findById((await params).id);
+    const productId = (await params).id;
+    const product = await Product.findById(productId);
     if (!product) return jsonError("Product not found", 404);
 
-    // Prevent duplicate pending requests for the same email/product/size
+    const sizeKey = String(size || "").trim();
+    const colorKey = String(color || "").trim();
+
+    // Prevent duplicate pending requests for the same email/product/size/color
     const existing = await RestockRequest.findOne({
       email: email.toLowerCase().trim(),
-      productId: (await params).id,
-      size: size || "",
+      productId,
+      size: sizeKey,
+      color: colorKey,
       status: "pending",
     });
 
@@ -33,9 +38,10 @@ export async function POST(
 
     await RestockRequest.create({
       email: email.toLowerCase().trim(),
-      productId: (await params).id,
+      productId,
       productName: product.name,
-      size: size || "",
+      size: sizeKey,
+      color: colorKey,
       status: "pending",
     });
 

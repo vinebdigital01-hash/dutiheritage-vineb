@@ -150,6 +150,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const cartMergedForUid = useRef<string | null>(null);
+  const loggingOutRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -277,16 +278,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Save to LocalStorage on change
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || loggingOutRef.current) return;
     try {
-      localStorage.setItem(CART_LS_KEY, JSON.stringify(cart));
       if (user?.uid) {
+        localStorage.setItem(CART_LS_KEY, JSON.stringify(cart));
         localStorage.setItem(userCartStorageKey(user.uid), JSON.stringify(cart));
         localStorage.setItem(CART_OWNER_KEY, user.uid);
+      } else {
+        // Guest session only — never rewrite guest cart from a just-logged-out user cart
+        const owner = localStorage.getItem(CART_OWNER_KEY);
+        if (!owner || owner === "guest") {
+          localStorage.setItem(CART_LS_KEY, JSON.stringify(cart));
+          localStorage.setItem(CART_OWNER_KEY, "guest");
+        }
       }
     } catch {}
 
-    // Sync to Mongo for abandoned-cart automations (debounced)
+    // Sync to Mongo for abandoned-cart automations (debounced) — logged-in only
+    if (!user?.uid) return;
     const t = setTimeout(() => {
       void syncCartToServer({
         items: cart.map((item) => ({
@@ -433,22 +442,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = React.useCallback(async (redirectTo = "/") => {
     try {
+      loggingOutRef.current = true;
       const uid = auth.currentUser?.uid;
-      if (uid) {
-        try {
-          const snapshot = localStorage.getItem(CART_LS_KEY) || JSON.stringify(cart);
+      // Snapshot this user's cart for restore on next login, then clear guest cart
+      try {
+        const snapshot = JSON.stringify(cart);
+        if (uid) {
           localStorage.setItem(userCartStorageKey(uid), snapshot);
-          localStorage.removeItem(CART_LS_KEY);
-          localStorage.removeItem(CART_OWNER_KEY);
-          localStorage.removeItem(CART_LS_KEY);
-          localStorage.removeItem(CART_OWNER_KEY);
-          // Keep CART_OWNER_KEY so a later different login does not inherit this cart
+          // Mark owner as this uid so a guest session does not inherit lines
           localStorage.setItem(CART_OWNER_KEY, uid);
-        } catch {}
-      }
+        }
+        localStorage.removeItem(CART_LS_KEY);
+      } catch {}
+      setCart([]);
       await signOut(auth);
       window.location.href = redirectTo;
     } catch (error) {
+      loggingOutRef.current = false;
       console.error("Error signing out", error);
     }
   }, [cart]);
