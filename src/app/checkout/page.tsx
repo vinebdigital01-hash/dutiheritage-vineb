@@ -45,7 +45,13 @@ const FALLBACK_SETTINGS: CheckoutSettings = {
 
 let hasProcessedCheckoutUrl = false;
 
-function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: string) => void }) {
+function CheckoutUrlHandler({ 
+  onAutoApplyCoupon,
+  onAutoFillPhone,
+}: { 
+  onAutoApplyCoupon: (code: string) => void;
+  onAutoFillPhone?: (phone: string) => void;
+}) {
 
   const searchParams = useSearchParams();
   const { addToCart, clearCart } = useAppContext();
@@ -58,9 +64,17 @@ function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: s
     const productSlug = searchParams?.get("product");
     const couponCode = searchParams?.get("coupon");
     const size = searchParams?.get("size") || "M";
+    const phoneParam = searchParams?.get("phone");
 
     const applyData = async () => {
       try {
+        if (phoneParam && onAutoFillPhone) {
+          const digits = String(phoneParam).replace(/\D/g, "");
+          const clean10 = digits.length >= 10 ? digits.slice(-10) : digits;
+          if (clean10) {
+            onAutoFillPhone(clean10);
+          }
+        }
         if (productSlug) {
           const res = await fetch(`/api/products?slug=${productSlug}`);
           if (res.ok) {
@@ -75,11 +89,12 @@ function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: s
           onAutoApplyCoupon(couponCode);
         }
         
-        if (productSlug || couponCode) {
+        if (productSlug || couponCode || phoneParam) {
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete("product");
           newUrl.searchParams.delete("size");
           newUrl.searchParams.delete("coupon");
+          newUrl.searchParams.delete("phone");
           window.history.replaceState({}, "", newUrl.toString());
         }
       } catch (err) {
@@ -90,7 +105,7 @@ function CheckoutUrlHandler({ onAutoApplyCoupon }: { onAutoApplyCoupon: (code: s
     };
     
     applyData();
-  }, [searchParams, addToCart, processed, onAutoApplyCoupon]);
+  }, [searchParams, addToCart, processed, onAutoApplyCoupon, onAutoFillPhone]);
 
   return null;
 }
@@ -551,6 +566,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           code,
           subtotal,
+          customerPhone: formData.phone || userProfile?.phone || user?.phone || undefined,
           productIds: cart.map((i) => i.id),
           collectionIds: cart.map((i) => i.collectionId),
           items: cart.map(i => ({
@@ -806,7 +822,7 @@ export default function CheckoutPage() {
   if (cart.length === 0) {
     return (
       <main className="w-full min-h-[70vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-bg)]">
-        <Suspense fallback={null}><CheckoutUrlHandler onAutoApplyCoupon={(code) => setAutoApplyTrigger(code)} /></Suspense>
+        <Suspense fallback={null}><CheckoutUrlHandler onAutoApplyCoupon={(code) => setAutoApplyTrigger(code)} onAutoFillPhone={(p) => setFormData(prev => ({ ...prev, phone: p }))} /></Suspense>
                 <div className="max-w-[800px] w-full text-center">
           <h1 className="text-3xl font-serif tracking-[3px] uppercase mb-8">Checkout</h1>
           <div className="flex flex-col items-center gap-6">
@@ -1034,6 +1050,7 @@ export default function CheckoutPage() {
 
   return (
     <main className="w-full min-h-screen bg-[var(--color-bg)] pb-24 lg:pb-0">
+      <Suspense fallback={null}><CheckoutUrlHandler onAutoApplyCoupon={(code) => setAutoApplyTrigger(code)} onAutoFillPhone={(p) => setFormData(prev => ({ ...prev, phone: p }))} /></Suspense>
       
       {/* 🚨 FOMO BANNER - TOP */}
       {checkoutTimerEnabled && timeLeft > 0 ? (

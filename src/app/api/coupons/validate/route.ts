@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       productIds: body.productIds,
       collectionIds: body.collectionIds,
       items: body.items,
+      customerPhone: body.customerPhone,
     });
 
     return jsonOk({
