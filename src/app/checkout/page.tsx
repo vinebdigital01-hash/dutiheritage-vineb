@@ -407,15 +407,17 @@ export default function CheckoutPage() {
     if (pin.length === 6) {
       setCodChecking(true);
       const timer = setTimeout(async () => {
+        let detectedCity = formData.city;
         try {
           const locRes = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
           if (locRes.ok) {
             const data = await locRes.json();
             if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice.length > 0) {
               const postOffice = data[0].PostOffice[0];
+              detectedCity = formData.city || postOffice.District || postOffice.Block;
               setFormData(prev => ({
                 ...prev,
-                city: prev.city || postOffice.District || postOffice.Block,
+                city: detectedCity,
                 state: prev.state || postOffice.State
               }));
             }
@@ -427,7 +429,7 @@ export default function CheckoutPage() {
           const res = await fetch("/api/settings/cod/check-pincode", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pinCode: pin, city: formData.city }),
+            body: JSON.stringify({ pinCode: pin, city: detectedCity }),
           });
           if (res.ok) {
             const data = await res.json();
