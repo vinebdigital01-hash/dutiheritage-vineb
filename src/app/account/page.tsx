@@ -126,7 +126,8 @@ export default function AccountPage() {
     setError(null);
     setMessage(null);
 
-    const formattedNumber = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
+    const digitsOnly = phoneNumber.replace(/\D/g, "");
+    const formattedNumber = digitsOnly.length === 10 ? `+91${digitsOnly}` : `+${digitsOnly}`;
     let finalMethod: 'sms' | 'whatsapp' = requestedMethod;
 
     try {
@@ -157,17 +158,32 @@ export default function AccountPage() {
       }
 
       if (finalMethod === "sms") {
-        // Always destroy any previous reCAPTCHA verifier to get a fresh token
+        // Clear any previous reCAPTCHA instance and empty the container element
         if (window.recaptchaVerifier) {
           try { window.recaptchaVerifier.clear(); } catch {}
           window.recaptchaVerifier = null;
         }
 
-        // Create a fresh invisible reCAPTCHA — this guarantees a valid token
+        const container = document.getElementById("recaptcha-container");
+        if (container) {
+          container.innerHTML = "";
+        }
+
+        // Create a fresh invisible reCAPTCHA with callbacks
         const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
           size: "invisible",
+          callback: () => {},
+          "expired-callback": () => {
+            if (window.recaptchaVerifier) {
+              try { window.recaptchaVerifier.clear(); } catch {}
+              window.recaptchaVerifier = null;
+            }
+          },
         });
         window.recaptchaVerifier = verifier;
+
+        // Ensure widget is fully rendered into DOM before requesting verification code
+        await verifier.render();
 
         const confirmationResult = await signInWithPhoneNumber(
           auth,
@@ -180,6 +196,7 @@ export default function AccountPage() {
         setMessage("We've sent a 6-digit code via SMS.");
       }
     } catch (err: unknown) {
+      console.error("[Firebase SMS Error]", err);
       setError(getCleanErrorMessage(err));
       // Always cleanup reCAPTCHA on failure
       if (window.recaptchaVerifier) {
