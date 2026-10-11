@@ -1,5 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
-import { Order, ReturnRequest, ORDER_STATUSES } from "@/models";
+import { Order, ReturnRequest, ORDER_STATUSES, Customer } from "@/models";
 import { verifyIdToken, AuthError, getStaffRole } from "@/lib/auth";
 import { toOrder } from "@/lib/mappers";
 import {
@@ -46,7 +46,35 @@ export async function GET(request: Request) {
         cancelRequestState: searchParams.get("cancelRequestState"),
       });
     } else {
-      filter = { firebaseUid: authUser.uid };
+      // 1. Find the customer's profile to extract their phone number
+      const customerDoc = await Customer.findOne({
+        $or: [
+          { firebaseUid: authUser.uid },
+          ...(authUser.email ? [{ email: authUser.email.toLowerCase() }] : []),
+        ],
+      }).lean();
+
+      // 2. Build multi-condition filter: match by firebaseUid, customerId, or phone
+      const orConditions: Record<string, unknown>[] = [
+        { firebaseUid: authUser.uid },
+      ];
+
+      if (customerDoc?._id) {
+        orConditions.push({ customerId: customerDoc._id });
+      }
+
+      // Match by phone number (clean last 10 digits to match regex)
+      const rawPhone = customerDoc?.phone || (authUser.token as any)?.phone_number;
+      if (rawPhone) {
+        const digits = String(rawPhone).replace(/\D/g, "");
+        const last10 = digits.slice(-10);
+        if (last10) {
+          orConditions.push({ "customer.phone": new RegExp(last10 + "$") });
+        }
+      }
+
+      filter = { $or: orConditions };
+
       const status = searchParams.get("status");
       if (status) {
         if (!(ORDER_STATUSES as readonly string[]).includes(status)) {
