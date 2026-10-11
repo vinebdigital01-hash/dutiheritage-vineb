@@ -58,6 +58,10 @@ export async function PUT(request: Request, { params }: Params) {
       coupon.minOrderAmount = Number(body.minOrderAmount) || 0;
     }
     if (body.active !== undefined) coupon.active = Boolean(body.active);
+    if (body.isSecret !== undefined) coupon.isSecret = Boolean(body.isSecret);
+    if (body.restrictedToPhone !== undefined) {
+      coupon.restrictedToPhone = String(body.restrictedToPhone).trim();
+    }
     if (body.expiresAt !== undefined) {
       coupon.expiresAt = endOfIstCalendarDay(body.expiresAt);
     }

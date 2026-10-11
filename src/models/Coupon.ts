@@ -31,6 +31,8 @@ const CouponSchema = new Schema(
     expiresAt: { type: Date },
     /** When set, only this phone (normalized) may redeem the coupon */
     restrictedToPhone: { type: String, default: "", index: true },
+    /** When true, hide from public lists; user must enter code manually */
+    isSecret: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

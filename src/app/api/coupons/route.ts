@@ -1,6 +1,6 @@
 import { connectDB } from "@/lib/mongodb";
-import { Coupon } from "@/models";
-import { requireAuth } from "@/lib/auth";
+import { Coupon, Customer } from "@/models";
+import { requireAuth, verifyIdToken } from "@/lib/auth";
 import { CATALOG_WRITE } from "@/lib/rbac";
 import { toCoupon, toPublicCoupon, parseCouponLimit } from "@/lib/coupons";
 import { endOfIstCalendarDay } from "@/lib/india-time";
@@ -14,7 +14,7 @@ import {
 
 /**
  * GET /api/coupons
- *  - ?public=1 → active coupons (safe fields for checkout UI)
+ *  - ?public=1 → active coupons (safe fields for checkout UI, filtered to user)
  *  - default → admin full list
  * POST /api/coupons (admin)
  */
@@ -27,13 +27,65 @@ export async function GET(request: Request) {
     const isPublic = searchParams.get("public") === "1";
 
     if (isPublic) {
+      let customerPhone = searchParams.get("phone") || "";
+
+      // Also try to read phone from Authorization header if present
+      const authHeader = request.headers.get("authorization");
+      if (!customerPhone && authHeader) {
+        try {
+          const authUser = await verifyIdToken(authHeader);
+          const rawPhone =
+            (authUser.token as any)?.phone_number || (authUser as any).phone;
+          if (rawPhone) {
+            customerPhone = String(rawPhone);
+          } else if (authUser?.uid) {
+            const customerDoc = await Customer.findOne({
+              $or: [
+                { firebaseUid: authUser.uid },
+                ...(authUser.email ? [{ email: authUser.email.toLowerCase() }] : []),
+              ],
+            }).lean();
+            if (customerDoc?.phone) {
+              customerPhone = customerDoc.phone;
+            }
+          }
+        } catch {
+          // guest or unauthenticated
+        }
+      }
+
+      const phoneClean = String(customerPhone || "").replace(/\D/g, "");
+      const phoneLast10 = phoneClean.length >= 10 ? phoneClean.slice(-10) : "";
+
       const docs = await Coupon.find({ active: true })
         .sort({ createdAt: -1 })
         .lean();
       const now = new Date();
-      const coupons = docs
-        .filter((c) => !c.expiresAt || new Date(c.expiresAt) >= now)
-        .map((c) => toPublicCoupon(c));
+
+      const filtered = docs.filter((c) => {
+        // Expiry check
+        if (c.expiresAt && new Date(c.expiresAt) < now) return false;
+
+        // Usage limit check
+        if (c.usageLimit != null && (c.usedCount ?? 0) >= c.usageLimit) return false;
+
+        // Secret coupon: never show in public listings
+        if ((c as any).isSecret) return false;
+
+        // Personalised check: if coupon is restricted to a phone, ONLY show if requesting user matches!
+        const restricted = String((c as any).restrictedToPhone || "").replace(/\D/g, "");
+        const restrictedLast10 = restricted.length >= 10 ? restricted.slice(-10) : restricted;
+
+        if (restrictedLast10) {
+          if (!phoneLast10 || phoneLast10 !== restrictedLast10) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      const coupons = filtered.map((c) => toPublicCoupon(c));
       return jsonOk({ coupons, count: coupons.length });
     }
 
@@ -86,6 +138,8 @@ export async function POST(request: Request) {
       usedCount: 0,
       active: body.active !== false,
       expiresAt: endOfIstCalendarDay(body.expiresAt),
+      restrictedToPhone: String(body.restrictedToPhone || "").trim(),
+      isSecret: Boolean(body.isSecret),
     });
 
     return jsonCreated({ coupon: toCoupon(doc.toObject()) });

@@ -4,27 +4,44 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiTag, FiCopy, FiCheck, FiChevronLeft } from "react-icons/fi";
 import { PublicCouponDTO } from "@/lib/coupons";
+import { useAppContext } from "@/context/AppContext";
+import { auth } from "@/lib/firebase";
 
 export default function MyCouponsPage() {
+  const { user, userProfile } = useAppContext();
   const [coupons, setCoupons] = useState<PublicCouponDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  const phone = (userProfile?.phone || user?.phone || "").trim();
+
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/coupons?public=1")
-      .then(r => r.json())
-      .then(data => {
-        if (!cancelled) {
-          setCoupons(data.coupons || []);
-          setLoading(false);
+    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+    const query = cleanPhone ? `&phone=${encodeURIComponent(cleanPhone)}` : "";
+
+    const fetchCoupons = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (auth.currentUser) {
+          const token = await auth.currentUser.getIdToken().catch(() => null);
+          if (token) headers["Authorization"] = `Bearer ${token}`;
         }
-      })
-      .catch(() => {
+        const res = await fetch(`/api/coupons?public=1${query}`, { headers });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setCoupons(data.coupons || []);
+        }
+      } catch {
+        // ignore
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    };
+
+    fetchCoupons();
     return () => { cancelled = true; };
-  }, []);
+  }, [phone, user]);
 
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -60,16 +77,23 @@ export default function MyCouponsPage() {
             <div key={coupon.code} className="border-2 border-dashed border-[var(--color-border)] rounded-xl flex overflow-hidden bg-white hover:border-black transition-colors group">
               <div className="bg-green-50 px-6 py-8 flex flex-col items-center justify-center border-r border-dashed border-[var(--color-border)] w-[120px] shrink-0">
                 <span className="text-green-700 text-3xl font-bold">
-                  {coupon.discountType === "PERCENT" ? `${coupon.discountValue}%` : `â‚¹${coupon.discountValue}`}
+                  {coupon.discountType === "PERCENT" ? `${coupon.discountValue}%` : `₹${coupon.discountValue}`}
                 </span>
                 <span className="text-[10px] text-green-800 font-bold tracking-widest uppercase mt-1">OFF</span>
               </div>
               <div className="p-5 flex flex-col justify-center flex-1">
-                <p className="text-[14px] font-bold tracking-wide mb-1 text-gray-800">
-                  {(coupon.discountType === "PERCENT" ? `${coupon.discountValue}% Off your order` : `Flat â‚¹${coupon.discountValue} Off`)}
-                </p>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <p className="text-[14px] font-bold tracking-wide text-gray-800">
+                    {coupon.discountType === "PERCENT" ? `${coupon.discountValue}% Off your order` : `Flat ₹${coupon.discountValue} Off`}
+                  </p>
+                  {coupon.isPersonalized && (
+                    <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                      Exclusive For You
+                    </span>
+                  )}
+                </div>
                 {coupon.minOrderAmount > 0 && (
-                  <p className="text-[12px] text-gray-500 mb-3">On orders above â‚¹{coupon.minOrderAmount}</p>
+                  <p className="text-[12px] text-gray-500 mb-3">On orders above ₹{coupon.minOrderAmount}</p>
                 )}
                 <div className="mt-auto flex items-center justify-between bg-gray-50 border border-gray-200 rounded p-2">
                   <span className="text-[13px] font-mono font-bold tracking-widest text-black pl-2">{coupon.code}</span>

@@ -17,6 +17,7 @@ export type CouponDTO = {
   usedCount: number;
   active: boolean;
   expiresAt?: string | null;
+  restrictedToPhone?: string;
   isSecret?: boolean;
 };
 
@@ -25,6 +26,9 @@ export type PublicCouponDTO = {
   discountType: "PERCENT" | "FLAT" | "BUY_X_PERCENT" | "BUY_X_GET_Y_FREE";
   discountValue: number;
   minOrderAmount: number;
+  scope?: string;
+  targetIds?: string[];
+  isPersonalized?: boolean;
 };
 
 type LeanCoupon = {
@@ -42,6 +46,8 @@ type LeanCoupon = {
   usedCount?: number;
   active?: boolean;
   expiresAt?: Date | string | null;
+  restrictedToPhone?: string;
+  isSecret?: boolean;
 };
 
 export function toCoupon(doc: LeanCoupon): CouponDTO {
@@ -62,15 +68,21 @@ export function toCoupon(doc: LeanCoupon): CouponDTO {
     expiresAt: doc.expiresAt
       ? new Date(doc.expiresAt).toISOString()
       : null,
+    restrictedToPhone: doc.restrictedToPhone || "",
+    isSecret: Boolean(doc.isSecret),
   };
 }
 
 export function toPublicCoupon(doc: LeanCoupon): PublicCouponDTO {
+  const restricted = String(doc.restrictedToPhone || "").trim();
   return {
     code: doc.code,
     discountType: doc.discountType as PublicCouponDTO["discountType"],
     discountValue: doc.discountValue,
     minOrderAmount: doc.minOrderAmount ?? 0,
+    scope: doc.scope,
+    targetIds: doc.targetIds ?? [],
+    isPersonalized: Boolean(restricted && restricted.replace(/\D/g, "").length >= 10),
   };
 }
 

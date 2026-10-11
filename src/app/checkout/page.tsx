@@ -285,14 +285,37 @@ export default function CheckoutPage() {
           });
       })
       .catch(() => {});
-
-    fetch("/api/coupons?public=1")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.coupons) setAvailableCoupons(data.coupons);
-      })
-      .catch(() => {});
   }, []);
+
+  // Fetch available coupons (generic public + personal coupons restricted to this customer's phone)
+  const activePhone = formData.phone || userProfile?.phone || user?.phone || "";
+  useEffect(() => {
+    let cancelled = false;
+    const cleanPhone = activePhone.replace(/\D/g, "").slice(-10);
+    const query = cleanPhone ? `&phone=${encodeURIComponent(cleanPhone)}` : "";
+
+    const fetchCoupons = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (auth.currentUser) {
+          const token = await auth.currentUser.getIdToken().catch(() => null);
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        }
+        const res = await fetch(`/api/coupons?public=1${query}`, { headers });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (data?.coupons) setAvailableCoupons(data.coupons);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchCoupons();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePhone, user]);
 
   // Pre-fill from user profile
   useEffect(() => {
@@ -929,9 +952,25 @@ export default function CheckoutPage() {
           <p className="text-[11px] text-[var(--color-text-muted)] mb-2 font-medium uppercase tracking-wider">Available coupons:</p>
           <div className="flex flex-wrap gap-2">
             {availableCoupons.map(c => (
-              <button key={c.code} type="button" onClick={() => setDiscountCode(c.code)} className="text-[11px] border border-dashed border-gray-400 bg-white px-2 py-1.5 rounded hover:border-black transition-colors shadow-sm font-medium">
-                {c.code} — {c.discountType === "PERCENT" ? `${c.discountValue}% off` : `₹${c.discountValue} off`}
-                {c.minOrderAmount > 0 && <span className="font-normal text-gray-500"> (min ₹{c.minOrderAmount})</span>}
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => setDiscountCode(c.code)}
+                className={`text-[11px] border border-dashed px-2.5 py-1.5 rounded transition-colors shadow-sm font-medium flex items-center gap-1.5 ${
+                  c.isPersonalized
+                    ? "border-green-600 bg-green-50 text-green-900 hover:border-green-700"
+                    : "border-gray-400 bg-white hover:border-black"
+                }`}
+              >
+                <span>
+                  {c.code} — {c.discountType === "PERCENT" ? `${c.discountValue}% off` : `₹${c.discountValue} off`}
+                  {c.minOrderAmount > 0 && <span className="font-normal text-gray-500"> (min ₹{c.minOrderAmount})</span>}
+                </span>
+                {c.isPersonalized && (
+                  <span className="text-[9px] bg-green-200 text-green-850 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
+                    For You
+                  </span>
+                )}
               </button>
             ))}
           </div>
