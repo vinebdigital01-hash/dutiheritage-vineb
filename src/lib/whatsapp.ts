@@ -4,6 +4,9 @@
 
 export function isWhatsAppConfigured(): boolean {
   const provider = (process.env.WHATSAPP_PROVIDER || "").toLowerCase();
+  if (provider === "bot" || Boolean(process.env.WHATSAPP_BOT_API_URL || process.env.BOT_API_URL)) {
+    return true;
+  }
   if (provider === "interakt") return Boolean(process.env.INTERAKT_API_KEY);
   if (provider === "wati") {
     return Boolean(process.env.WATI_API_TOKEN && process.env.WATI_API_URL);
@@ -21,6 +24,34 @@ function digitsOnly(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+async function sendBotMessage(phone: string, message: string): Promise<SendWhatsAppResult> {
+  const botUrl =
+    process.env.WHATSAPP_BOT_API_URL ||
+    process.env.BOT_API_URL ||
+    "https://dutiheritage-bot.onrender.com/api/notify";
+  const apiKey =
+    process.env.WHATSAPP_BOT_API_KEY ||
+    process.env.BOT_API_KEY ||
+    "";
+  try {
+    const res = await fetch(botUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-bot-api-key": apiKey,
+      },
+      body: JSON.stringify({ phone, message }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, error: `Bot notify failed ${res.status}: ${text}` };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err.message || "Failed to reach WhatsApp bot" };
+  }
+}
+
 export async function sendWhatsApp(input: {
   phone: string;
   message: string;
@@ -33,6 +64,11 @@ export async function sendWhatsApp(input: {
 
   const provider = (process.env.WHATSAPP_PROVIDER || "").toLowerCase();
   const phone = digitsOnly(input.phone);
+
+  const hasBot = Boolean(process.env.WHATSAPP_BOT_API_URL || process.env.BOT_API_URL);
+  if (provider === "bot" || (hasBot && (!provider || provider === "none"))) {
+    return sendBotMessage(phone, input.message);
+  }
 
   if (!provider || provider === "none") {
     console.info("[whatsapp] skipped — WHATSAPP_PROVIDER not set");

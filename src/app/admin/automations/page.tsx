@@ -137,7 +137,7 @@ export default function AdminAutomationsPage() {
           Resend {providers.email ? "configured" : "not set"}
         </Badge>
         <Badge tone={providers.whatsapp ? "success" : "warning"}>
-          WhatsApp {providers.whatsapp ? "configured" : "not set"}
+          WhatsApp {providers.whatsapp ? "Bot Live & Configured" : "not set"}
         </Badge>
       </div>
 

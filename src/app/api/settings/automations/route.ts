@@ -13,6 +13,7 @@ import {
   requireMongo,
 } from "@/lib/api";
 import { isEmailConfigured } from "@/lib/email";
+import { isWhatsAppConfigured } from "@/lib/whatsapp";
 
 /**
  * GET /api/settings/automations — admin: toggles + recent logs
@@ -54,10 +55,7 @@ export async function GET(request: Request) {
       })),
       providers: {
         email: isEmailConfigured(),
-        whatsapp: Boolean(
-          process.env.WHATSAPP_PROVIDER &&
-            process.env.WHATSAPP_PROVIDER !== "none"
-        ),
+        whatsapp: isWhatsAppConfigured(),
       },
     });
   } catch (error) {

@@ -29,6 +29,7 @@ import {
   FiClipboard,
   FiRotateCcw,
   FiSmartphone,
+  FiBell,
 } from "react-icons/fi";
 import { ADMIN_NAV, ADMIN_IDLE_MS, canRoleAccessPath, defaultAdminPath, NAV_SECTIONS } from "@/lib/rbac";
 import { AdminCommandPalette, AdminNewOrderToast } from "@/components/admin/AdminCommandPalette";
@@ -45,7 +46,7 @@ const ICONS: Record<string, IconType> = {
   "/admin/customers": FiUsers,
   "/admin/reviews": FiMessageSquare,
   "/admin/whatsapp": FiMessageCircle,
-  "/admin/restock-requests": FiAlertCircle,
+  "/admin/restock-requests": FiBell,
   "/admin/products": FiBox,
   "/admin/collections": FiGrid,
   "/admin/analytics": FiBarChart2,
@@ -65,10 +66,11 @@ const LABELS: Record<string, string> = {
   "/admin/orders": "Orders",
   "/admin/returns": "Returns",
   "/admin/inventory": "Stock",
-  "/admin/offline-sales": "Offline QR",
+  "/admin/offline-sales": "Offline POS / QR",
   "/admin/customers": "Customers",
   "/admin/reviews": "Reviews",
   "/admin/whatsapp": "WhatsApp chats",
+  "/admin/restock-requests": "Restock Requests",
   "/admin/products": "Products",
   "/admin/collections": "Collections",
   "/admin/analytics": "Sales charts",
