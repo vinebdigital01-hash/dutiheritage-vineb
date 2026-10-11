@@ -89,18 +89,18 @@ export const Header = () => {
           <div className="flex-1 flex justify-center items-center text-center min-w-0 px-1 sm:px-2">
             <Link
               href="/"
-              className="inline-flex items-center justify-center gap-1.5 sm:gap-2.5 md:gap-3 text-[14px] sm:text-xl md:text-2xl lg:text-3xl font-normal tracking-[1px] sm:tracking-[2px] lg:tracking-[3px] uppercase font-serif whitespace-nowrap leading-none mt-0.5 md:mt-0 group min-w-0"
+              className="inline-flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 text-[18px] sm:text-xl md:text-2xl lg:text-3xl font-normal tracking-[2px] lg:tracking-[3px] uppercase font-serif whitespace-nowrap leading-none mt-0.5 md:mt-0 group min-w-0"
             >
               <Image
                 src={siteContent?.storeLogo || "/logo-icon.png"}
                 alt="Duti Heritage"
                 width={36}
                 height={36}
-                className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-9 lg:h-9 object-contain transition-transform duration-200 group-hover:scale-105 flex-shrink-0"
+                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 object-contain transition-transform duration-200 group-hover:scale-105 flex-shrink-0"
                 priority
                 unoptimized
               />
-              <span className="truncate">DUTI HERITAGE</span>
+              <span>DUTI HERITAGE</span>
             </Link>
           </div>
 
@@ -123,7 +123,7 @@ export const Header = () => {
                 ))}
             </nav>
 
-            <div className="flex items-center gap-2.5 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
               <button
                 onClick={() => setIsSearchOpen(true)}
                 className="flex xl:hidden items-center justify-center text-[var(--color-text)] hover:opacity-70 transition-opacity p-1"
@@ -143,7 +143,7 @@ export const Header = () => {
               </button>
               <Link
                 href="/account"
-                className="flex items-center justify-center text-[var(--color-text)] hover:opacity-70 transition-opacity p-1"
+                className="hidden md:flex items-center justify-center text-[var(--color-text)] hover:opacity-70 transition-opacity p-1"
                 aria-label="Account"
               >
                 <svg

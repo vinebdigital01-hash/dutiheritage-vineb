@@ -67,6 +67,26 @@ export const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
 
         <nav className="flex flex-col py-4 flex-1 overflow-y-auto">
           <Link
+            href="/account"
+            className="flex items-center gap-3 px-4 py-3.5 text-base font-medium border-b border-[var(--color-surface)] bg-[var(--color-surface)]/60 hover:bg-[var(--color-surface)] transition-colors text-[var(--color-text)]"
+            onClick={onClose}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span className="tracking-wide uppercase text-sm">
+              {user ? (user.name ? `Account (${user.name})` : "My Account") : "Login / Register"}
+            </span>
+          </Link>
+          <Link
             href="/collections/all"
             className="px-4 py-3 text-base border-b border-[var(--color-surface)]"
             onClick={onClose}
