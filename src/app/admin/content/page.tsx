@@ -14,6 +14,7 @@ import { ImageUploader } from "@/components/admin/ImageUploader";
 import type { HeroBanner } from "@/lib/site-content-shared";
 
 type SiteContent = {
+  storeLogo?: string;
   announcementText?: string;
   headerNavLinks?: { label: string; slug: string }[];
   homepageSlugs?: string[];
@@ -161,6 +162,15 @@ export default function AdminContentPage() {
         onSubmit={saveContent}
         className="bg-white border border-[var(--color-border)] rounded-xl p-5 md:p-8 shadow-sm space-y-6 mb-10"
       >
+        <AdminInput
+          label="Store Logo Image URL (Optional - defaults to /logo.svg)"
+          placeholder="https://... or leave empty for default brand logo"
+          value={content.storeLogo || ""}
+          onChange={(e) =>
+            setContent((c) => ({ ...c, storeLogo: e.target.value }))
+          }
+        />
+
         <AdminInput
           label="Announcement bar"
           value={content.announcementText || ""}

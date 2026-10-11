@@ -50,6 +50,7 @@ const FooterSchema = new Schema(
 const SiteContentSchema = new Schema(
   {
     _id: { type: String, default: "global" },
+    storeLogo: { type: String, default: "" },
     announcementText: {
       type: String,
       default: "NEW ARRIVALS UPTO 40% OFF",

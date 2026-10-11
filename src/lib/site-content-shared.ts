@@ -12,6 +12,7 @@ export type HeroBanner = {
 };
 
 export type SiteContentData = {
+  storeLogo?: string;
   announcementText?: string;
   headerNavLinks?: NavLink[];
   homepageSlugs?: string[];

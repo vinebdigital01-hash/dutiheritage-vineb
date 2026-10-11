@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { MobileMenu } from "./MobileMenu";
 import { useAppContext } from "@/context/AppContext";
 import { useSiteContent } from "@/hooks/useSiteContent";
@@ -88,9 +89,18 @@ export const Header = () => {
           <div className="flex-[2] md:flex-1 flex justify-center items-center text-center">
             <Link
               href="/"
-              className="text-[18px] sm:text-xl md:text-2xl lg:text-3xl font-normal tracking-[2px] lg:tracking-[3px] uppercase font-serif whitespace-nowrap leading-none mt-1 md:mt-0"
+              className="inline-flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 text-[18px] sm:text-xl md:text-2xl lg:text-3xl font-normal tracking-[2px] lg:tracking-[3px] uppercase font-serif whitespace-nowrap leading-none mt-1 md:mt-0 group"
             >
-              DUTI HERITAGE
+              <Image
+                src={siteContent?.storeLogo || "/logo.svg"}
+                alt="Duti Heritage"
+                width={36}
+                height={36}
+                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 object-contain transition-transform duration-200 group-hover:scale-105"
+                priority
+                unoptimized
+              />
+              <span>DUTI HERITAGE</span>
             </Link>
           </div>
 

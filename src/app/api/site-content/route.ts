@@ -68,6 +68,7 @@ export async function GET() {
     return new Response(
       JSON.stringify({
         content: {
+          storeLogo: doc.storeLogo,
           announcementText: doc.announcementText,
           headerNavLinks: doc.headerNavLinks,
           homepageSlugs: doc.homepageSlugs,
@@ -98,6 +99,9 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const update: Record<string, unknown> = {};
 
+    if (body.storeLogo !== undefined) {
+      update.storeLogo = String(body.storeLogo || "").trim();
+    }
     if (body.announcementText !== undefined) {
       update.announcementText = String(body.announcementText);
     }
@@ -153,6 +157,7 @@ export async function PUT(request: Request) {
 
     return jsonOk({
       content: {
+        storeLogo: doc?.storeLogo,
         announcementText: doc?.announcementText,
         headerNavLinks: doc?.headerNavLinks,
         homepageSlugs: doc?.homepageSlugs,
