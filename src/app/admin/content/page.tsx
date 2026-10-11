@@ -163,7 +163,7 @@ export default function AdminContentPage() {
         className="bg-white border border-[var(--color-border)] rounded-xl p-5 md:p-8 shadow-sm space-y-6 mb-10"
       >
         <AdminInput
-          label="Store Logo Image URL (Optional - defaults to /logo.svg)"
+          label="Store Logo Image URL (Optional - defaults to /logo-icon.png)"
           placeholder="https://... or leave empty for default brand logo"
           value={content.storeLogo || ""}
           onChange={(e) =>
