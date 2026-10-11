@@ -131,42 +131,50 @@ async function notifyChannels(input: {
   emailType?: "auth" | "orders" | "marketing";
 }): Promise<{ emailOk: boolean; waOk: boolean; detail: string }> {
   const parts: string[] = [];
+
+  const [emailResult, waResult] = await Promise.allSettled([
+    (async () => {
+      if (!input.email) return { ok: true, skipped: true };
+      return sendEmail({
+        to: input.email,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        type: input.emailType,
+      });
+    })(),
+    (async () => {
+      if (!input.phone || (!isWhatsAppConfigured() && !process.env.WHATSAPP_PROVIDER)) {
+        return { ok: true, skipped: true };
+      }
+      return sendWhatsApp({
+        phone: input.phone,
+        message: input.waMessage,
+        templateName: input.waTemplate,
+        templateParams: input.waParams,
+      });
+    })(),
+  ]);
+
   let emailOk = true;
   let waOk = true;
 
-  if (input.email && isEmailConfigured()) {
-    const r = await sendEmail({
-      to: input.email,
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-      type: input.emailType,
-    });
-    emailOk = r.ok;
+  if (emailResult.status === "fulfilled") {
+    const r = emailResult.value as { ok?: boolean; skipped?: boolean; error?: string };
+    emailOk = Boolean(r.ok);
     parts.push(r.skipped ? "email:skipped" : r.ok ? "email:sent" : `email:${r.error}`);
-  } else if (input.email) {
-    const r = await sendEmail({
-      to: input.email,
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-      type: input.emailType,
-    });
-    parts.push(r.skipped ? "email:skipped" : r.ok ? "email:sent" : `email:${r.error}`);
-    emailOk = r.ok;
+  } else {
+    emailOk = false;
+    parts.push(`email:${emailResult.reason?.message || "error"}`);
   }
 
-  if (input.phone && (isWhatsAppConfigured() || process.env.WHATSAPP_PROVIDER)) {
-    const r = await sendWhatsApp({
-      phone: input.phone,
-      message: input.waMessage,
-      templateName: input.waTemplate,
-      templateParams: input.waParams,
-    });
-    waOk = r.ok;
+  if (waResult.status === "fulfilled") {
+    const r = waResult.value as { ok?: boolean; skipped?: boolean; error?: string };
+    waOk = Boolean(r.ok);
     parts.push(r.skipped ? "wa:skipped" : r.ok ? "wa:sent" : `wa:${r.error}`);
-  } else if (input.phone) {
-    parts.push("wa:skipped");
+  } else {
+    waOk = false;
+    parts.push(`wa:${waResult.reason?.message || "error"}`);
   }
 
   return { emailOk, waOk, detail: parts.join(", ") || "nothing_to_send" };
@@ -438,7 +446,7 @@ export async function sendOrderConfirmed(input: {
     intro,
     nextStep
   );
-  const wa = `Your order ${input.orderId} is confirmed. Total ₹${input.total}. We will share tracking once it ships.`;
+  const wa = `✅ *Order Confirmed!* 🎉\n\nHi ${name}, great news! Your Duti Heritage order *${input.orderId}* (₹${rupees(input.total)}) has been confirmed.\n\nOur artisans have started hand-packing your order with care. We'll update you right here with live tracking details once dispatched!\n\n🔗 *Track your order:* ${SITE()}/account/orders`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -480,7 +488,7 @@ export async function sendOrderOnHold(input: {
     preheader: `Order ${input.orderId} paused`,
     primaryCta: { label: "View order", href: `${SITE()}/account/orders` },
   });
-  const wa = `Your order ${input.orderId} is on hold${input.reason ? `: ${input.reason}` : ""}. We will update you shortly.`;
+  const wa = `⏸️ *Order Update — On Hold*\n\nHi ${name}, your order *${input.orderId}* is temporarily on hold${input.reason ? `\n\n📌 *Reason:* ${input.reason}` : ""}.\n\nOur team is reviewing a few details before dispatch. If you have any questions, reply to this chat or visit: ${SITE()}/contact-us`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -657,7 +665,7 @@ export async function sendOrderCancelled(input: {
     `<p style="margin:0;font-size:13px;color:#6b6560;">If you did not ask for this, reply to this email or write to support.</p>`;
 
   const text = `Order ${input.orderId} cancelled. ${textExtra}`;
-  const wa = `Your order ${input.orderId} has been cancelled. ${waExtra}`;
+  const wa = `❌ *Order Cancelled*\n\nHi ${name}, your Duti Heritage order *${input.orderId}* has been cancelled.\n\n📌 *Status:* ${waExtra}\n\nIf you have any questions or this was unexpected, please reply here or visit: ${SITE()}/contact-us`;
 
   const result = await notifyChannels({
     email: input.email,
@@ -760,7 +768,7 @@ export async function sendCancelRequestDeclined(input: {
     emailNote(`<strong>Reason:</strong> ${esc(input.reason)}`) +
     `<p style="margin:0;font-size:14px;color:#6b6560;">Your order is still active. Reply to this email if you need help.</p>`;
   const text = `Cancellation of ${input.orderId} was declined. Reason: ${input.reason}`;
-  const wa = `We could not cancel order ${input.orderId}. Reason: ${input.reason}`;
+  const wa = `⚠️ *Cancellation Request Update*\n\nHi ${name}, we reviewed your cancellation request for order *${input.orderId}*.\n\nAt this time, we are unable to cancel this order.\n📌 *Reason:* ${input.reason}\n\nYour order remains active. If you need assistance, reply to this chat or visit: ${SITE()}/contact-us`;
 
   const result = await notifyChannels({
     email: input.email,

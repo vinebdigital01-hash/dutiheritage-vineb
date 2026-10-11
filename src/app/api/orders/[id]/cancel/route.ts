@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
+import { waitUntil } from "@vercel/functions";
 import { Order } from "@/models";
 import { verifyIdToken, AuthError } from "@/lib/auth";
 import { handleApiError, jsonOk, jsonError, requireMongo, ApiError } from "@/lib/api";
@@ -53,7 +54,7 @@ export async function POST(request: Request, { params }: Params) {
       order.markModified("timeline");
       await order.save();
 
-      void sendAdminCancelRequestAlert({
+      const alertPromise = sendAdminCancelRequestAlert({
         orderId: order.orderId,
         reason,
         customerName: order.customer?.name,
@@ -61,6 +62,11 @@ export async function POST(request: Request, { params }: Params) {
         total: order.total,
         paymentMethod: order.paymentMethod,
       }).catch((e) => console.error("[cancel-request] staff alert", e));
+
+      try {
+        waitUntil(alertPromise);
+      } catch {}
+      await alertPromise;
 
       return jsonOk({
         success: true,
@@ -100,7 +106,7 @@ export async function POST(request: Request, { params }: Params) {
       }
     );
 
-    void sendOrderCancelled({
+    const cancelPromise = sendOrderCancelled({
       email: order.customer?.email,
       phone: order.customer?.phone,
       name: order.customer?.name,
@@ -111,6 +117,11 @@ export async function POST(request: Request, { params }: Params) {
       refundAmount: 0,
       refundChannel: "cod_note",
     }).catch((e) => console.error("[cod-cancel] email", e));
+
+    try {
+      waitUntil(cancelPromise);
+    } catch {}
+    await cancelPromise;
 
     return jsonOk({
       success: true,

@@ -1,9 +1,15 @@
 import { requireAuth } from "@/lib/auth";
+import { waitUntil } from "@vercel/functions";
 import { OPS_WRITE } from "@/lib/rbac";
 import { Order, ORDER_STATUSES } from "@/models/Order";
 import { connectDB } from "@/lib/mongodb";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api";
-import { sendOrderShipped, sendOrderDelivered, sendOrderCancelled } from "@/lib/automations";
+import {
+  sendOrderConfirmed,
+  sendOrderShipped,
+  sendOrderDelivered,
+  sendOrderCancelled,
+} from "@/lib/automations";
 
 type UpdateRow = {
   orderId: string;
@@ -27,6 +33,7 @@ export async function POST(request: Request) {
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const bulkPromises: Promise<unknown>[] = [];
 
     for (const row of updates) {
       if (!row.orderId) {
@@ -92,27 +99,42 @@ export async function POST(request: Request) {
             customerId: result.customerId?.toString(),
           };
 
+          if (updateData.status === "Confirmed" && prevStatus !== "Confirmed") {
+            bulkPromises.push(
+              sendOrderConfirmed({
+                ...notifyBase,
+                total: result.total,
+              }).catch((e) => console.error("[bulk_order_confirmed]", e))
+            );
+          }
+
           if (updateData.status === "Shipped" && prevStatus !== "Shipped") {
-            void sendOrderShipped({
-              ...notifyBase,
-              trackingUrl: result.trackingInfo?.trackingUrl,
-              courier: result.trackingInfo?.courier,
-              awb: result.trackingInfo?.awb,
-            }).catch((e) => console.error("[bulk_order_shipped]", e));
+            bulkPromises.push(
+              sendOrderShipped({
+                ...notifyBase,
+                trackingUrl: result.trackingInfo?.trackingUrl,
+                courier: result.trackingInfo?.courier,
+                awb: result.trackingInfo?.awb,
+              }).catch((e) => console.error("[bulk_order_shipped]", e))
+            );
           }
 
           if (updateData.status === "Delivered" && prevStatus !== "Delivered") {
-            void sendOrderDelivered(notifyBase).catch((e) =>
-              console.error("[bulk_order_delivered]", e)
+            bulkPromises.push(
+              sendOrderDelivered(notifyBase).catch((e) =>
+                console.error("[bulk_order_delivered]", e)
+              )
             );
           }
 
           if (updateData.status === "Cancelled" && prevStatus !== "Cancelled") {
-            void sendOrderCancelled({
-              ...notifyBase,
-              total: result.total,
-              paymentMethod: result.paymentMethod,
-            }).catch((e) => console.error("[bulk_order_cancelled]", e));
+            bulkPromises.push(
+              sendOrderCancelled({
+                ...notifyBase,
+                total: result.total,
+                paymentMethod: result.paymentMethod,
+              }).catch((e) => console.error("[bulk_order_cancelled]", e))
+            );
           }
 
         } else {
@@ -123,6 +145,13 @@ export async function POST(request: Request) {
         errorCount++;
         errors.push(`Error updating ${row.orderId}: ${e.message}`);
       }
+    }
+
+    if (bulkPromises.length > 0) {
+      try {
+        waitUntil(Promise.allSettled(bulkPromises));
+      } catch {}
+      await Promise.allSettled(bulkPromises);
     }
 
     return jsonOk({

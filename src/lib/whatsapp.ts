@@ -34,15 +34,22 @@ function digitsOnly(phone: string): string {
 }
 
 async function sendBotMessage(phone: string, message: string): Promise<SendWhatsAppResult> {
-  const botUrl =
+  let rawUrl =
     process.env.WHATSAPP_BOT_API_URL ||
     process.env.BOT_API_URL ||
     process.env.BOT_SERVER_URL ||
-    "https://dutiheritage-bot.onrender.com/api/notify";
+    "https://dutiheritage-bot.onrender.com";
+  rawUrl = rawUrl.trim().replace(/\/$/, "");
+  const botUrl = rawUrl.endsWith("/api/notify") ? rawUrl : `${rawUrl}/api/notify`;
+
   const apiKey =
     process.env.WHATSAPP_BOT_API_KEY ||
     process.env.BOT_API_KEY ||
     "duti_bot_secret_key_2026";
+
+  let cleanPhone = digitsOnly(phone);
+  if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
+
   try {
     const res = await fetch(botUrl, {
       method: "POST",
@@ -50,14 +57,17 @@ async function sendBotMessage(phone: string, message: string): Promise<SendWhats
         "Content-Type": "application/json",
         "x-bot-api-key": apiKey,
       },
-      body: JSON.stringify({ phone, message }),
+      body: JSON.stringify({ phone: cleanPhone, message }),
+      signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      console.error("[whatsapp/bot] send failed:", res.status, text);
       return { ok: false, error: `Bot notify failed ${res.status}: ${text}` };
     }
     return { ok: true };
   } catch (err: any) {
+    console.error("[whatsapp/bot] network error:", err.message);
     return { ok: false, error: err.message || "Failed to reach WhatsApp bot" };
   }
 }

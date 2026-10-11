@@ -1,4 +1,5 @@
 import { applyRateLimit } from "@/lib/rate-limit";
+import { waitUntil } from "@vercel/functions";
 import { requireAuth, getStaffRole } from "@/lib/auth";
 import {
   upsertCustomerFromAuth,
@@ -43,13 +44,15 @@ export async function POST(request: Request) {
     const { customer, isNew } = await upsertCustomerFromAuth(authUser, payload);
 
     if (isNew) {
-      // Fire-and-forget — don't block login on email/WhatsApp
-      void sendWelcome({
+      const welcomePromise = sendWelcome({
         email: customer.email,
         phone: customer.phone,
         name: customer.name,
         customerId: customer._id.toString(),
       }).catch((e) => console.error("[welcome]", e));
+      try {
+        waitUntil(welcomePromise);
+      } catch {}
     }
 
     const role = await getStaffRole(authUser.email || customer.email);

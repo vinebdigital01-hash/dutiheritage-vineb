@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
+import { waitUntil } from "@vercel/functions";
 import { Order, ORDER_STATUSES, type OrderStatus } from "@/models";
 import { requireAuth, getStaffRole, verifyIdToken, AuthError } from "@/lib/auth";
 import { toOrder } from "@/lib/mappers";
@@ -230,32 +231,42 @@ export async function PUT(request: Request, { params }: Params) {
       customerId: order.customerId?.toString(),
     };
 
+    const notifyPromises: Promise<unknown>[] = [];
+
     if (order.status === "Confirmed" && prevStatus !== "Confirmed") {
-      void sendOrderConfirmed({
-        ...notifyBase,
-        total: order.total,
-      }).catch((e) => console.error("[order_confirmed]", e));
+      notifyPromises.push(
+        sendOrderConfirmed({
+          ...notifyBase,
+          total: order.total,
+        }).catch((e) => console.error("[order_confirmed]", e))
+      );
     }
 
     if (order.status === "On Hold" && prevStatus !== "On Hold") {
-      void sendOrderOnHold({
-        ...notifyBase,
-        reason: reason || order.statusReason || undefined,
-      }).catch((e) => console.error("[order_hold]", e));
+      notifyPromises.push(
+        sendOrderOnHold({
+          ...notifyBase,
+          reason: reason || order.statusReason || undefined,
+        }).catch((e) => console.error("[order_hold]", e))
+      );
     }
 
     if (order.status === "Shipped" && prevStatus !== "Shipped") {
-      void sendOrderShipped({
-        ...notifyBase,
-        trackingUrl: order.trackingInfo?.trackingUrl,
-        courier: order.trackingInfo?.courier,
-        awb: order.trackingInfo?.awb,
-      }).catch((e) => console.error("[order_shipped]", e));
+      notifyPromises.push(
+        sendOrderShipped({
+          ...notifyBase,
+          trackingUrl: order.trackingInfo?.trackingUrl,
+          courier: order.trackingInfo?.courier,
+          awb: order.trackingInfo?.awb,
+        }).catch((e) => console.error("[order_shipped]", e))
+      );
     }
 
     if (order.status === "Delivered" && prevStatus !== "Delivered") {
-      void sendOrderDelivered(notifyBase).catch((e) =>
-        console.error("[order_delivered]", e)
+      notifyPromises.push(
+        sendOrderDelivered(notifyBase).catch((e) =>
+          console.error("[order_delivered]", e)
+        )
       );
     }
 
@@ -271,18 +282,31 @@ export async function PUT(request: Request, { params }: Params) {
         true,
         { reason: "cancel", orderId: order.orderId, actor }
       );
-      void sendOrderCancelled({
-        ...notifyBase,
-        total: order.total,
-        paymentMethod: order.paymentMethod,
-      }).catch((e) => console.error("[order_cancelled]", e));
+      notifyPromises.push(
+        sendOrderCancelled({
+          ...notifyBase,
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+        }).catch((e) => console.error("[order_cancelled]", e))
+      );
     }
 
     if (cancelWasRejected) {
-      void sendCancelRequestDeclined({
-        ...notifyBase,
-        reason: cancelRejectReasonText,
-      }).catch((e) => console.error("[cancel_declined]", e));
+      notifyPromises.push(
+        sendCancelRequestDeclined({
+          ...notifyBase,
+          reason: cancelRejectReasonText,
+        }).catch((e) => console.error("[cancel_declined]", e))
+      );
+    }
+
+    if (notifyPromises.length > 0) {
+      try {
+        waitUntil(Promise.allSettled(notifyPromises));
+      } catch {
+        // Fallback for non-Vercel runtimes
+      }
+      await Promise.allSettled(notifyPromises);
     }
 
     if (order.status === "Returned" && prevStatus !== "Returned") {

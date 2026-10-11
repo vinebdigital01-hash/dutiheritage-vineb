@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
+import { waitUntil } from "@vercel/functions";
 import { Order } from "@/models";
 import { requireAuth } from "@/lib/auth";
 import { OPS_WRITE } from "@/lib/rbac";
@@ -93,7 +94,7 @@ export async function POST(request: Request, { params }: Params) {
       { reason: "cancel", orderId: order.orderId, actor }
     );
 
-    void sendOrderCancelled({
+    const cancelPromise = sendOrderCancelled({
       email: order.customer?.email,
       phone: order.customer?.phone,
       name: order.customer?.name,
@@ -103,7 +104,12 @@ export async function POST(request: Request, { params }: Params) {
       paymentMethod: order.paymentMethod,
       refundAmount,
       refundChannel,
-    }).catch((e) => console.error("[approve-cancel] customer email", e));
+    }).catch((e) => console.error("[approve-cancel] customer notify", e));
+
+    try {
+      waitUntil(cancelPromise);
+    } catch {}
+    await cancelPromise;
 
     await logAdminAction({
       request,
