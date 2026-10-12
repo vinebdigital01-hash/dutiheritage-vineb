@@ -113,7 +113,7 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     isActive: p.isActive !== false,
     showSaleBadge: Boolean(p.showSaleBadge ?? (Array.isArray(p.tags) && p.tags.includes("Sale"))),
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
-    trackInventory: p.trackInventory || false,
+    trackInventory: p.trackInventory ?? (Boolean(p.inventory && p.inventory.length > 0)),
     lowStockThreshold: String(p.lowStockThreshold || 5),
     inventory: (p.inventory || []).map(i => ({ size: i.size || "", color: i.color || "", stock: String(i.stock), sku: i.sku || "" })),
     hsn: p.hsn || "6104",

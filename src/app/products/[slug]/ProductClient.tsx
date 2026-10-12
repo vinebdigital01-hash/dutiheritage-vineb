@@ -136,7 +136,9 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const images = [product.image, ...(product.images || [])].filter(Boolean); 
   const sizes = product.sizes?.length ? product.sizes : ["Free Size"];
 
-  const isInventoryTracked = product.trackInventory;
+  const isInventoryTracked = Boolean(
+    product.trackInventory ?? (product.inventory && product.inventory.length > 0)
+  );
   const isTotallySoldOut = isInventoryTracked && (!product.inventory || product.inventory.every(i => i.stock === 0));
   
   const c = product.colors && product.colors.length > 0 ? product.colors[0] : undefined;
@@ -511,11 +513,15 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                     let stockLeft = 0;
                     
                     if (isInventoryTracked && product.inventory) {
-                      const inv = product.inventory.find(i => i.size === size && (!i.color || i.color === selectedColor));
+                      const inv = product.inventory.find(i => 
+                        i.size === size && (!selectedColor || !i.color || i.color === selectedColor)
+                      ) || product.inventory.find(i => i.size === size);
+
                       if (inv) {
                         stockLeft = Number(inv.stock || 0);
                         outOfStock = stockLeft === 0;
-                        lowStock = stockLeft > 0 && stockLeft <= (product.lowStockThreshold || 5) && stockLeft <= 5;
+                        const threshold = Math.min(product.lowStockThreshold ?? 5, 5);
+                        lowStock = stockLeft > 0 && stockLeft <= threshold;
                       } else {
                         outOfStock = true; // explicitly tracked but size missing = out of stock
                       }
@@ -527,17 +533,21 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                         disabled={outOfStock}
                         onClick={() => setSelectedSize(size)}
                         className={`
-                          py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all relative overflow-hidden group
+                          py-3 px-2 rounded-xl text-[14px] font-semibold flex flex-col items-center justify-center transition-all relative overflow-hidden group min-h-[58px]
                           ${outOfStock ? 'opacity-40 cursor-not-allowed bg-gray-50 text-gray-400 border-2 border-transparent line-through' :
                             selectedSize === size 
                             ? 'bg-[#EAF5EC] border-2 border-[#2E7D32] text-[#2E7D32]' 
                             : 'bg-gray-50 border-2 border-transparent text-gray-700 hover:bg-gray-100'}
                         `}
                       >
-                        {size}
+                        <span className="leading-tight">{size}</span>
                         {lowStock && (
-                           <span className={`text-[10px] mt-0.5 leading-none font-bold ${selectedSize === size ? 'text-amber-800' : 'text-amber-600'}`}>
-                             Only {stockLeft} left
+                           <span className={`text-[10px] mt-1 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap leading-none transition-colors ${
+                             selectedSize === size 
+                               ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                               : 'bg-amber-50 text-amber-700 border border-amber-200'
+                           }`}>
+                             Only {stockLeft} left!
                            </span>
                         )}
                         {outOfStock && (
@@ -579,13 +589,13 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 if (!isInventoryTracked || !product.inventory) return null;
                 const currentInv = product.inventory.find(i => 
                   (!selectedSize || i.size === selectedSize) && (!selectedColor || !i.color || i.color === selectedColor)
-                );
+                ) || product.inventory.find(i => (!selectedSize || i.size === selectedSize));
                 const currentStock = currentInv ? Number(currentInv.stock || 0) : (product.inventory.length === 1 ? Number(product.inventory[0].stock || 0) : null);
-                const threshold = product.lowStockThreshold ?? 5;
-                if (currentStock !== null && currentStock > 0 && currentStock <= threshold && currentStock <= 5) {
+                const threshold = Math.min(product.lowStockThreshold ?? 5, 5);
+                if (currentStock !== null && currentStock > 0 && currentStock <= threshold) {
                   return (
                     <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200/90 rounded-xl text-amber-900 text-[12px] font-semibold mt-3 animate-fade-in-up">
-                      <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                      <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                       <span>Hurry! Only {currentStock} left in stock{selectedSize ? ` for size ${selectedSize}` : ''}{selectedColor ? ` (${selectedColor})` : ''} — order soon!</span>
                     </div>
                   );
