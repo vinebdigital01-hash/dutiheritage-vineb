@@ -42,6 +42,71 @@ export default function AdminReviewsPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Edit Existing Review State
+  const [editingReview, setEditingReview] = useState<ReviewDTO | null>(null);
+  const [editForm, setEditForm] = useState({
+    userName: "",
+    rating: 5,
+    comment: "",
+    createdAt: "",
+    images: [] as string[],
+    status: "approved" as ReviewDTO["status"],
+    isVerifiedPurchase: true,
+  });
+  const [updatingReview, setUpdatingReview] = useState(false);
+
+  const openEditModal = (r: ReviewDTO) => {
+    setEditingReview(r);
+    let dt = "";
+    if (r.createdAt) {
+      const d = new Date(r.createdAt);
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, "0");
+        dt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+    setEditForm({
+      userName: r.userName || "",
+      rating: r.rating || 5,
+      comment: r.comment || "",
+      createdAt: dt,
+      images: Array.isArray(r.images) ? [...r.images] : [],
+      status: r.status || "approved",
+      isVerifiedPurchase: Boolean(r.isVerifiedPurchase),
+    });
+  };
+
+  const submitEditReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReview) return;
+    if (!editForm.userName.trim()) {
+      show("Customer name is required", "error");
+      return;
+    }
+    setUpdatingReview(true);
+    try {
+      await adminFetch(`/api/reviews/${editingReview.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          userName: editForm.userName.trim(),
+          rating: editForm.rating,
+          comment: editForm.comment.trim(),
+          status: editForm.status,
+          createdAt: editForm.createdAt ? new Date(editForm.createdAt).toISOString() : undefined,
+          images: editForm.images,
+          isVerifiedPurchase: editForm.isVerifiedPurchase,
+        }),
+      });
+      show("Review updated successfully!");
+      setEditingReview(null);
+      await load();
+    } catch (e) {
+      show(e instanceof AdminApiError ? e.message : "Failed to update review", "error");
+    } finally {
+      setUpdatingReview(false);
+    }
+  };
+
   const load = async (status: StatusFilter = filter) => {
     setLoading(true);
     try {
@@ -299,6 +364,13 @@ export default function AdminReviewsPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <AdminButton
+                    variant="secondary"
+                    disabled={busyId === r.id}
+                    onClick={() => openEditModal(r)}
+                  >
+                    Edit
+                  </AdminButton>
                   {r.status !== "approved" && (
                     <AdminButton
                       disabled={busyId === r.id}
@@ -467,6 +539,155 @@ export default function AdminReviewsPage() {
                 </AdminButton>
                 <AdminButton type="submit" disabled={submitting}>
                   {submitting ? "Publishing..." : "Publish Review"}
+                </AdminButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Review Modal */}
+      {editingReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-lg font-bold">Edit Review</h2>
+                <p className="text-[12px] text-gray-500">Update rating, comment, photos & custom date/time</p>
+              </div>
+              <button 
+                onClick={() => setEditingReview(null)} 
+                className="text-gray-400 hover:text-black p-1 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={submitEditReview} className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AdminInput
+                  label="Customer Name"
+                  placeholder="e.g. Priya Sharma"
+                  value={editForm.userName}
+                  onChange={(e) => setEditForm({ ...editForm, userName: e.target.value })}
+                  required
+                />
+
+                <AdminSelect
+                  label="Rating"
+                  value={editForm.rating.toString()}
+                  onChange={(e) => setEditForm({ ...editForm, rating: Number(e.target.value) })}
+                  required
+                >
+                  <option value="5">5 Stars ★★★★★</option>
+                  <option value="4">4 Stars ★★★★☆</option>
+                  <option value="3">3 Stars ★★★☆☆</option>
+                  <option value="2">2 Stars ★★☆☆☆</option>
+                  <option value="1">1 Star ★☆☆☆☆</option>
+                </AdminSelect>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AdminSelect
+                  label="Status"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value as ReviewDTO["status"] })}
+                  required
+                >
+                  <option value="approved">Approved (Public)</option>
+                  <option value="pending">Pending (Hidden)</option>
+                  <option value="rejected">Rejected (Hidden)</option>
+                </AdminSelect>
+
+                <div>
+                  <AdminInput
+                    type="datetime-local"
+                    label="Review Date & Time"
+                    value={editForm.createdAt}
+                    onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">Select date & time of your choice</p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer text-[13px] text-gray-700 font-medium">
+                <input
+                  type="checkbox"
+                  checked={editForm.isVerifiedPurchase}
+                  onChange={(e) => setEditForm({ ...editForm, isVerifiedPurchase: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+                />
+                Verified Purchase Badge
+              </label>
+
+              <AdminTextarea
+                label="Review Comment"
+                placeholder="Write or edit customer review here..."
+                value={editForm.comment}
+                onChange={(e) => setEditForm({ ...editForm, comment: e.target.value })}
+                rows={4}
+              />
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-[12px] tracking-[1px] uppercase text-neutral-500 font-semibold">
+                    Review Photos ({editForm.images.length}/5)
+                  </p>
+                  {editForm.images.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, images: [] })}
+                      className="text-[11px] text-red-500 hover:underline"
+                    >
+                      Clear all photos
+                    </button>
+                  )}
+                </div>
+
+                {editForm.images.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {editForm.images.map((src, idx) => (
+                      <div key={idx} className="relative w-16 h-20 border rounded-lg overflow-hidden bg-neutral-50 shadow-sm">
+                        <Image src={src} alt="" fill className="object-cover" sizes="64px" />
+                        <button
+                          type="button"
+                          className="absolute top-1 right-1 bg-black/80 text-white w-5 h-5 text-[11px] rounded-full flex items-center justify-center hover:bg-black transition-colors"
+                          onClick={() =>
+                            setEditForm((f) => ({
+                              ...f,
+                              images: f.images.filter((_, i) => i !== idx),
+                            }))
+                          }
+                          title="Remove photo"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {editForm.images.length < 5 && (
+                  <ImageUploader
+                    label="Upload / Add photo"
+                    folder="dutiheritage/reviews"
+                    onChange={() => {}}
+                    multiple
+                    onAdd={(url) =>
+                      setEditForm((f) => ({
+                        ...f,
+                        images: [...f.images, url].slice(0, 5),
+                      }))
+                    }
+                  />
+                )}
+              </div>
+
+              <div className="pt-3 border-t flex justify-end gap-2">
+                <AdminButton variant="ghost" onClick={() => setEditingReview(null)}>
+                  Cancel
+                </AdminButton>
+                <AdminButton type="submit" disabled={updatingReview}>
+                  {updatingReview ? "Saving Changes…" : "Update Review"}
                 </AdminButton>
               </div>
             </form>

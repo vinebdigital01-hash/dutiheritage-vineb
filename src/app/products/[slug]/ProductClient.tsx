@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Product } from "@/types";
 import { FaTwitter, FaPinterestP, FaInstagram } from "react-icons/fa";
-import { FiShare2, FiLink, FiCopy, FiHeart, FiX } from "react-icons/fi";
+import { FiShare2, FiLink, FiCopy, FiHeart, FiX, FiUpload } from "react-icons/fi";
 import { MdLocalOffer } from "react-icons/md";
 import { ProductGallery } from "@/components/ProductGallery/ProductGallery";
 import { CollectionSection } from "@/components/CollectionSection/CollectionSection";
@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { authHeaders } from "@/lib/checkout-client";
 import { trackEvent, trackPageDuration } from "@/lib/track-client";
 import type { ReviewDTO } from "@/lib/reviews";
+import { compressImageForUpload } from "@/lib/image-compress";
 
 const getVideoInfo = (url: string) => {
   if (url.includes('instagram.com')) {
@@ -54,6 +55,9 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
   const [averageRating, setAverageRating] = useState(0);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
+  const [reviewImages, setReviewImages] = useState<string[]>([]);
+  const [uploadingReviewImage, setUploadingReviewImage] = useState(false);
+  const [previewReviewImage, setPreviewReviewImage] = useState<string | null>(null);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
 
@@ -225,6 +229,7 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
       }
       setReviewRating(5);
       setReviewComment("");
+      setReviewImages([]);
       setIsReviewModalOpen(true);
     } catch {
       showToast("Could not verify review eligibility. Try again.");
@@ -233,7 +238,60 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
     }
   };
 
+  const handleReviewImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (reviewImages.length >= 5) {
+      showToast("Maximum 5 photos allowed per review");
+      e.target.value = "";
+      return;
+    }
+
+    setUploadingReviewImage(true);
+    try {
+      const headers = await authHeaders();
+      const authHeader = (headers as any)?.Authorization;
+
+      const remainingSlots = 5 - reviewImages.length;
+      const filesToProcess = Array.from(files).slice(0, remainingSlots);
+
+      for (const file of filesToProcess) {
+        if (!file.type.startsWith("image/")) {
+          showToast("Only image files are allowed");
+          continue;
+        }
+
+        const compressed = await compressImageForUpload(file);
+        const formData = new FormData();
+        formData.append("file", compressed.file);
+
+        const res = await fetch("/api/reviews/upload", {
+          method: "POST",
+          headers: authHeader ? { Authorization: authHeader } : {},
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to upload photo");
+        }
+
+        setReviewImages((prev) => [...prev, data.url].slice(0, 5));
+      }
+    } catch (err: any) {
+      showToast(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingReviewImage(false);
+      e.target.value = "";
+    }
+  };
+
   const handleSubmitReview = async () => {
+    if (uploadingReviewImage) {
+      showToast("Please wait for photos to finish uploading");
+      return;
+    }
     setSubmittingReview(true);
     try {
       const headers = await authHeaders();
@@ -244,12 +302,14 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
           productId: product.id,
           rating: reviewRating,
           comment: reviewComment,
+          images: reviewImages,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Submit failed");
       showToast(data.message || "Review submitted!");
       setIsReviewModalOpen(false);
+      setReviewImages([]);
       // Refresh approved list (pending won't show until moderated)
       const listRes = await fetch(
         `/api/reviews?productId=${encodeURIComponent(product.id)}`
@@ -814,6 +874,21 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                       {r.comment}
                     </p>
                   )}
+                  {r.images && r.images.length > 0 && (
+                    <div className="flex flex-wrap gap-2.5 mt-3">
+                      {r.images.map((src, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setPreviewReviewImage(src)}
+                          className="relative w-16 h-20 sm:w-20 sm:h-24 rounded-lg overflow-hidden border border-[var(--color-border)] hover:opacity-90 hover:scale-[1.02] transition-all bg-neutral-100 cursor-pointer shadow-sm group"
+                        >
+                          <Image src={src} alt={`Review photo ${idx + 1}`} fill className="object-cover" sizes="96px" />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -895,14 +970,93 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                 />
               </div>
 
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-[11px] uppercase tracking-[1px] text-[var(--color-text-muted)] block">
+                    Product Photos ({reviewImages.length}/5)
+                  </label>
+                  {reviewImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setReviewImages([])}
+                      className="text-[11px] text-red-500 hover:underline"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                {reviewImages.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {reviewImages.map((src, idx) => (
+                      <div key={idx} className="relative w-16 h-20 border rounded-lg overflow-hidden bg-neutral-100 shadow-sm">
+                        <Image src={src} alt="Review photo" fill className="object-cover" sizes="64px" />
+                        <button
+                          type="button"
+                          onClick={() => setReviewImages((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-1 right-1 bg-black/80 text-white w-5 h-5 text-[11px] rounded-full flex items-center justify-center hover:bg-black transition-colors"
+                          title="Remove photo"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {reviewImages.length < 5 && (
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-black transition-colors cursor-pointer bg-gray-50/50 ${uploadingReviewImage ? 'opacity-60 pointer-events-none' : ''}`}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleReviewImageUpload}
+                      disabled={uploadingReviewImage}
+                    />
+                    <FiUpload className="text-[20px] text-gray-500 mb-1" />
+                    <span className="text-[12px] font-medium text-gray-700">
+                      {uploadingReviewImage ? "Uploading photo…" : "Upload product photos"}
+                    </span>
+                    <span className="text-[10px] text-gray-400 mt-0.5">
+                      JPG, PNG, WebP (Max 5 photos)
+                    </span>
+                  </label>
+                )}
+              </div>
+
               <button 
                 onClick={handleSubmitReview}
-                disabled={submittingReview}
+                disabled={submittingReview || uploadingReviewImage}
                 className="w-full mt-2 bg-[var(--color-text)] text-white py-4 text-[12px] uppercase tracking-[2px] hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {submittingReview ? "Submitting…" : "Submit Review"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-res Review Image Preview Lightbox */}
+      {previewReviewImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-[120] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setPreviewReviewImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+            <button
+              onClick={() => setPreviewReviewImage(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 text-[16px] font-bold p-1 flex items-center gap-1"
+              aria-label="Close"
+            >
+              <FiX size={20} /> Close
+            </button>
+            <img
+              src={previewReviewImage}
+              alt="Review photo full preview"
+              className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}

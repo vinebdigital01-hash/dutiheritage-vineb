@@ -123,13 +123,11 @@ export async function POST(request: Request) {
       orderId: eligibility.orderId,
     };
     
-    // Backdating support for marketing reviews
+    // Custom date and time support for admin reviews
     if (isAdmin && body.createdAt) {
       const parsedDate = new Date(body.createdAt);
-      if (parsedDate <= new Date()) {
+      if (!isNaN(parsedDate.getTime())) {
         reviewData.createdAt = parsedDate;
-      } else {
-        throw new ApiError("Review date cannot be in the future");
       }
     }
 
