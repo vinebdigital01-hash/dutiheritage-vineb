@@ -75,8 +75,16 @@ export async function PUT(request: Request) {
     const doc = await Settings.findOneAndUpdate(
       { _id: "cod" },
       { $set: update },
-      { upsert: true, new: true }
+      { upsert: true, new: true, strict: false }
     ).lean();
+
+    if (update.stateShippingRates !== undefined) {
+      await Settings.collection.updateOne(
+        { _id: "cod" as any },
+        { $set: { stateShippingRates: update.stateShippingRates } },
+        { upsert: true }
+      );
+    }
 
     const settings = await getCheckoutSettings();
     await logAdminAction({

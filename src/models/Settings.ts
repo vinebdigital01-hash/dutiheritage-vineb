@@ -42,13 +42,16 @@ const CodSettingsSchema = new Schema(
     flatShippingFee: { type: Number, default: 99 },
     stateShippingRates: { type: [StateShippingRateSchema], default: [] },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 export type SettingsDocument = InferSchemaType<typeof CodSettingsSchema> & {
   _id: string;
 };
 
+if (models && (models as any).Settings) {
+  delete (models as any).Settings;
+}
+
 export const Settings: Model<SettingsDocument> =
-  (models.Settings as Model<SettingsDocument>) ||
   model<SettingsDocument>("Settings", CodSettingsSchema);

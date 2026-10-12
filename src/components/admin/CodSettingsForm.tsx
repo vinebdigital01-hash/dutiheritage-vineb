@@ -145,6 +145,46 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
     });
   };
 
+  const persistSettings = async (ratesToSave: StateShippingRate[] = stateShippingRates) => {
+    setSaving(true);
+    try {
+      const split = (s: string) =>
+        s
+          .split(/[\n,]+/)
+          .map((x) => x.trim())
+          .filter(Boolean);
+
+      const res = await adminFetch<{ settings: CheckoutSettings }>("/api/settings/cod", {
+        method: "PUT",
+        body: JSON.stringify({
+          codEnabled: form.codEnabled,
+          codMode: form.codMode,
+          codExtraCharge: Number(form.codExtraCharge),
+          partialCodAdvance: Number(form.partialCodAdvance),
+          freeShippingAbove: Number(form.freeShippingAbove),
+          flatShippingFee: Number(form.flatShippingFee),
+          prepaidDiscount: {
+            type: form.prepaidType,
+            value: Number(form.prepaidValue),
+          },
+          codPrefixes: split(form.codPrefixes),
+          codPincodes: split(form.codPincodes),
+          stateShippingRates: ratesToSave,
+        }),
+      });
+      if (res?.settings?.stateShippingRates) {
+        setStateShippingRates(res.settings.stateShippingRates);
+      }
+      show("Settings & shipping rates saved successfully!");
+      return true;
+    } catch (err) {
+      show(err instanceof AdminApiError ? err.message : "Save failed", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const deleteRate = async (index: number) => {
     const rate = stateShippingRates[index];
     if (
@@ -156,11 +196,13 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
     )
       return;
 
-    setStateShippingRates((prev) => prev.filter((_, i) => i !== index));
+    const nextRates = stateShippingRates.filter((_, i) => i !== index);
+    setStateShippingRates(nextRates);
     if (editingIndex === index) setEditingIndex(null);
+    await persistSettings(nextRates);
   };
 
-  const handleSaveRateRule = (e: React.FormEvent) => {
+  const handleSaveRateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editRateForm.name.trim()) {
       show("Please enter a name for this rate rule (e.g. Delhi NCR)", "error");
@@ -182,16 +224,14 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
       freeShippingAbove: Number(editRateForm.freeShippingAbove) || 0,
     };
 
-    if (editingIndex === -1 || editingIndex === null) {
-      setStateShippingRates((prev) => [...prev, newRate]);
-    } else {
-      setStateShippingRates((prev) =>
-        prev.map((r, i) => (i === editingIndex ? newRate : r))
-      );
-    }
+    const nextRates =
+      editingIndex === -1 || editingIndex === null
+        ? [...stateShippingRates, newRate]
+        : stateShippingRates.map((r, i) => (i === editingIndex ? newRate : r));
 
+    setStateShippingRates(nextRates);
     setEditingIndex(null);
-    show("Shipping rate rule added. Remember to save settings below.");
+    await persistSettings(nextRates);
   };
 
   const toggleStateInEdit = (st: string) => {
@@ -216,7 +256,7 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
       return;
 
     setStateShippingRates(RECOMMENDED_PRESETS);
-    show("Loaded recommended shipping presets. Click 'Save COD & shipping' to apply.");
+    await persistSettings(RECOMMENDED_PRESETS);
   };
 
   const save = async (e: React.FormEvent) => {
@@ -229,39 +269,7 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
       }))
     )
       return;
-    setSaving(true);
-    try {
-      const split = (s: string) =>
-        s
-          .split(/[\n,]+/)
-          .map((x) => x.trim())
-          .filter(Boolean);
-
-      await adminFetch("/api/settings/cod", {
-        method: "PUT",
-        body: JSON.stringify({
-          codEnabled: form.codEnabled,
-          codMode: form.codMode,
-          codExtraCharge: Number(form.codExtraCharge),
-          partialCodAdvance: Number(form.partialCodAdvance),
-          freeShippingAbove: Number(form.freeShippingAbove),
-          flatShippingFee: Number(form.flatShippingFee),
-          prepaidDiscount: {
-            type: form.prepaidType,
-            value: Number(form.prepaidValue),
-          },
-          codPrefixes: split(form.codPrefixes),
-          codPincodes: split(form.codPincodes),
-          codCities: split(form.codCities),
-          stateShippingRates,
-        }),
-      });
-      show("COD & shipping settings saved successfully");
-    } catch (err) {
-      show(err instanceof AdminApiError ? err.message : "Save failed", "error");
-    } finally {
-      setSaving(false);
-    }
+    await persistSettings(stateShippingRates);
   };
 
   if (loading) {

@@ -87,7 +87,17 @@ export async function getCheckoutSettings(): Promise<CheckoutSettings> {
   const doc = await Settings.findById("cod").lean();
   if (!doc) return DEFAULT_SETTINGS;
 
-  const rawRates = (doc as any).stateShippingRates;
+  let rawRates = (doc as any).stateShippingRates;
+  if (rawRates === undefined) {
+    try {
+      const raw = await Settings.collection.findOne({ _id: "cod" as any });
+      if (raw && (raw as any).stateShippingRates !== undefined) {
+        rawRates = (raw as any).stateShippingRates;
+      }
+    } catch {
+      // ignore
+    }
+  }
   const stateShippingRates: StateShippingRate[] = Array.isArray(rawRates)
     ? rawRates.map((r: any) => ({
         id: r._id?.toString() || r.id,
