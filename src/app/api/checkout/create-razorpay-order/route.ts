@@ -94,6 +94,7 @@ export async function POST(request: Request) {
       discountAmount: coupon?.amount ?? 0,
       pinCode: c?.pinCode?.trim() || "000000",
       city: c?.city || "",
+      state: c?.state || "",
     });
 
     const amount = totals.amountToPayNow;

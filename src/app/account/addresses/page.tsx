@@ -40,12 +40,50 @@ export default function MyAddressesPage() {
   const slotAddress = (label: string): SavedAddress | undefined =>
     addresses.find((a) => (a.label || "").toLowerCase() === label.toLowerCase());
 
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeMsg, setPincodeMsg] = useState("");
+
   useEffect(() => {
     fetch("/api/checkout/locations?type=states")
       .then((r) => r.json())
       .then((data) => setAvailableStates(data.states || []))
       .catch(() => {});
   }, []);
+
+  // Auto-detect State and City from 6-digit Pincode
+  useEffect(() => {
+    const pin = (formData.pinCode || "").trim();
+    if (pin.length === 6) {
+      setPincodeLoading(true);
+      setPincodeMsg("");
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/checkout/pincode-lookup?pincode=${pin}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.valid && data.state) {
+              setFormData((prev) => ({
+                ...prev,
+                state: data.state,
+                city: prev.city?.trim() ? prev.city : (data.city || data.district || ""),
+              }));
+              setPincodeMsg(`Auto-detected: ${data.state}`);
+            } else {
+              setPincodeMsg("Pincode not recognized. Please check.");
+            }
+          }
+        } catch {
+          // ignore
+        } finally {
+          setPincodeLoading(false);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setPincodeMsg("");
+      setPincodeLoading(false);
+    }
+  }, [formData.pinCode]);
 
   useEffect(() => {
     if (!formData.state) {
@@ -139,65 +177,84 @@ export default function MyAddressesPage() {
                 className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
               />
             </div>
+            {/* PIN Code & Auto-detected State */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[12px] font-medium text-gray-700 mb-1">State</label>
-                <select
-                  required
-                  value={formData.state || ""}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value, city: "" })}
-                  className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
-                >
-                  <option value="">Select State</option>
-                  {availableStates.map((s) => (
-                    <option key={s.isoCode} value={s.name}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[12px] font-medium text-gray-700 mb-1">City</label>
-                {availableCities.length > 0 ? (
-                  <select
-                    required
-                    value={formData.city || ""}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
-                  >
-                    <option value="">Select City</option>
-                    {availableCities.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
+                <label className="block text-[12px] font-medium text-gray-700 mb-1">
+                  PIN Code (6 digits)
+                </label>
+                <div className="relative">
                   <input
                     type="text"
                     required
-                    value={formData.city || ""}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    value={formData.pinCode || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        pinCode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                      })
+                    }
                     className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
-                    placeholder="City"
+                    placeholder="e.g. 110001"
+                    maxLength={6}
+                    pattern="[0-9]{6}"
                   />
-                )}
+                  {pincodeLoading && (
+                    <span className="absolute right-3 top-3.5 text-xs text-neutral-400 animate-pulse">
+                      Detecting…
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-gray-700 mb-1">
+                  State (Auto-detected)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    readOnly
+                    value={formData.state || ""}
+                    className="w-full border border-gray-200 rounded px-4 py-3 text-[14px] outline-none bg-neutral-100 text-neutral-700 cursor-not-allowed font-medium"
+                    placeholder="Auto-detected from PIN"
+                  />
+                  <span className="absolute right-3 top-3.5 text-[11px] text-neutral-400 font-medium">
+                    🔒 Locked
+                  </span>
+                </div>
               </div>
             </div>
+
+            {pincodeMsg && (
+              <p
+                className={`text-xs -mt-2 ${
+                  pincodeMsg.startsWith("Auto-detected")
+                    ? "text-emerald-600"
+                    : "text-red-500"
+                }`}
+              >
+                {pincodeMsg}
+              </p>
+            )}
+
+            {/* City (Editable by user) */}
             <div>
-              <label className="block text-[12px] font-medium text-gray-700 mb-1">PIN Code</label>
+              <label className="block text-[12px] font-medium text-gray-700 mb-1">
+                City / District (Editable)
+              </label>
               <input
                 type="text"
                 required
-                value={formData.pinCode || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, pinCode: e.target.value.replace(/\D/g, "").slice(0, 6) })
-                }
+                value={formData.city || ""}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
-                placeholder="6-digit PIN"
-                maxLength={6}
-                pattern="[0-9]{6}"
+                placeholder="City or District"
               />
+              <p className="text-[11px] text-neutral-500 mt-1">
+                State is verified from PIN code. City can be modified if needed.
+              </p>
             </div>
             <div>
               <label className="block text-[12px] font-medium text-gray-700 mb-1">

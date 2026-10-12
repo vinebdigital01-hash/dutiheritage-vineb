@@ -62,6 +62,15 @@ export async function PUT(request: Request) {
     if (body.flatShippingFee !== undefined) {
       update.flatShippingFee = Number(body.flatShippingFee);
     }
+    if (body.stateShippingRates !== undefined && Array.isArray(body.stateShippingRates)) {
+      update.stateShippingRates = body.stateShippingRates.map((r: any) => ({
+        name: String(r.name || "").trim(),
+        states: Array.isArray(r.states) ? r.states.map((s: any) => String(s).trim()).filter(Boolean) : [],
+        cities: Array.isArray(r.cities) ? r.cities.map((c: any) => String(c).trim()).filter(Boolean) : [],
+        flatShippingFee: Number(r.flatShippingFee) >= 0 ? Number(r.flatShippingFee) : 99,
+        freeShippingAbove: Number(r.freeShippingAbove) >= 0 ? Number(r.freeShippingAbove) : 999,
+      }));
+    }
 
     const doc = await Settings.findOneAndUpdate(
       { _id: "cod" },

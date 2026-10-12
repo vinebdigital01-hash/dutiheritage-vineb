@@ -8,6 +8,17 @@ const PrepaidDiscountSchema = new Schema(
   { _id: false }
 );
 
+const StateShippingRateSchema = new Schema(
+  {
+    name: { type: String, default: "" },
+    states: { type: [String], default: [] },
+    cities: { type: [String], default: [] },
+    flatShippingFee: { type: Number, required: true, default: 49 },
+    freeShippingAbove: { type: Number, required: true, default: 499 },
+  },
+  { _id: true }
+);
+
 const CodSettingsSchema = new Schema(
   {
     _id: { type: String, default: "cod" },
@@ -29,6 +40,7 @@ const CodSettingsSchema = new Schema(
     partialCodAdvance: { type: Number, default: 199 },
     freeShippingAbove: { type: Number, default: 999 },
     flatShippingFee: { type: Number, default: 99 },
+    stateShippingRates: { type: [StateShippingRateSchema], default: [] },
   },
   { timestamps: true }
 );

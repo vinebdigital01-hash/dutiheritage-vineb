@@ -20,8 +20,15 @@ export type CheckoutSettings = {
   codCities: string[];
   codMode: "ALL_INDIA" | "CITY_LIST" | "PINCODE_LIST";
   codEnabled: boolean;
+  stateShippingRates?: StateShippingRate[];
   shippingRates?: { regions?: string; freeAbove: number; amount: number; freeShippingAbove?: number; flatShippingFee?: number }[];
 };
+
+import {
+  type StateShippingRate,
+  getShippingForLocation,
+} from "@/lib/pincode-lookup";
+export { type StateShippingRate, getShippingForLocation };
 
 const DEFAULT_SETTINGS: CheckoutSettings = {
   freeShippingAbove: 999,
@@ -46,6 +53,31 @@ const DEFAULT_SETTINGS: CheckoutSettings = {
   codCities: [],
   codMode: "PINCODE_LIST",
   codEnabled: true,
+  stateShippingRates: [
+    {
+      name: "Delhi NCR & Local",
+      states: ["Delhi", "Haryana"],
+      cities: [],
+      flatShippingFee: 49,
+      freeShippingAbove: 499,
+    },
+    {
+      name: "Northeast & Remote",
+      states: [
+        "Assam",
+        "Meghalaya",
+        "Manipur",
+        "Mizoram",
+        "Nagaland",
+        "Tripura",
+        "Arunachal Pradesh",
+        "Sikkim",
+      ],
+      cities: [],
+      flatShippingFee: 149,
+      freeShippingAbove: 1499,
+    },
+  ],
 };
 
 export async function getCheckoutSettings(): Promise<CheckoutSettings> {
@@ -54,6 +86,18 @@ export async function getCheckoutSettings(): Promise<CheckoutSettings> {
   await connectDB();
   const doc = await Settings.findById("cod").lean();
   if (!doc) return DEFAULT_SETTINGS;
+
+  const rawRates = (doc as any).stateShippingRates;
+  const stateShippingRates: StateShippingRate[] = Array.isArray(rawRates)
+    ? rawRates.map((r: any) => ({
+        id: r._id?.toString() || r.id,
+        name: String(r.name || ""),
+        states: Array.isArray(r.states) ? r.states : [],
+        cities: Array.isArray(r.cities) ? r.cities : [],
+        flatShippingFee: Number(r.flatShippingFee ?? 99),
+        freeShippingAbove: Number(r.freeShippingAbove ?? 999),
+      }))
+    : DEFAULT_SETTINGS.stateShippingRates || [];
 
   return {
     freeShippingAbove: doc.freeShippingAbove ?? DEFAULT_SETTINGS.freeShippingAbove,
@@ -72,6 +116,7 @@ export async function getCheckoutSettings(): Promise<CheckoutSettings> {
     codCities: doc.codCities ?? [],
     codMode: (doc.codMode as CheckoutSettings["codMode"]) || "PINCODE_LIST",
     codEnabled: doc.codEnabled !== false,
+    stateShippingRates,
   };
 }
 
@@ -307,8 +352,9 @@ export function computeCheckoutTotals(input: {
   discountAmount: number;
   pinCode: string;
   city?: string;
+  state?: string;
 }) {
-  const { lines, paymentMethod, settings, discountAmount, pinCode, city } =
+  const { lines, paymentMethod, settings, discountAmount, pinCode, city, state } =
     input;
 
   const subtotal = lines.reduce(
@@ -316,9 +362,9 @@ export function computeCheckoutTotals(input: {
     0
   );
 
-  const isFreeShipping = subtotal >= settings.freeShippingAbove;
-  const shipping =
-    subtotal > 0 ? (isFreeShipping ? 0 : settings.flatShippingFee) : 0;
+  const locShipping = getShippingForLocation(subtotal, settings, state, city);
+  const isFreeShipping = locShipping.isFreeShipping;
+  const shipping = locShipping.shipping;
 
   if (paymentMethod === "cod" || paymentMethod === "partial") {
     if (!isCodAvailableForPin(pinCode, settings, city)) {
@@ -363,5 +409,8 @@ export function computeCheckoutTotals(input: {
     advanceAmount,
     amountToPayNow,
     isFreeShipping,
+    flatShippingFee: locShipping.flatShippingFee,
+    freeShippingAbove: locShipping.freeShippingAbove,
+    appliedRuleName: locShipping.appliedRuleName,
   };
 }

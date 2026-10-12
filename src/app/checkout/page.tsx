@@ -16,6 +16,7 @@ import { trackEvent } from "@/lib/track-client";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { Product } from "@/types";
 import type { CheckoutSettings } from "@/services/checkout";
+import { getShippingForLocation } from "@/lib/pincode-lookup";
 import type { PublicCouponDTO } from "@/lib/coupons";
 import { auth } from "@/lib/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber, linkWithPhoneNumber, ConfirmationResult } from "firebase/auth";
@@ -38,7 +39,8 @@ const FALLBACK_SETTINGS: CheckoutSettings = {
   codCities: [],
   codMode: "PINCODE_LIST",
   codEnabled: true,
-    shippingRates: [],
+  stateShippingRates: [],
+  shippingRates: [],
 };
 
 
@@ -146,6 +148,8 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState({
     email: "", country: "India", firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", pinCode: "", phone: ""
   });
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeError, setPincodeError] = useState("");
 
   const [indianStates, setIndianStates] = useState<{name: string; isoCode: string}[]>([]);
   const [indianCities, setIndianCities] = useState<{name: string}[]>([]);
@@ -281,6 +285,7 @@ export default function CheckoutPage() {
             codCities: data.codCities ?? [],
             codMode: data.codMode ?? "PINCODE_LIST",
             codEnabled: data.codEnabled !== false,
+            stateShippingRates: data.stateShippingRates ?? [],
             shippingRates: data.shippingRates ?? [],
           });
       })
@@ -401,30 +406,38 @@ export default function CheckoutPage() {
   const seconds = timeLeft % 60;
   const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-  // Check COD availability when pincode/city changes
+  // Check COD availability & auto-detect location when pincode changes
   useEffect(() => {
     const pin = formData.pinCode.trim();
     if (pin.length === 6) {
       setCodChecking(true);
+      setPincodeLoading(true);
+      setPincodeError("");
       const timer = setTimeout(async () => {
         let detectedCity = formData.city;
         try {
-          const locRes = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+          const locRes = await fetch(`/api/checkout/pincode-lookup?pincode=${pin}`);
           if (locRes.ok) {
-            const data = await locRes.json();
-            if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice.length > 0) {
-              const postOffice = data[0].PostOffice[0];
-              detectedCity = formData.city || postOffice.District || postOffice.Block;
-              setFormData(prev => ({
+            const locData = await locRes.json();
+            if (locData.valid && locData.state) {
+              const bestCity = formData.city?.trim() || locData.city || locData.district || "";
+              detectedCity = bestCity;
+              setFormData((prev) => ({
                 ...prev,
-                city: detectedCity,
-                state: prev.state || postOffice.State
+                state: locData.state,
+                city: bestCity,
               }));
+              setPincodeError("");
+            } else {
+              setPincodeError("Pincode not recognized. Please check.");
             }
           }
         } catch (e) {
-          console.error("Failed to fetch location for pincode");
+          console.error("Failed to fetch location for pincode", e);
+        } finally {
+          setPincodeLoading(false);
         }
+
         try {
           const res = await fetch("/api/settings/cod/check-pincode", {
             method: "POST",
@@ -443,58 +456,29 @@ export default function CheckoutPage() {
         } finally {
           setCodChecking(false);
         }
-      }, 400);
+      }, 300);
       return () => clearTimeout(timer);
     } else {
       setCodAvailable(null);
+      setPincodeLoading(false);
+      setPincodeError("");
     }
-  }, [formData.pinCode, formData.city]);
+  }, [formData.pinCode]);
 
-  // Location states are fetched via API
-  // ---- PRICING CALCULATIONS (from live settings) ----
+  // ---- PRICING CALCULATIONS (from live settings & state-specific shipping rules) ----
   const subtotal = cart.reduce((total, item) => total + ((item.salePrice || item.price) * item.quantity), 0);
   
-  let freeShippingAbove = settings.freeShippingAbove;
-  let flatShippingFee = settings.flatShippingFee;
-
-  if (settings.shippingRates && settings.shippingRates.length > 0) {
-    const customerState = (formData.state || "").toLowerCase().trim();
-    const customerCity = (formData.city || "").toLowerCase().trim();
-    
-    let matchedRate = null;
-    let fallbackRate = null;
-
-    for (const r of settings.shippingRates) {
-      const regions = (r.regions || "").toLowerCase();
-      if (!regions) {
-        if (!fallbackRate) fallbackRate = r;
-        continue;
-      }
-      
-      const regionList = regions.split(",").map((s: string) => s.trim()).filter(Boolean);
-      for (const reg of regionList) {
-        let matched = false;
-        if (customerState && (customerState.includes(reg) || (customerState.length > 3 && reg.includes(customerState)))) matched = true;
-        if (customerCity && (customerCity.includes(reg) || (customerCity.length > 3 && reg.includes(customerCity)))) matched = true;
-        
-        if (matched) {
-          matchedRate = r;
-          break;
-        }
-      }
-      if (matchedRate) break;
-    }
-
-    const finalRate = matchedRate || fallbackRate;
-    if (finalRate) {
-      freeShippingAbove = finalRate.freeAbove;
-      flatShippingFee = finalRate.amount;
-    }
-  }
-
-  const isFreeShipping = subtotal >= freeShippingAbove;
-  const shipping = subtotal > 0 ? (isFreeShipping ? 0 : flatShippingFee) : 0;
-  const amountForFreeShipping = freeShippingAbove - subtotal;
+  const shippingInfo = getShippingForLocation(
+    subtotal,
+    settings,
+    formData.state,
+    formData.city
+  );
+  const freeShippingAbove = shippingInfo.freeShippingAbove;
+  const flatShippingFee = shippingInfo.flatShippingFee;
+  const isFreeShipping = shippingInfo.isFreeShipping;
+  const shipping = shippingInfo.shipping;
+  const amountForFreeShipping = Math.max(0, freeShippingAbove - subtotal);
 
   const discountAmount = useMemo(() => {
     if (!discountApplied) return 0;
@@ -1004,7 +988,9 @@ export default function CheckoutPage() {
         )}
 
         <div className="flex justify-between">
-            <span className="text-[var(--color-text-muted)]">Shipping</span>
+            <span className="text-[var(--color-text-muted)]">
+              Shipping{shippingInfo.appliedRuleName ? ` (${shippingInfo.appliedRuleName})` : ""}
+            </span>
             <span className="font-medium">{isFreeShipping ? <span className="text-green-700">FREE 🚀</span> : `₹${shipping.toLocaleString("en-IN")}`}</span>
           </div>
           
@@ -1243,18 +1229,81 @@ export default function CheckoutPage() {
                 <input type="text" name="address" value={formData.address} onChange={handleInputChange} placeholder="Address (House No, Building, Street)" aria-label="Address (House No, Building, Street)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
                 <input type="text" name="apartment" value={formData.apartment} onChange={handleInputChange} placeholder="Apartment, suite, etc. (optional)" aria-label="Apartment, suite, etc. (optional)" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" />
 
-                <div className="flex gap-3.5">
-                  <div className="w-1/3">
-                    <input type="text" name="city" list="cityList" value={formData.city} onChange={handleInputChange} placeholder="City" aria-label="City" className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required />
-                    <datalist id="cityList">
-                      {indianCities.map(c => <option key={c.name} value={c.name} />)}
-                    </datalist>
+                {/* PIN code & Auto-detected State */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d{6}"
+                      name="pinCode"
+                      value={formData.pinCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setFormData((prev) => ({ ...prev, pinCode: val }));
+                      }}
+                      placeholder="PIN code (6 digits)"
+                      maxLength={6}
+                      className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide"
+                      required
+                    />
+                    {pincodeLoading && (
+                      <span className="absolute right-3 top-3.5 text-xs text-neutral-400 animate-pulse font-normal">
+                        Detecting…
+                      </span>
+                    )}
+                    {formData.pinCode.length === 6 && formData.state && !pincodeLoading && (
+                      <span className="absolute right-3 top-3.5 text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ Verified
+                      </span>
+                    )}
                   </div>
-                  <select name="state" value={formData.state} onChange={handleInputChange} className="w-1/3 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm" required>
-                    <option value="">State</option>
-                    {indianStates.map(s => <option key={s.isoCode} value={s.name}>{s.name}</option>)}
-                  </select>
-                  <input type="text" inputMode="numeric" pattern="\d{6}" name="pinCode" value={formData.pinCode} onChange={(e) => { const val = e.target.value.replace(/\D/g, ''); setFormData({...formData, pinCode: val}); }} placeholder="PIN code" maxLength={6} className="w-1/3 border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide" required />
+
+                  {/* State is locked on frontend to prevent COD / shipping fraud */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      readOnly
+                      placeholder="State (Auto-detected from PIN)"
+                      aria-label="State"
+                      className="w-full border border-gray-200 p-3.5 text-[15px] rounded-lg outline-none bg-neutral-100 text-neutral-800 cursor-not-allowed shadow-sm font-medium"
+                      required
+                    />
+                    <div className="absolute right-3 top-3.5 flex items-center gap-1 text-[11px] text-neutral-500 uppercase tracking-wider font-semibold pointer-events-none">
+                      🔒 Auto-Locked
+                    </div>
+                  </div>
+                </div>
+
+                {pincodeError && (
+                  <p className="text-xs text-red-500 -mt-1 pl-1">
+                    {pincodeError}
+                  </p>
+                )}
+
+                {/* City (Editable by user) */}
+                <div>
+                  <input
+                    type="text"
+                    name="city"
+                    list="cityList"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    placeholder="City / District (Editable)"
+                    aria-label="City"
+                    className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm"
+                    required
+                  />
+                  <datalist id="cityList">
+                    {indianCities.map((c) => (
+                      <option key={c.name} value={c.name} />
+                    ))}
+                  </datalist>
+                  <p className="text-[11px] text-neutral-500 mt-1 pl-1">
+                    State is locked to verified PIN code for accurate delivery &amp; regional shipping rates.
+                  </p>
                 </div>
               {/* OTP Verification for COD */}
               <div id="recaptcha-container"></div>
