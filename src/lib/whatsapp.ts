@@ -29,11 +29,25 @@ export type SendWhatsAppResult = {
   error?: string;
 };
 
+export type SendWhatsAppInput = {
+  phone: string;
+  message?: string;
+  templateName?: string;
+  templateParams?: string[];
+  imageUrl?: string;
+  buttonType?: "none" | "cta" | "reply";
+  ctaText?: string;
+  ctaUrl?: string;
+  buttons?: Array<{ id: string; title: string }>;
+  header?: string;
+  footer?: string;
+};
+
 function digitsOnly(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-async function sendBotMessage(phone: string, message: string): Promise<SendWhatsAppResult> {
+async function sendBotMessage(phone: string, input: SendWhatsAppInput): Promise<SendWhatsAppResult> {
   let rawUrl =
     process.env.WHATSAPP_BOT_API_URL ||
     process.env.BOT_API_URL ||
@@ -57,8 +71,18 @@ async function sendBotMessage(phone: string, message: string): Promise<SendWhats
         "Content-Type": "application/json",
         "x-bot-api-key": apiKey,
       },
-      body: JSON.stringify({ phone: cleanPhone, message }),
-      signal: AbortSignal.timeout(12_000),
+      body: JSON.stringify({
+        phone: cleanPhone,
+        message: input.message || "",
+        imageUrl: input.imageUrl,
+        buttonType: input.buttonType,
+        ctaText: input.ctaText,
+        ctaUrl: input.ctaUrl,
+        buttons: input.buttons,
+        header: input.header,
+        footer: input.footer,
+      }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -72,12 +96,7 @@ async function sendBotMessage(phone: string, message: string): Promise<SendWhats
   }
 }
 
-export async function sendWhatsApp(input: {
-  phone: string;
-  message: string;
-  templateName?: string;
-  templateParams?: string[];
-}): Promise<SendWhatsAppResult> {
+export async function sendWhatsApp(input: SendWhatsAppInput): Promise<SendWhatsAppResult> {
   if (!input.phone?.trim()) {
     return { ok: false, error: "Missing phone" };
   }
@@ -93,16 +112,17 @@ export async function sendWhatsApp(input: {
   const hasBot = Boolean(
     process.env.WHATSAPP_BOT_API_URL ||
     process.env.BOT_API_URL ||
+    process.env.BOT_KEY ||
     process.env.BOT_API_KEY ||
     process.env.WHATSAPP_BOT_API_KEY
   );
   if (provider === "bot" || hasBot || !provider) {
-    return sendBotMessage(phone, input.message);
+    return sendBotMessage(phone, input);
   }
 
   try {
-    if (provider === "interakt") return sendInterakt(phone, input);
-    if (provider === "wati") return sendWati(phone, input);
+    if (provider === "interakt") return sendInterakt(phone, { ...input, message: input.message || "" });
+    if (provider === "wati") return sendWati(phone, { ...input, message: input.message || "" });
     return { ok: false, error: `Unknown WHATSAPP_PROVIDER: ${provider}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "WhatsApp send failed";

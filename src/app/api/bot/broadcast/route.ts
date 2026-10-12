@@ -52,10 +52,38 @@ export async function POST(request: Request) {
     const body = await request.json();
     const message = String(body.message || "").trim();
     const type = String(body.type || "text");
+    const imageUrl = body.imageUrl ? String(body.imageUrl).trim() : "";
+    const buttonType = String(body.buttonType || "none");
+    const ctaText = body.ctaText ? String(body.ctaText).trim().slice(0, 20) : "Shop Now";
+    const ctaUrl = body.ctaUrl ? String(body.ctaUrl).trim() : "";
+    const buttons = Array.isArray(body.buttons)
+      ? body.buttons
+          .filter((b: any) => b && (b.title || b.text))
+          .slice(0, 3)
+          .map((b: any, idx: number) => ({
+            id: String(b.id || `btn_${idx + 1}`),
+            title: String(b.title || b.text).trim().slice(0, 20),
+          }))
+      : [];
+    const header = body.header ? String(body.header).trim().slice(0, 60) : "";
+    const footer = body.footer ? String(body.footer).trim().slice(0, 60) : "";
+
     const audience = String(
       body.audience || (body.phones === "all" ? "all" : "custom")
     );
-    if (!message) throw new ApiError("Message is required", 400);
+
+    if (type !== "template" && !message && !imageUrl && !ctaUrl && buttons.length === 0) {
+      throw new ApiError("Please provide a message, photo, or button.", 400);
+    }
+    if (type === "template" && !message) {
+      throw new ApiError("Template name is required.", 400);
+    }
+    if (buttonType === "cta" && !ctaUrl) {
+      throw new ApiError("Website URL is required for Call-to-Action button.", 400);
+    }
+    if (buttonType === "reply" && buttons.length === 0) {
+      throw new ApiError("At least one reply button title is required.", 400);
+    }
 
     await connectDB();
 
@@ -101,15 +129,40 @@ export async function POST(request: Request) {
         phone,
         message: type === "template" ? "" : message,
         templateName: type === "template" ? message : undefined,
+        imageUrl: type === "template" ? undefined : (imageUrl || undefined),
+        buttonType: type === "template" ? "none" : (buttonType as any),
+        ctaText: type === "template" ? undefined : (ctaText || undefined),
+        ctaUrl: type === "template" ? undefined : (ctaUrl || undefined),
+        buttons: type === "template" ? undefined : (buttons.length > 0 ? buttons : undefined),
+        header: header || undefined,
+        footer: footer || undefined,
       });
+
       if (r.ok && !r.skipped) {
         sent++;
         try {
+          let chatBody = message || "";
+          if (imageUrl) chatBody = chatBody ? `[Photo] ${chatBody}` : `[Photo]`;
+          if (buttonType === "cta" && ctaUrl) {
+            chatBody = `${chatBody}\n🔘 [Button: ${ctaText} -> ${ctaUrl}]`.trim();
+          } else if (buttonType === "reply" && buttons.length > 0) {
+            const btnTitles = buttons.map((b: { title: string }) => b.title).join(" | ");
+            chatBody = `${chatBody}\n🔘 [Buttons: ${btnTitles}]`.trim();
+          }
+
           await ChatMessage.create({
             phone,
             direction: "outgoing",
-            body: type === "template" ? `[Template: ${message}]` : message,
-            messageType: type === "template" ? "template" : "text",
+            body: type === "template" ? `[Template: ${message}]` : chatBody,
+            mediaUrl: imageUrl || undefined,
+            messageType:
+              buttonType !== "none"
+                ? "interactive"
+                : imageUrl
+                ? "image"
+                : type === "template"
+                ? "template"
+                : "text",
             sentBy: "admin",
           });
           await ChatSession.findOneAndUpdate(
