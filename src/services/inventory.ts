@@ -83,7 +83,7 @@ export function computeStockStatus(
   if (!rows.length) return "in_stock";
   const total = rows.reduce((s, r) => s + Number(r.stock || 0), 0);
   if (total <= 0) return "out_of_stock";
-  const threshold = product.lowStockThreshold ?? 3;
+  const threshold = product.lowStockThreshold ?? 5;
   if (rows.some((r) => Number(r.stock || 0) > 0 && Number(r.stock || 0) <= threshold)) {
     return "low_stock";
   }
@@ -381,7 +381,7 @@ export async function adjustInventory(
     }
 
     if (!increment && product.trackInventory) {
-      const threshold = product.lowStockThreshold || 3;
+      const threshold = product.lowStockThreshold || 5;
       if (stockAfter <= threshold) {
         alerts.push(
           `- ${product.name} (Size: ${size}${color ? `, ${color}` : ""}) — Only ${stockAfter} left`
@@ -453,7 +453,7 @@ export async function getInventoryAlerts() {
   }> = [];
 
   for (const p of products) {
-    const threshold = p.lowStockThreshold ?? 3;
+    const threshold = p.lowStockThreshold ?? 5;
     for (const inv of p.inventory || []) {
       const stock = Number(inv.stock || 0);
       if (stock <= threshold) {

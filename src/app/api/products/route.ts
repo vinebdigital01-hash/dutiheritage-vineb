@@ -167,7 +167,7 @@ export async function POST(request: Request) {
       partialCODAdvance: Number(body.partialCODAdvance) || 0,
       isActive: body.isActive !== false,
       trackInventory: true,
-      lowStockThreshold: Number(body.lowStockThreshold) || 3,
+      lowStockThreshold: Number(body.lowStockThreshold) || 5,
       hsn: String(body.hsn || "6104").trim() || "6104",
       gstRate: Math.min(28, Math.max(0, Number(body.gstRate) || 5)),
       inventory: inventoryRows,

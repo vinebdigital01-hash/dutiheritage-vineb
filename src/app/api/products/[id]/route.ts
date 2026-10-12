@@ -140,7 +140,7 @@ export async function PUT(request: Request, { params }: Params) {
       existing.gstRate = Math.min(28, Math.max(0, Number(body.gstRate) || 5));
     }
     if (body.trackInventory !== undefined) existing.trackInventory = Boolean(body.trackInventory);
-    if (body.lowStockThreshold !== undefined) existing.lowStockThreshold = Number(body.lowStockThreshold) || 3;
+    if (body.lowStockThreshold !== undefined) existing.lowStockThreshold = Number(body.lowStockThreshold) || 5;
     if (body.inventory !== undefined) {
       const prev = (existing.inventory || []).map((i) => ({
         size: String(i.size || ""),

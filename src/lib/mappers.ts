@@ -35,7 +35,7 @@ export function toProduct(doc: LeanDoc): Product & { isActive?: boolean } {
       stock: Number(i.stock || 0),
       sku: String(i.sku || ""),
     })),
-    lowStockThreshold: (doc.lowStockThreshold as number | undefined) ?? 3,
+    lowStockThreshold: (doc.lowStockThreshold as number | undefined) ?? 5,
     stockStatus: (doc.stockStatus as Product["stockStatus"]) ?? "in_stock",
     hsn: (doc.hsn as string | undefined) || "6104",
     gstRate: Number(doc.gstRate ?? 5),

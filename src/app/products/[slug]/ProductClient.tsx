@@ -513,9 +513,9 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                     if (isInventoryTracked && product.inventory) {
                       const inv = product.inventory.find(i => i.size === size && (!i.color || i.color === selectedColor));
                       if (inv) {
-                        stockLeft = inv.stock;
-                        outOfStock = inv.stock === 0;
-                        lowStock = inv.stock > 0 && inv.stock <= (product.lowStockThreshold || 3);
+                        stockLeft = Number(inv.stock || 0);
+                        outOfStock = stockLeft === 0;
+                        lowStock = stockLeft > 0 && stockLeft <= (product.lowStockThreshold || 5) && stockLeft <= 5;
                       } else {
                         outOfStock = true; // explicitly tracked but size missing = out of stock
                       }
@@ -535,8 +535,8 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                         `}
                       >
                         {size}
-                        {lowStock && selectedSize === size && (
-                           <span className="text-[10px] text-amber-600 mt-0.5 leading-none font-bold">
+                        {lowStock && (
+                           <span className={`text-[10px] mt-0.5 leading-none font-bold ${selectedSize === size ? 'text-amber-800' : 'text-amber-600'}`}>
                              Only {stockLeft} left
                            </span>
                         )}
@@ -573,6 +573,25 @@ export const ProductClient = ({ product, suggestedProducts = [] }: { product: Pr
                     </div>
                   </div>
                 )}
+
+              {/* Selected variant low stock urgency banner */}
+              {(() => {
+                if (!isInventoryTracked || !product.inventory) return null;
+                const currentInv = product.inventory.find(i => 
+                  (!selectedSize || i.size === selectedSize) && (!selectedColor || !i.color || i.color === selectedColor)
+                );
+                const currentStock = currentInv ? Number(currentInv.stock || 0) : (product.inventory.length === 1 ? Number(product.inventory[0].stock || 0) : null);
+                const threshold = product.lowStockThreshold ?? 5;
+                if (currentStock !== null && currentStock > 0 && currentStock <= threshold && currentStock <= 5) {
+                  return (
+                    <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200/90 rounded-xl text-amber-900 text-[12px] font-semibold mt-3 animate-fade-in-up">
+                      <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                      <span>Hurry! Only {currentStock} left in stock{selectedSize ? ` for size ${selectedSize}` : ''}{selectedColor ? ` (${selectedColor})` : ''} — order soon!</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Actions */}
               <div ref={mainActionsRef} className="flex flex-col gap-3 mt-4">

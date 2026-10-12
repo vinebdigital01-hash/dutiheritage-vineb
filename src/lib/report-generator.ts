@@ -427,7 +427,7 @@ export async function buildMonthlyReportData(): Promise<{
   for (const p of products) {
     if (p.isActive === false) continue;
     const inv = Array.isArray(p.inventory) ? p.inventory : [];
-    const threshold = Number(p.lowStockThreshold) || 3;
+    const threshold = Number(p.lowStockThreshold) || 5;
     const totalStock = inv.reduce((s, i) => s + (Number(i.stock) || 0), 0);
     const sold = productSales.get(String(p._id))?.sold || 0;
     if (totalStock <= 0) {

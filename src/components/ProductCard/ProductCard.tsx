@@ -32,7 +32,7 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
   const stocks = rows.map((r) => Number(r.stock || 0));
   const totalStock = stocks.reduce((a, b) => a + b, 0);
   const isSoldOut = tracking && totalStock <= 0;
-  const threshold = product.lowStockThreshold ?? 3;
+  const threshold = product.lowStockThreshold ?? 5;
 
   return (
     <Link 
@@ -86,7 +86,7 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
             </div>
           ) : (
             <>
-              {tracking && totalStock > 0 && (totalStock <= threshold || product.stockStatus === "low_stock") && (
+              {tracking && totalStock > 0 && totalStock <= Math.min(threshold, 5) && (
                 <div className="bg-amber-600 text-white text-[10px] font-bold py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
                   Only {totalStock} left
                 </div>

@@ -80,7 +80,7 @@ export function isLowStockForSize(
 ): { low: boolean; stock: number } {
   const max = maxPurchasableQty(product, size, color);
   if (max === null) return { low: false, stock: 0 };
-  const threshold = product.lowStockThreshold ?? 3;
+  const threshold = product.lowStockThreshold ?? 5;
   return { low: max > 0 && max <= threshold, stock: max };
 }
 

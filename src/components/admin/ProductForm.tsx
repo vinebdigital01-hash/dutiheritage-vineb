@@ -72,7 +72,7 @@ const emptyForm = (): FormState => ({
     isActive: true,
   offers: [],
   trackInventory: false,
-  lowStockThreshold: "3",
+  lowStockThreshold: "5",
   inventory: [],
   hsn: "6104",
   gstRate: "5",
@@ -111,7 +111,7 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     isActive: p.isActive !== false,
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
     trackInventory: p.trackInventory || false,
-    lowStockThreshold: String(p.lowStockThreshold || 3),
+    lowStockThreshold: String(p.lowStockThreshold || 5),
     inventory: (p.inventory || []).map(i => ({ size: i.size || "", color: i.color || "", stock: String(i.stock), sku: i.sku || "" })),
     hsn: p.hsn || "6104",
     gstRate: String(p.gstRate ?? 5),
@@ -303,7 +303,7 @@ export function ProductForm({ productId }: { productId?: string }) {
           isActive: form.isActive,
           offers: (form.offers || []).filter(o => o.title.trim() && o.description.trim()),
           trackInventory: form.trackInventory,
-          lowStockThreshold: Number(form.lowStockThreshold) || 3,
+          lowStockThreshold: Number(form.lowStockThreshold) || 5,
           hsn: form.hsn.trim() || "6104",
           gstRate: Number(form.gstRate) || 5,
           inventory: form.inventory.map(i => ({ size: i.size.trim(), color: i.color?.trim(), stock: Number(i.stock) || 0, sku: i.sku.trim() })),
@@ -399,7 +399,10 @@ export function ProductForm({ productId }: { productId?: string }) {
                     onChange={(e) => set("lowStockThreshold", e.target.value)}
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="px-3 py-1.5 bg-neutral-100 border border-neutral-200 rounded text-[12px] text-neutral-700">
+                    Total Inventory: <strong className="font-semibold text-neutral-900">{form.inventory.reduce((sum, item) => sum + (Number(item.stock) || 0), 0)}</strong> units
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -461,7 +464,7 @@ export function ProductForm({ productId }: { productId?: string }) {
                           const currentStock = invIndex >= 0 ? form.inventory[invIndex].stock : "0";
                           const currentSku = invIndex >= 0 ? form.inventory[invIndex].sku : "";
                           const stockNum = Number(currentStock) || 0;
-                          const lowThreshold = Number(form.lowStockThreshold) || 3;
+                          const lowThreshold = Number(form.lowStockThreshold) || 5;
                           
                           let statusColor = "bg-emerald-100 text-emerald-800";
                           let statusText = "In Stock";
