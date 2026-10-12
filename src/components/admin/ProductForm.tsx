@@ -41,6 +41,7 @@ type FormState = {
   isPartialCOD: boolean;
   partialCODAdvance: string;
   isActive: boolean;
+  showSaleBadge: boolean;
   offers: OfferForm[];
   trackInventory: boolean;
   lowStockThreshold: string;
@@ -67,9 +68,10 @@ const emptyForm = (): FormState => ({
   boughtLast7Days: "0",
   videoUrls: "",
   codAvailable: true,
-    isPartialCOD: false,
-    partialCODAdvance: "0",
-    isActive: true,
+  isPartialCOD: false,
+  partialCODAdvance: "0",
+  isActive: true,
+  showSaleBadge: false,
   offers: [],
   trackInventory: false,
   lowStockThreshold: "5",
@@ -87,7 +89,7 @@ function slugify(s: string) {
     .slice(0, 80);
 }
 
-function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean; isPartialCOD?: boolean; partialCODAdvance?: number }): FormState {
+function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean; isPartialCOD?: boolean; partialCODAdvance?: number; showSaleBadge?: boolean }): FormState {
   return {
     name: p.name,
     slug: p.slug,
@@ -109,6 +111,7 @@ function productToForm(p: Product & { isActive?: boolean; codAvailable?: boolean
     isPartialCOD: p.isPartialCOD || false,
     partialCODAdvance: String(p.partialCODAdvance || 0),
     isActive: p.isActive !== false,
+    showSaleBadge: Boolean(p.showSaleBadge ?? (Array.isArray(p.tags) && p.tags.includes("Sale"))),
     offers: (p.offers || []).map(o => ({ ...o, code: o.code || "" })),
     trackInventory: p.trackInventory || false,
     lowStockThreshold: String(p.lowStockThreshold || 5),
@@ -258,12 +261,17 @@ export function ProductForm({ productId }: { productId?: string }) {
   };
 
   const toggleTag = (tag: string) => {
-    setForm((prev) => ({
-      ...prev,
-      tags: prev.tags.includes(tag)
-        ? prev.tags.filter((t) => t !== tag)
-        : [...prev.tags, tag],
-    }));
+    setForm((prev) => {
+      const isAdding = !prev.tags.includes(tag);
+      const nextTags = isAdding
+        ? [...prev.tags, tag]
+        : prev.tags.filter((t) => t !== tag);
+      return {
+        ...prev,
+        tags: nextTags,
+        ...(tag.toLowerCase() === "sale" ? { showSaleBadge: isAdding } : {}),
+      };
+    });
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -301,6 +309,7 @@ export function ProductForm({ productId }: { productId?: string }) {
           isPartialCOD: form.isPartialCOD,
           partialCODAdvance: Number(form.partialCODAdvance) || 0,
           isActive: form.isActive,
+          showSaleBadge: form.showSaleBadge,
           offers: (form.offers || []).filter(o => o.title.trim() && o.description.trim()),
           trackInventory: form.trackInventory,
           lowStockThreshold: Number(form.lowStockThreshold) || 5,
@@ -568,6 +577,31 @@ export function ProductForm({ productId }: { productId?: string }) {
             value={form.salePrice}
             onChange={(e) => set("salePrice", e.target.value)}
           />
+          <div className="col-span-full bg-neutral-50 border border-neutral-200/80 rounded-xl p-3.5 -mt-2">
+            <label className="flex items-start sm:items-center gap-2.5 text-[13px] font-medium text-gray-800 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.showSaleBadge}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setForm((prev) => ({
+                    ...prev,
+                    showSaleBadge: checked,
+                    tags: checked
+                      ? (prev.tags.includes("Sale") ? prev.tags : [...prev.tags, "Sale"])
+                      : prev.tags.filter((t) => t.toLowerCase() !== "sale"),
+                  }));
+                }}
+                className="accent-black w-4 h-4 rounded cursor-pointer mt-0.5 sm:mt-0"
+              />
+              <div>
+                <span className="font-semibold text-neutral-900">Show "SALE" tag on product image</span>
+                <span className="block text-[11px] text-neutral-500 font-normal mt-0.5">
+                  Optional — If enabled, a white "SALE" tag is displayed on the product card. Keep unchecked to hide it even when a discount price is set.
+                </span>
+              </div>
+            </label>
+          </div>
           <AdminInput
             label="HSN code"
             value={form.hsn}

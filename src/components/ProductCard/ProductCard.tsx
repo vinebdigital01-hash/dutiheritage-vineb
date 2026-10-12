@@ -91,17 +91,17 @@ export const ProductCard = ({ product, index = 0, priority = false }: ProductCar
                   Only {totalStock} left
                 </div>
               )}
-              {product.tags && product.tags.map(tag => (
+              {product.tags && product.tags.filter(tag => tag.toLowerCase() !== "sale").map(tag => (
                  <div key={tag} className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
                    {tag}
                  </div>
               ))}
-              {!product.tags && product.badge && (
+              {!product.tags && product.badge && product.badge.toLowerCase() !== "sale" && (
                 <div className="bg-[var(--color-accent)] text-white text-[10px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm">
                   {product.badge}
                 </div>
               )}
-              {hasSale && (
+              {Boolean(product.showSaleBadge ?? product.tags?.some(t => t.toLowerCase() === "sale")) && hasSale && (
                 <div className="bg-[var(--color-bg)] text-[var(--color-text)] text-[11px] font-medium py-1 px-2 tracking-[1px] uppercase self-start shadow-sm border border-gray-100">
                   SALE
                 </div>

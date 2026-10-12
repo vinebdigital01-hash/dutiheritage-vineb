@@ -157,6 +157,7 @@ export async function POST(request: Request) {
       colors: body.colors ?? [],
       tags: body.tags ?? [],
       badge: body.badge,
+      showSaleBadge: Boolean(body.showSaleBadge ?? (Array.isArray(body.tags) && body.tags.includes("Sale"))),
       seoTitle: body.seoTitle,
       seoDescription: body.seoDescription,
       boughtLast7Days: body.boughtLast7Days ?? 0,

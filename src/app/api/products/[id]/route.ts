@@ -84,6 +84,7 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.colors !== undefined) existing.colors = body.colors;
     if (body.tags !== undefined) existing.tags = body.tags;
     if (body.badge !== undefined) existing.badge = body.badge;
+    if (body.showSaleBadge !== undefined) existing.showSaleBadge = Boolean(body.showSaleBadge);
     if (body.seoTitle !== undefined) existing.seoTitle = body.seoTitle;
     if (body.seoDescription !== undefined) {
       existing.seoDescription = body.seoDescription;

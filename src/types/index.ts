@@ -22,6 +22,7 @@ export type Product = {
   seoTitle?: string;
   seoDescription?: string;
   badge?: string; // Legacy
+  showSaleBadge?: boolean; // Control whether "SALE" tag appears on product card
   tags?: string[]; // Multiple tags like "Best Seller", "Sale", etc.
   boughtLast7Days?: number; // e.g., 150, 500
   videoUrls?: string[]; // Array of UGC showcasing video URLs

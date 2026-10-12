@@ -22,6 +22,7 @@ export function toProduct(doc: LeanDoc): Product & { isActive?: boolean } {
     seoTitle: doc.seoTitle as string | undefined,
     seoDescription: doc.seoDescription as string | undefined,
     badge: doc.badge as string | undefined,
+    showSaleBadge: Boolean(doc.showSaleBadge ?? (Array.isArray(doc.tags) && doc.tags.includes("Sale"))),
     tags: (doc.tags as string[] | undefined) ?? [],
     boughtLast7Days: (doc.boughtLast7Days as number | undefined) ?? 0,
     videoUrls: (doc.videoUrls as string[] | undefined) ?? [],

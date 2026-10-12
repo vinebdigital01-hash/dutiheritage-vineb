@@ -23,6 +23,7 @@ const ProductSchema = new Schema(
     colors: { type: [String], default: [] },
     tags: { type: [String], default: [] },
     badge: { type: String },
+    showSaleBadge: { type: Boolean, default: false },
     seoTitle: { type: String },
     seoDescription: { type: String },
     boughtLast7Days: { type: Number, default: 0 },
