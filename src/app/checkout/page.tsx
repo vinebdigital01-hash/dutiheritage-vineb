@@ -1231,59 +1231,35 @@ export default function CheckoutPage() {
 
                 {/* PIN code & Auto-detected State */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="\d{6}"
-                      name="pinCode"
-                      value={formData.pinCode}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setFormData((prev) => ({ ...prev, pinCode: val }));
-                      }}
-                      placeholder="PIN code (6 digits)"
-                      maxLength={6}
-                      className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide"
-                      required
-                    />
-                    {pincodeLoading && (
-                      <span className="absolute right-3 top-3.5 text-xs text-neutral-400 animate-pulse font-normal">
-                        Detecting…
-                      </span>
-                    )}
-                    {formData.pinCode.length === 6 && formData.state && !pincodeLoading && (
-                      <span className="absolute right-3 top-3.5 text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ Verified
-                      </span>
-                    )}
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    name="pinCode"
+                    value={formData.pinCode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                      setFormData((prev) => ({ ...prev, pinCode: val }));
+                    }}
+                    placeholder="PIN code"
+                    maxLength={6}
+                    className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm font-medium tracking-wide"
+                    required
+                  />
 
-                  {/* State is locked on frontend to prevent COD / shipping fraud */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="state"
-                      value={formData.state}
-                      readOnly
-                      placeholder="State (Auto-detected from PIN)"
-                      aria-label="State"
-                      className="w-full border border-gray-200 p-3.5 text-[15px] rounded-lg outline-none bg-neutral-100 text-neutral-800 cursor-not-allowed shadow-sm font-medium"
-                      required
-                    />
-                    <div className="absolute right-3 top-3.5 flex items-center gap-1 text-[11px] text-neutral-500 uppercase tracking-wider font-semibold pointer-events-none">
-                      🔒 Auto-Locked
-                    </div>
-                  </div>
+                  <input
+                    type="text"
+                    name="state"
+                    value={formData.state}
+                    readOnly
+                    placeholder="State"
+                    aria-label="State"
+                    className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg outline-none bg-gray-50 text-gray-800 cursor-default shadow-sm font-medium"
+                    required
+                  />
                 </div>
 
-                {pincodeError && (
-                  <p className="text-xs text-red-500 -mt-1 pl-1">
-                    {pincodeError}
-                  </p>
-                )}
-
-                {/* City (Editable by user) */}
+                {/* City */}
                 <div>
                   <input
                     type="text"
@@ -1291,7 +1267,7 @@ export default function CheckoutPage() {
                     list="cityList"
                     value={formData.city}
                     onChange={handleInputChange}
-                    placeholder="City / District (Editable)"
+                    placeholder="City"
                     aria-label="City"
                     className="w-full border border-gray-300 p-3.5 text-[15px] rounded-lg focus:border-black focus:ring-1 focus:ring-black outline-none transition-all bg-white shadow-sm"
                     required
@@ -1301,9 +1277,6 @@ export default function CheckoutPage() {
                       <option key={c.name} value={c.name} />
                     ))}
                   </datalist>
-                  <p className="text-[11px] text-neutral-500 mt-1 pl-1">
-                    State is locked to verified PIN code for accurate delivery &amp; regional shipping rates.
-                  </p>
                 </div>
               {/* OTP Verification for COD */}
               <div id="recaptcha-container"></div>

@@ -177,72 +177,48 @@ export default function MyAddressesPage() {
                 className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
               />
             </div>
-            {/* PIN Code & Auto-detected State */}
+            {/* PIN Code & State */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[12px] font-medium text-gray-700 mb-1">
-                  PIN Code (6 digits)
+                  PIN Code
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={formData.pinCode || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        pinCode: e.target.value.replace(/\D/g, "").slice(0, 6),
-                      })
-                    }
-                    className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
-                    placeholder="e.g. 110001"
-                    maxLength={6}
-                    pattern="[0-9]{6}"
-                  />
-                  {pincodeLoading && (
-                    <span className="absolute right-3 top-3.5 text-xs text-neutral-400 animate-pulse">
-                      Detecting…
-                    </span>
-                  )}
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={formData.pinCode || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      pinCode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
+                  placeholder="6-digit PIN"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                />
               </div>
 
               <div>
                 <label className="block text-[12px] font-medium text-gray-700 mb-1">
-                  State (Auto-detected)
+                  State
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    readOnly
-                    value={formData.state || ""}
-                    className="w-full border border-gray-200 rounded px-4 py-3 text-[14px] outline-none bg-neutral-100 text-neutral-700 cursor-not-allowed font-medium"
-                    placeholder="Auto-detected from PIN"
-                  />
-                  <span className="absolute right-3 top-3.5 text-[11px] text-neutral-400 font-medium">
-                    🔒 Locked
-                  </span>
-                </div>
+                <input
+                  type="text"
+                  required
+                  readOnly
+                  value={formData.state || ""}
+                  className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none bg-gray-50 text-gray-800 cursor-default"
+                  placeholder="State"
+                />
               </div>
             </div>
 
-            {pincodeMsg && (
-              <p
-                className={`text-xs -mt-2 ${
-                  pincodeMsg.startsWith("Auto-detected")
-                    ? "text-emerald-600"
-                    : "text-red-500"
-                }`}
-              >
-                {pincodeMsg}
-              </p>
-            )}
-
-            {/* City (Editable by user) */}
+            {/* City */}
             <div>
               <label className="block text-[12px] font-medium text-gray-700 mb-1">
-                City / District (Editable)
+                City
               </label>
               <input
                 type="text"
@@ -250,11 +226,8 @@ export default function MyAddressesPage() {
                 value={formData.city || ""}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 className="w-full border border-gray-300 rounded px-4 py-3 text-[14px] outline-none focus:border-black bg-white"
-                placeholder="City or District"
+                placeholder="City"
               />
-              <p className="text-[11px] text-neutral-500 mt-1">
-                State is verified from PIN code. City can be modified if needed.
-              </p>
             </div>
             <div>
               <label className="block text-[12px] font-medium text-gray-700 mb-1">
