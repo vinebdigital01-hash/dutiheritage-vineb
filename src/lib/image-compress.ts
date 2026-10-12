@@ -77,16 +77,21 @@ function supportsWebP(): boolean {
  */
 export async function compressImageForUpload(
   file: File,
-  onProgress?: (pct: number) => void
+  onProgressOrOptions?: ((pct: number) => void) | { onProgress?: (pct: number) => void; forceJpeg?: boolean },
+  maybeForceJpeg?: boolean
 ): Promise<CompressResult> {
   if (!file.type.startsWith("image/")) {
     throw new Error("Only image files are allowed");
   }
 
+  const onProgress = typeof onProgressOrOptions === "function" ? onProgressOrOptions : onProgressOrOptions?.onProgress;
+  const forceJpeg = Boolean(typeof onProgressOrOptions === "object" ? onProgressOrOptions?.forceJpeg : maybeForceJpeg);
+
   const originalBytes = file.size;
   onProgress?.(10);
 
-  if (originalBytes <= IMAGE_COMPRESS.skipBelowBytes) {
+  // If already under size AND not forced to re-encode to JPEG
+  if (originalBytes <= IMAGE_COMPRESS.skipBelowBytes && (!forceJpeg || file.type === "image/jpeg")) {
     onProgress?.(100);
     return {
       file,
@@ -120,7 +125,7 @@ export async function compressImageForUpload(
   ctx.drawImage(img, 0, 0, width, height);
   onProgress?.(70);
 
-  const useWebP = supportsWebP();
+  const useWebP = !forceJpeg && supportsWebP();
   const mime = useWebP ? "image/webp" : "image/jpeg";
   const blob = await canvasToBlob(canvas, mime, quality);
   onProgress?.(90);

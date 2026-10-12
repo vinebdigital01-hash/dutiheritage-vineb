@@ -425,6 +425,7 @@ export default function BroadcastPage() {
                     value={imageUrl}
                     onChange={(url) => setImageUrl(url)}
                     folder="dutiheritage/whatsapp"
+                    forceJpeg={true}
                   />
 
                   <div className="flex items-center gap-2 pt-1">
@@ -754,11 +755,23 @@ export default function BroadcastPage() {
               Before sending this campaign to your customers, test it on your own WhatsApp number to verify photos, formatting, and buttons!
             </p>
 
+            <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-[11px] text-amber-900 leading-relaxed space-y-1">
+              <div className="font-semibold flex items-center gap-1.5 text-amber-950">
+                <span>⚠️ WhatsApp 24-Hour Policy Requirement</span>
+              </div>
+              <p>
+                Meta WhatsApp Cloud API will <strong>only deliver</strong> custom interactive buttons and photos if this number has sent at least one message (like <strong>&quot;Hi&quot;</strong>) to your business bot in the last 24 hours.
+              </p>
+              <p className="text-amber-800 font-medium">
+                👉 If you haven&apos;t messaged the bot today, send &quot;Hi&quot; from your phone to your store&apos;s WhatsApp first!
+              </p>
+            </div>
+
             <AdminInput
               label="Your Personal WhatsApp Number"
               value={testNumber}
               onChange={(e) => setTestNumber(e.target.value)}
-              placeholder="e.g. 9876543210 or 919876543210"
+              placeholder="e.g. 9870487659"
               autoFocus
             />
 

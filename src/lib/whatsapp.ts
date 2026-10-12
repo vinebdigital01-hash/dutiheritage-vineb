@@ -43,6 +43,21 @@ export type SendWhatsAppInput = {
   footer?: string;
 };
 
+export function sanitizeWhatsAppImageUrl(url?: string): string | undefined {
+  if (!url || typeof url !== "string") return undefined;
+  let clean = url.trim();
+  if (!clean) return undefined;
+
+  // Cloudinary: WhatsApp rejects image/webp; force JPEG transformation
+  if (clean.includes("cloudinary.com")) {
+    clean = clean.replace(/\.webp($|\?)/i, ".jpg$1");
+    if (clean.includes("/image/upload/") && !clean.includes("/f_jpg")) {
+      clean = clean.replace("/image/upload/", "/image/upload/f_jpg/");
+    }
+  }
+  return clean;
+}
+
 function digitsOnly(phone: string): string {
   return phone.replace(/\D/g, "");
 }
@@ -64,6 +79,8 @@ async function sendBotMessage(phone: string, input: SendWhatsAppInput): Promise<
   let cleanPhone = digitsOnly(phone);
   if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
 
+  const cleanImageUrl = sanitizeWhatsAppImageUrl(input.imageUrl);
+
   try {
     const res = await fetch(botUrl, {
       method: "POST",
@@ -74,7 +91,7 @@ async function sendBotMessage(phone: string, input: SendWhatsAppInput): Promise<
       body: JSON.stringify({
         phone: cleanPhone,
         message: input.message || "",
-        imageUrl: input.imageUrl,
+        imageUrl: cleanImageUrl,
         buttonType: input.buttonType,
         ctaText: input.ctaText,
         ctaUrl: input.ctaUrl,

@@ -2,7 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { Customer } from "@/models";
 import { ChatSession } from "@/models/ChatSession";
 import { ChatMessage } from "@/models/ChatMessage";
-import { isWhatsAppConfigured, sendWhatsApp } from "@/lib/whatsapp";
+import { isWhatsAppConfigured, sendWhatsApp, sanitizeWhatsAppImageUrl } from "@/lib/whatsapp";
 import { applyRateLimit } from "@/lib/rate-limit";
 import {
   handleApiError,
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const message = String(body.message || "").trim();
     const type = String(body.type || "text");
-    const imageUrl = body.imageUrl ? String(body.imageUrl).trim() : "";
+    const imageUrl = sanitizeWhatsAppImageUrl(body.imageUrl) || "";
     const buttonType = String(body.buttonType || "none");
     const ctaText = body.ctaText ? String(body.ctaText).trim().slice(0, 20) : "Shop Now";
     const ctaUrl = body.ctaUrl ? String(body.ctaUrl).trim() : "";

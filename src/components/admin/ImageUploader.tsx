@@ -17,6 +17,7 @@ type Props = {
   multiple?: boolean;
   onAdd?: (url: string) => void;
   folder?: string;
+  forceJpeg?: boolean;
 };
 
 export function ImageUploader({
@@ -26,6 +27,7 @@ export function ImageUploader({
   multiple,
   onAdd,
   folder = "dutiheritage/products",
+  forceJpeg,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -40,17 +42,22 @@ export function ImageUploader({
 
     try {
       const list = Array.from(files);
+      const isForcedJpeg = forceJpeg || folder.includes("whatsapp");
       for (let i = 0; i < list.length; i++) {
         const raw = list[i]!;
         setProgress(
           `Compressing ${i + 1}/${list.length} (high quality)…`
         );
 
-        const compressed = await compressImageForUpload(raw, (pct) => {
-          setProgress(
-            `Compressing ${i + 1}/${list.length}… ${pct}%`
-          );
-        });
+        const compressed = await compressImageForUpload(
+          raw,
+          (pct) => {
+            setProgress(
+              `Compressing ${i + 1}/${list.length}… ${pct}%`
+            );
+          },
+          isForcedJpeg
+        );
 
         setLastSaved(
           compressed.savedPercent > 0
@@ -83,10 +90,15 @@ export function ImageUploader({
           throw new Error(data.error || "Upload failed");
         }
 
+        let finalUrl = String(data.url || "");
+        if (isForcedJpeg && finalUrl.includes("cloudinary.com")) {
+          finalUrl = finalUrl.replace(/\.webp($|\?)/i, ".jpg$1");
+        }
+
         if (multiple && onAdd) {
-          onAdd(data.url);
+          onAdd(finalUrl);
         } else {
-          onChange(data.url);
+          onChange(finalUrl);
         }
       }
     } catch (e) {
