@@ -316,7 +316,6 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
         >
           <option value="ALL_INDIA">All India</option>
           <option value="PINCODE_LIST">Pincode / prefix list</option>
-          <option value="CITY_LIST">City list</option>
         </AdminSelect>
 
         <div className="grid md:grid-cols-2 gap-5">
@@ -610,11 +609,6 @@ export function CodSettingsForm({ embedded = false }: { embedded?: boolean }) {
             label="Exact COD pincodes (optional)"
             value={form.codPincodes}
             onChange={(e) => setForm((f) => ({ ...f, codPincodes: e.target.value }))}
-          />
-          <AdminTextarea
-            label="COD cities (for CITY_LIST mode)"
-            value={form.codCities}
-            onChange={(e) => setForm((f) => ({ ...f, codCities: e.target.value }))}
           />
         </div>
 
