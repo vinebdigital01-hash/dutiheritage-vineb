@@ -89,14 +89,14 @@ export const Header = () => {
           <div className="flex-1 flex justify-center items-center text-center min-w-0 px-1 sm:px-2">
             <Link
               href="/"
-              className="inline-flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 text-[18px] sm:text-xl md:text-2xl lg:text-3xl font-normal tracking-[2px] lg:tracking-[3px] uppercase font-serif whitespace-nowrap leading-none mt-0.5 md:mt-0 group min-w-0"
+              className="inline-flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 text-[18px] sm:text-xl md:text-2xl lg:text-3xl font-normal tracking-[2px] lg:tracking-[3px] uppercase font-serif whitespace-nowrap leading-none mt-0.5 md:mt-0 min-w-0"
             >
               <Image
                 src={siteContent?.storeLogo || "/logo-icon.png"}
                 alt="Duti Heritage"
                 width={36}
                 height={36}
-                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 object-contain transition-transform duration-200 group-hover:scale-105 flex-shrink-0"
+                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 object-contain flex-shrink-0"
                 priority
                 unoptimized
               />
