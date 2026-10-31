@@ -29,6 +29,9 @@ export function toProduct(doc: LeanDoc): Product & { isActive?: boolean } {
     offers: (doc.offers as Product["offers"]) ?? [],
     codAvailable: (doc.codAvailable as boolean | undefined) ?? true,
     isPartialCOD: (doc.isPartialCOD as boolean | undefined) ?? false,
+    partialCODAdvance: Number((doc as any).partialCODAdvance ?? 0),
+    isActive: doc.isActive !== false,
+    costPrice: (doc.costPrice as number | undefined) ?? 0,
     trackInventory: doc.trackInventory !== undefined 
       ? Boolean(doc.trackInventory) 
       : Boolean(Array.isArray(doc.inventory) && (doc.inventory as any[]).length > 0),

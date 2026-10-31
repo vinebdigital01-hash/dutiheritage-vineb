@@ -940,50 +940,100 @@ export function ProductForm({ productId }: { productId?: string }) {
           />
         </section>
 
-        <div className="flex flex-wrap gap-6">
-          <label className="flex items-center gap-2 text-[14px] cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.codAvailable}
-              onChange={(e) => set("codAvailable", e.target.checked)}
-              className="accent-black w-4 h-4"
-            />
-            COD available for this product
-          </label>
+        <div className="border border-[var(--color-border)] rounded-xl p-5 bg-neutral-50/50 space-y-5">
+          <div>
+            <h3 className="text-[13px] font-bold tracking-[1px] uppercase text-neutral-800">Payment & COD Settings</h3>
+            <p className="text-[12px] text-neutral-500 mt-0.5">Manage Full Cash on Delivery and Partial COD independently for this product.</p>
+          </div>
 
-          <label className="flex items-center gap-2 text-[14px] cursor-pointer mt-2">
-            <input
-              type="checkbox"
-              checked={form.isPartialCOD}
-              onChange={(e) => set("isPartialCOD", e.target.checked)}
-              disabled={!form.codAvailable}
-              className="accent-black w-4 h-4"
-            />
-            Partial COD (Require advance payment)
-          </label>
-          
+          <div className="grid sm:grid-cols-2 gap-4">
+            {/* Full COD Checkbox Card */}
+            <div className={`p-4 rounded-xl border transition-all ${form.codAvailable ? "bg-white border-neutral-300 shadow-sm" : "bg-neutral-50 border-neutral-200 opacity-80"}`}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.codAvailable}
+                  onChange={(e) => set("codAvailable", e.target.checked)}
+                  className="accent-black w-4 h-4 mt-0.5"
+                />
+                <div>
+                  <span className="text-[14px] font-bold text-neutral-900 block">Full COD (Zero Advance)</span>
+                  <span className="text-[12px] text-neutral-500 leading-snug block mt-0.5">
+                    Allow customers to place regular Cash on Delivery orders without paying an advance.
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Partial COD Checkbox Card */}
+            <div className={`p-4 rounded-xl border transition-all ${form.isPartialCOD ? "bg-white border-blue-300 shadow-sm ring-1 ring-blue-200" : "bg-neutral-50 border-neutral-200 opacity-80"}`}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isPartialCOD}
+                  onChange={(e) => set("isPartialCOD", e.target.checked)}
+                  className="accent-black w-4 h-4 mt-0.5"
+                />
+                <div>
+                  <span className="text-[14px] font-bold text-neutral-900 block">Partial COD (Advance Required)</span>
+                  <span className="text-[12px] text-neutral-500 leading-snug block mt-0.5">
+                    Require customers to pay a fixed advance online and the remainder on delivery.
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Advance Amount field if Partial COD is enabled */}
           {form.isPartialCOD && (
-            <div className="mt-4 p-4 border border-blue-100 bg-blue-50/50 rounded-lg">
-              <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-2">Advance Payment Amount (₹)</label>
-              <input
-                type="number"
-                value={form.partialCODAdvance}
-                onChange={(e) => set("partialCODAdvance", e.target.value)}
-                placeholder="e.g. 500"
-                className="w-full border border-gray-300 p-2 text-[14px] rounded-lg focus:border-black outline-none bg-white"
-              />
-              <p className="text-[12px] text-gray-500 mt-2">Customer will pay this amount online to confirm the COD order.</p>
+            <div className="p-4 border border-blue-200 bg-blue-50/60 rounded-xl space-y-2">
+              <label className="block text-[12px] font-bold text-blue-950 uppercase tracking-wider">
+                Advance Payment Amount (₹) *
+              </label>
+              <div className="relative max-w-xs">
+                <span className="absolute left-3 top-2.5 text-neutral-500 text-[14px] font-medium">₹</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.partialCODAdvance}
+                  onChange={(e) => set("partialCODAdvance", e.target.value)}
+                  placeholder="e.g. 500"
+                  className="w-full pl-8 pr-3 py-2 text-[14px] font-semibold border border-blue-300 rounded-lg focus:border-black outline-none bg-white"
+                />
+              </div>
+              <p className="text-[11px] text-blue-800">
+                Customer will pay this advance online at checkout to confirm their COD order.
+              </p>
             </div>
           )}
-          <label className="flex items-center gap-2 text-[14px] cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.isActive}
-              onChange={(e) => set("isActive", e.target.checked)}
-              className="accent-black w-4 h-4"
-            />
-            Active on storefront
-          </label>
+
+          {/* Status summary banner */}
+          <div className="text-[12px] px-3.5 py-2.5 rounded-lg border flex items-center gap-2 bg-white">
+            <span className="font-semibold text-neutral-700">Checkout Behavior:</span>
+            {form.codAvailable && form.isPartialCOD ? (
+              <span className="text-blue-700 font-medium">Both Full COD and Partial COD (₹{form.partialCODAdvance || 0} advance) will be available at checkout.</span>
+            ) : form.isPartialCOD && !form.codAvailable ? (
+              <span className="text-amber-800 font-medium">Full COD is disabled. Customers must pay ₹{form.partialCODAdvance || 0} advance to order with COD (or pay full online).</span>
+            ) : form.codAvailable && !form.isPartialCOD ? (
+              <span className="text-emerald-700 font-medium">Full Cash on Delivery is allowed without any advance payment.</span>
+            ) : (
+              <span className="text-red-700 font-medium">All COD is disabled. Only Prepaid online payment is accepted.</span>
+            )}
+          </div>
+
+          {/* Active on storefront */}
+          <div className="pt-2 border-t border-neutral-200">
+            <label className="flex items-center gap-2.5 text-[14px] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => set("isActive", e.target.checked)}
+                className="accent-black w-4 h-4"
+              />
+              <span className="font-medium text-neutral-900">Active on storefront</span>
+              <span className="text-[12px] text-neutral-500">(uncheck to hide this product from customers)</span>
+            </label>
+          </div>
         </div>
 
         <div className="flex gap-3 pt-2 border-t border-[var(--color-border)]">

@@ -171,6 +171,9 @@ export type PricedLine = {
   salePrice?: number | null;
   hsn?: string;
   gstRate?: number;
+  codAvailable?: boolean;
+  isPartialCOD?: boolean;
+  partialCODAdvance?: number;
 };
 
 export async function priceCartLines(
@@ -219,6 +222,9 @@ export async function priceCartLines(
       salePrice: product.salePrice ?? null,
       hsn: (product as { hsn?: string }).hsn || "6104",
       gstRate: Number((product as { gstRate?: number }).gstRate ?? 5),
+      codAvailable: product.codAvailable !== false,
+      isPartialCOD: Boolean(product.isPartialCOD),
+      partialCODAdvance: Number(product.partialCODAdvance || 0),
     };
   });
 }
@@ -382,6 +388,28 @@ export function computeCheckoutTotals(input: {
     }
   }
 
+  if (paymentMethod === "cod") {
+    const allowFullCod = lines.every((l) => l.codAvailable !== false);
+    if (!allowFullCod) {
+      throw new ApiError(
+        "Full Cash on Delivery is not available for one or more items in your cart. Please select Partial COD or pay online.",
+        400
+      );
+    }
+  }
+
+  if (paymentMethod === "partial") {
+    const allowPartial = lines.every(
+      (l) => l.codAvailable !== false || l.isPartialCOD === true
+    );
+    if (!allowPartial) {
+      throw new ApiError(
+        "Cash on Delivery is not available for one or more items in your cart. Please pay online.",
+        400
+      );
+    }
+  }
+
   const codCharge = paymentMethod === "cod" ? settings.codExtraCharge : 0;
 
   let prepaidDiscount = 0;
@@ -397,9 +425,15 @@ export function computeCheckoutTotals(input: {
     subtotal + shipping - discountAmount + codCharge - prepaidDiscount
   );
 
+  const productAdvanceTotal = lines.reduce(
+    (sum, l) => sum + (l.isPartialCOD ? (l.partialCODAdvance || 0) * l.quantity : 0),
+    0
+  );
+  const targetAdvance = productAdvanceTotal > 0 ? productAdvanceTotal : settings.partialCodAdvance;
+
   const advanceAmount =
     paymentMethod === "partial"
-      ? Math.min(settings.partialCodAdvance, total)
+      ? Math.min(targetAdvance, total)
       : 0;
 
   const amountToPayNow =

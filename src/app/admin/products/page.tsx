@@ -78,7 +78,6 @@ export default function AdminProductsPage() {
       updates = {
         isPartialCOD: true,
         partialCODAdvance: Number(amt) || 0,
-        codAvailable: true,
       };
     } else if (actionType === "disable_partial_cod") {
       updates = { isPartialCOD: false, partialCODAdvance: 0 };
