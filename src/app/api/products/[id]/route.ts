@@ -220,7 +220,8 @@ export async function DELETE(request: Request, { params }: Params) {
     }
 
     await refreshCollectionProductCount(collectionId);
-    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/collections/all");
     await logAdminAction({
       request,
       actor: authUser,

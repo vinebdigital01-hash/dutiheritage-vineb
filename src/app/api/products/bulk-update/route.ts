@@ -34,7 +34,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    revalidatePath('/', 'layout');
+    revalidatePath("/");
+    revalidatePath("/collections/all");
 
     return jsonOk({ success: true, modifiedCount });
   } catch (error) {

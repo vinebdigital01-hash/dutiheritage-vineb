@@ -145,7 +145,7 @@ export async function PUT(request: Request) {
       { upsert: true, new: true }
     );
     revalidatePath("/");
-    revalidatePath("/", "layout");
+    
     await logAdminAction({
       request,
       actor: authUser,

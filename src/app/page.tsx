@@ -8,7 +8,7 @@ import {
 } from "@/lib/site-content-server";
 import { resolveCollectionBrowse } from "@/lib/smart-collections";
 
-export const revalidate = 60;
+export const revalidate = 86400; // 24 hours (updates on-demand when edited)
 
 export default async function Home() {
   const siteContent = await getSiteContent();

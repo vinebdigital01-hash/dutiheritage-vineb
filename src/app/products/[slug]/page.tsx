@@ -7,7 +7,7 @@ import { ProductClient } from "./ProductClient";
 import { getBaseUrl } from "@/lib/utils";
 import { schemaAvailability } from "@/lib/cart-stock";
 
-export const revalidate = 60;
+export const revalidate = 86400; // 24 hours
 
 export async function generateStaticParams() {
   const products = await db.getAllProducts();
