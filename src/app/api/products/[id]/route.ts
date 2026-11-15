@@ -178,6 +178,8 @@ export async function PUT(request: Request, { params }: Params) {
     }
     revalidatePath(`/products/${existing.slug}`);
     revalidatePath(`/`);
+    revalidatePath("/collections/[slug]", "page");
+    revalidatePath("/collections/all");
 
     await refreshCollectionProductCount(String(existing.collectionId));
     if (prevCollectionId !== existing.collectionId) {

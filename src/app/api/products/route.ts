@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { db } from "@/services/db";
 import { Coupon } from "@/models/Coupon";
 import { connectDB } from "@/lib/mongodb";
@@ -175,6 +176,10 @@ export async function POST(request: Request) {
     });
 
     await refreshCollectionProductCount(collectionId);
+    revalidatePath("/");
+    revalidatePath(`/products/${doc.slug}`);
+    revalidatePath("/collections/[slug]", "page");
+    revalidatePath("/collections/all");
     await logAdminAction({
       request,
       actor: authUser,
